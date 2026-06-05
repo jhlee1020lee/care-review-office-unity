@@ -1,0 +1,40 @@
+# Unity generated folders
+/Library/
+/Temp/
+/Obj/
+/Build/
+/Builds/
+/CareReviewOffice_Final_Submission/
+/Logs/
+/UserSettings/
+/MemoryCaptures/
+/Recordings/
+
+# Local backup archives
+/Backups/
+
+# IDE and OS files
+/.vs/
+/.vscode/
+/.idea/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Unity crash and profiler output
+sysinfo.txt
+*.stackdump
+
+# Addressables/build cache style output if added later
+/Assets/StreamingAssets/aa.meta
+/Assets/StreamingAssets/aa/

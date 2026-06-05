@@ -1,0 +1,114 @@
+{
+  "personas": [
+    {
+      "id": "budget_guard",
+      "name": "예산 방어형",
+      "urgencyWeight": 0.60,
+      "equityWeight": 0.40,
+      "documentWeight": 0.70,
+      "budgetWeight": 1.40,
+      "documentDoubtWeight": 0.70,
+      "investigationBias": 8.0,
+      "approvalBias": -15.0
+    },
+    {
+      "id": "risk_first",
+      "name": "위험 신호 우선형",
+      "urgencyWeight": 1.25,
+      "equityWeight": 0.70,
+      "documentWeight": 0.30,
+      "budgetWeight": 0.40,
+      "documentDoubtWeight": 0.40,
+      "investigationBias": 4.0,
+      "approvalBias": 10.0
+    },
+    {
+      "id": "document_strict",
+      "name": "서류 엄격형",
+      "urgencyWeight": 0.65,
+      "equityWeight": 0.45,
+      "documentWeight": 1.10,
+      "budgetWeight": 0.75,
+      "documentDoubtWeight": 1.25,
+      "investigationBias": 18.0,
+      "approvalBias": -5.0
+    },
+    {
+      "id": "equity_adjuster",
+      "name": "형평성 보정형",
+      "urgencyWeight": 0.80,
+      "equityWeight": 1.20,
+      "documentWeight": 0.40,
+      "budgetWeight": 0.55,
+      "documentDoubtWeight": 0.55,
+      "investigationBias": 10.0,
+      "approvalBias": 5.0
+    },
+    {
+      "id": "investigation_first",
+      "name": "추가조사 선호형",
+      "urgencyWeight": 0.70,
+      "equityWeight": 0.70,
+      "documentWeight": 0.55,
+      "budgetWeight": 0.60,
+      "documentDoubtWeight": 1.00,
+      "investigationBias": 25.0,
+      "approvalBias": -10.0
+    },
+    {
+      "id": "complaint_avoidant",
+      "name": "민원 회피형",
+      "urgencyWeight": 0.95,
+      "equityWeight": 0.85,
+      "documentWeight": 0.45,
+      "budgetWeight": 0.65,
+      "documentDoubtWeight": 0.55,
+      "investigationBias": 6.0,
+      "approvalBias": 14.0
+    },
+    {
+      "id": "child_safety_first",
+      "name": "아동 안전형",
+      "urgencyWeight": 1.45,
+      "equityWeight": 0.75,
+      "documentWeight": 0.35,
+      "budgetWeight": 0.35,
+      "documentDoubtWeight": 0.45,
+      "investigationBias": 2.0,
+      "approvalBias": 16.0
+    },
+    {
+      "id": "procedure_first",
+      "name": "절차 우선형",
+      "urgencyWeight": 0.70,
+      "equityWeight": 0.55,
+      "documentWeight": 1.35,
+      "budgetWeight": 0.85,
+      "documentDoubtWeight": 1.45,
+      "investigationBias": 22.0,
+      "approvalBias": -8.0
+    },
+    {
+      "id": "recovery_focused",
+      "name": "회복 가능성형",
+      "urgencyWeight": 1.05,
+      "equityWeight": 1.05,
+      "documentWeight": 0.50,
+      "budgetWeight": 0.50,
+      "documentDoubtWeight": 0.50,
+      "investigationBias": 8.0,
+      "approvalBias": 12.0
+    },
+    {
+      "id": "data_recommender",
+      "name": "권고 추종형",
+      "urgencyWeight": 1.00,
+      "equityWeight": 0.95,
+      "documentWeight": 0.85,
+      "budgetWeight": 0.70,
+      "documentDoubtWeight": 0.65,
+      "investigationBias": 12.0,
+      "approvalBias": 2.0
+    }
+  ]
+}
