@@ -1775,7 +1775,7 @@ public sealed class CareReviewGame : MonoBehaviour
         CreateTextButton(settingsRoot, "음량 +", new Vector2(-90, -112), new Vector2(170, 54), new Color32(65, 82, 104, 238), IncreaseVolume);
         CreateTextButton(settingsRoot, "해상도", new Vector2(120, -112), new Vector2(190, 54), new Color32(47, 73, 74, 238), CycleResolution);
         CreateTextButton(settingsRoot, "창 모드", new Vector2(330, -112), new Vector2(190, 54), new Color32(47, 73, 74, 238), ToggleFullscreen);
-        CreateTextButton(settingsRoot, "심사 모드", new Vector2(-300, -198), new Vector2(190, 58), new Color32(92, 76, 112, 238), CycleCampaignMandate);
+        CreateTextButton(settingsRoot, "운영 기준", new Vector2(-300, -198), new Vector2(190, 58), new Color32(92, 76, 112, 238), CycleCampaignMandate);
         CreateTextButton(settingsRoot, "로그 폴더", new Vector2(0, -198), new Vector2(190, 58), new Color32(65, 82, 104, 238), OpenLogFolder);
         CreateTextButton(settingsRoot, "크레딧/고지", new Vector2(300, -198), new Vector2(190, 58), new Color32(84, 72, 56, 238), ShowCreditsNotice);
         CreateTextButton(settingsRoot, "저사양", new Vector2(-390, -282), new Vector2(124, 58), new Color32(65, 82, 104, 238), ToggleLowSpecMode);
@@ -2318,7 +2318,7 @@ public sealed class CareReviewGame : MonoBehaviour
         Text hint = CreateText(
             caseArchiveRoot,
             "Case Archive Hint",
-            "V: 사례 자료 · F: 필터 전환 · ←/→: 쪽 이동 · R: 목표 심사 · B: 비교 연습 · 코칭/후보/기록 버튼: 보정 triage 이동",
+            "V: 사례 자료 · F: 필터 전환 · ←/→: 쪽 이동 · R: 목표 심사 · B: 비교 연습 · 코칭/후보/기록 버튼: 보정 분류 이동",
             16,
             TextAnchor.MiddleCenter,
             new Color32(73, 58, 44, 255),
@@ -3741,10 +3741,10 @@ public sealed class CareReviewGame : MonoBehaviour
             string.Equals(caseArchiveFocusedCaseId, careCase.id, StringComparison.OrdinalIgnoreCase) &&
             caseArchiveFilterIndex == filterIndex;
         string action = focused
-            ? "R 목표 심사로 보정 triage 재심사 시작"
+            ? "R 목표 심사로 보정 분류 재심사 시작"
             : $"F로 {filterLabel} 필터 이동 시 {careCase.id} 자동 포커스";
         return
-            "\n보정 그래프 triage 추천: " +
+            "\n보정 그래프 분류 추천: " +
             BuildAppealRemedyGraphTriageRecommendationSummary(item, careCase, true) +
             " · " + action;
     }
@@ -3753,13 +3753,13 @@ public sealed class CareReviewGame : MonoBehaviour
     {
         if (item == null || careCase == null)
         {
-            return "보정 triage: 추천 대기";
+            return "보정 분류: 추천 대기";
         }
 
         string graph = includeGraph && !string.IsNullOrWhiteSpace(item.topBeforeAfterGraph)
             ? " · " + Shorten(item.topBeforeAfterGraph, 44)
             : "";
-        return $"보정 triage: {item.label} · {careCase.id} · {item.caseCount}건/{item.sessionCount}세션{graph}{BuildAppealRemedyGraphTriageCandidateListSummary()}";
+        return $"보정 분류: {item.label} · {careCase.id} · {item.caseCount}건/{item.sessionCount}세션{graph}{BuildAppealRemedyGraphTriageCandidateListSummary()}";
     }
 
     private string BuildAppealRemedyGraphTriageCandidateListSummary()
@@ -3815,7 +3815,7 @@ public sealed class CareReviewGame : MonoBehaviour
         {
             if (caseArchiveStatusText != null)
             {
-                caseArchiveStatusText.text = "보정 triage 후보가 아직 없습니다.";
+                caseArchiveStatusText.text = "보정 분류 후보가 아직 없습니다.";
             }
             return;
         }
@@ -3991,13 +3991,13 @@ public sealed class CareReviewGame : MonoBehaviour
     {
         if (!CycleAppealRemedyGraphTriageCandidate(out PlaytestAggregateAppealRemedyTriageItem item, out CareCase careCase))
         {
-            UpdateMenuStatus("보정 triage 후보가 2개 이상일 때 후보 전환을 사용할 수 있습니다.");
+            UpdateMenuStatus("보정 분류 후보가 2개 이상일 때 후보 전환을 사용할 수 있습니다.");
             UpdateMenuAppealRemedyTriageCandidateButton(false);
             return;
         }
 
         ShowMainMenu();
-        UpdateMenuStatus("보정 triage 후보 전환: " + BuildAppealRemedyGraphTriageRecommendationSummary(item, careCase, false));
+        UpdateMenuStatus("보정 분류 후보 전환: " + BuildAppealRemedyGraphTriageRecommendationSummary(item, careCase, false));
     }
 
     private void CycleAppealRemedyGraphTriageCandidateFromAchievement()
@@ -4006,7 +4006,7 @@ public sealed class CareReviewGame : MonoBehaviour
         {
             if (achievementStatusText != null)
             {
-                achievementStatusText.text = "보정 triage 후보가 2개 이상일 때 후보 전환을 사용할 수 있습니다.\n" + achievementStatusText.text;
+                achievementStatusText.text = "보정 분류 후보가 2개 이상일 때 후보 전환을 사용할 수 있습니다.\n" + achievementStatusText.text;
             }
             UpdateAchievementAppealRemedyTriageCandidateButton(false);
             return;
@@ -4016,7 +4016,7 @@ public sealed class CareReviewGame : MonoBehaviour
         if (achievementStatusText != null)
         {
             achievementStatusText.text =
-                "보정 triage 후보 전환: " + BuildAppealRemedyGraphTriageRecommendationSummary(item, careCase, false) + "\n" +
+                "보정 분류 후보 전환: " + BuildAppealRemedyGraphTriageRecommendationSummary(item, careCase, false) + "\n" +
                 achievementStatusText.text;
         }
     }
@@ -4410,8 +4410,8 @@ public sealed class CareReviewGame : MonoBehaviour
                 : CampaignMandate.SupportExpanded;
             return new NextCampaignObjective(
                 mandate,
-                $"D{careCase.day} {careCase.id}형 이의제기 보정 triage 재심사",
-                $"플레이테스트 보정 triage: {triageItem.label} {triageItem.caseCount}건/{triageItem.sessionCount}세션 · {Shorten(triageItem.topBeforeAfterGraph, 54)}");
+                $"D{careCase.day} {careCase.id}형 이의제기 보정 분류 재심사",
+                $"플레이테스트 보정 분류: {triageItem.label} {triageItem.caseCount}건/{triageItem.sessionCount}세션 · {Shorten(triageItem.topBeforeAfterGraph, 54)}");
         }
 
         if (appealLog != null && appealScore >= 35)
@@ -4744,7 +4744,7 @@ public sealed class CareReviewGame : MonoBehaviour
         int approveCost = GetDecisionCost(DecisionKind.Approve, careCase);
         return
             $"운영 기준: {CampaignMandateLabel(campaignMandate)} · {CampaignMandateBrief(campaignMandate)} · 남은 예산 {budget}만원\n" +
-            $"현재 사례: {careCase.id} {careCase.name} · 요청비용 {approveCost}만원 · 압박도 {pressure}/100({pressureLabel}) · 권장 판단 {careCase.recommendedDecision}";
+            $"현재 사례: {careCase.id} {careCase.name} · 요청비용 {approveCost}만원 · 압박 {pressure}/100({pressureLabel}) · 권장 판단 {careCase.recommendedDecision}";
     }
 
     private static string BuildPolicyHandbookCaseText(CareCase careCase)
@@ -6705,10 +6705,10 @@ public sealed class CareReviewGame : MonoBehaviour
         builder.AppendLine($"- 환경 진단 포함: {BoolLabel(bundle.hasDiagnostic)}");
         builder.AppendLine($"- 설문 포함: {BoolLabel(bundle.hasSurvey)}");
         builder.AppendLine($"- 런타임 이슈 로그 포함: {BoolLabel(bundle.hasRuntimeIssues)}");
-        builder.AppendLine($"- 트리아지 actions CSV 참조: `{bundle.triageActionsCsvReferencePath}` ({BoolLabel(bundle.triageActionsCsvReferenceAvailable)})");
-        builder.AppendLine($"- 외부 handoff zip 참조: `{bundle.externalHandoffZipReferencePath}`");
-        builder.AppendLine($"- 외부 handoff hash 참조: `{bundle.externalHandoffHashReferencePath}` ({BoolLabel(bundle.externalHandoffHashReferenceAvailable)})");
-        builder.AppendLine($"- 외부 handoff zip SHA256: `{bundle.externalHandoffZipSha256}`");
+        builder.AppendLine($"- 분류 조치 CSV 참조: `{bundle.triageActionsCsvReferencePath}` ({BoolLabel(bundle.triageActionsCsvReferenceAvailable)})");
+        builder.AppendLine($"- 외부 인계 zip 참조: `{bundle.externalHandoffZipReferencePath}`");
+        builder.AppendLine($"- 외부 인계 해시 참조: `{bundle.externalHandoffHashReferencePath}` ({BoolLabel(bundle.externalHandoffHashReferenceAvailable)})");
+        builder.AppendLine($"- 외부 인계 zip SHA256: `{bundle.externalHandoffZipSha256}`");
         builder.AppendLine($"- 로컬 사용자 절대경로 미포함: {BoolLabel(bundle.filesHaveNoLocalAbsolutePath)}");
         builder.AppendLine();
         builder.AppendLine("## 포함 파일");
@@ -7137,7 +7137,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 $"- 패턴: {currentCampaignDecisionAuditCoachingPattern}\n" +
                 $"- 목표: {currentCampaignDecisionAuditCoachingChallenge}\n" +
                 (!string.IsNullOrWhiteSpace(currentCampaignDecisionAuditCoachingReason) ? $"- 근거: {currentCampaignDecisionAuditCoachingReason}\n" : "") +
-                "- 이번 회차는 직전 결정 감사에서 드러난 압박 패턴을 실제 심사 HUD에서 추적하며 줄이는 코칭 루프입니다.";
+                "- 이번 회차는 직전 결정 감사에서 드러난 압박 패턴을 실제 심사 화면에서 추적하며 줄이는 코칭 루프입니다.";
         }
 
         return common + body;
@@ -9439,15 +9439,15 @@ public sealed class CareReviewGame : MonoBehaviour
             triageItem != null &&
             triageCase != null &&
             string.Equals(caseArchiveFocusedCaseId, triageItem.topCaseId, StringComparison.OrdinalIgnoreCase) &&
-            triageStatus.Contains("보정 그래프 triage 추천") &&
+            triageStatus.Contains("보정 그래프 분류 추천") &&
             triageStatus.Contains(triageItem.label) &&
             triageStatus.Contains(triageItem.topCaseId) &&
             triageList.Contains(triageItem.topCaseId) &&
             triageDetail.Contains(triageItem.topCaseId);
         bool appealRemedyGraphTriageCreatesRemedyObjective =
             appealRemedyGraphTriageFocusesRecommendedCase &&
-            triageObjective.challenge.Contains("이의제기 보정 triage") &&
-            triageObjective.reason.Contains("플레이테스트 보정 triage") &&
+            triageObjective.challenge.Contains("이의제기 보정 분류") &&
+            triageObjective.reason.Contains("플레이테스트 보정 분류") &&
             triageObjective.reason.Contains(triageItem.label);
         bool appealRemedyGraphTriageObjectiveApplied = ApplyCaseArchiveObjective();
         yield return null;
@@ -9457,7 +9457,7 @@ public sealed class CareReviewGame : MonoBehaviour
             pendingCaseReplayObjectiveReady &&
             triageItem != null &&
             string.Equals(pendingCaseReplayObjectiveCaseId, triageItem.topCaseId, StringComparison.OrdinalIgnoreCase) &&
-            pendingCaseReplayObjectiveChallenge.Contains("이의제기 보정 triage") &&
+            pendingCaseReplayObjectiveChallenge.Contains("이의제기 보정 분류") &&
             triageObjectiveStatus.Contains("목표 심사 적용") &&
             triageObjectiveStatus.Contains(triageItem.topCaseId);
 
@@ -9484,7 +9484,7 @@ public sealed class CareReviewGame : MonoBehaviour
         bool appealRemedyGraphTriageMenuStatusMentionsRecommendation =
             appealRemedyGraphTriageRecommendationAvailable &&
             triageItem != null &&
-            triageMenuStatus.Contains("보정 triage:") &&
+            triageMenuStatus.Contains("보정 분류:") &&
             triageMenuStatus.Contains(triageItem.label) &&
             triageMenuStatus.Contains(triageItem.topCaseId) &&
             triageMenuStatus.Contains("보정 심사 버튼/H 바로 시작");
@@ -9501,7 +9501,7 @@ public sealed class CareReviewGame : MonoBehaviour
         bool appealRemedyGraphTriageMenuCandidateCycleSelectsNext =
             appealRemedyGraphTriageMenuCandidateCycleReady &&
             appealRemedyGraphTriageCandidateIndex == 1 &&
-            triageMenuCandidateCycleStatus.Contains("보정 triage 후보 전환") &&
+            triageMenuCandidateCycleStatus.Contains("보정 분류 후보 전환") &&
             triageMenuCandidateCycleStatus.Contains("W-207") &&
             triageMenuCandidateCycleButtonText.Contains("후보 2/2");
         appealRemedyGraphTriageCandidateIndex = 0;
@@ -9643,7 +9643,7 @@ public sealed class CareReviewGame : MonoBehaviour
             IsAppealRemedyObjective(pendingNextCampaignObjective) &&
             pendingNextCampaignObjective.challenge.Contains("보정 재도전");
         bool reportMentionsAppealRemedyRetryCta =
-            appealReportLogPathText.Contains("보정 재도전 CTA") &&
+            appealReportLogPathText.Contains("보정 재도전 안내") &&
             appealReportLogPathText.Contains("추천 심사 버튼") &&
             appealReportLogPathText.Contains("재도전 목표");
         ShowMainMenu();
@@ -9691,14 +9691,14 @@ public sealed class CareReviewGame : MonoBehaviour
         bool appealRemedyGraphTriageUsesUnifiedSummary =
             appealRemedyGraphTriageRecommendationAvailable &&
             triageItem != null &&
-            triageMenuFollowUpHintText.Contains("보정 triage:") &&
+            triageMenuFollowUpHintText.Contains("보정 분류:") &&
             triageMenuFollowUpHintText.Contains(triageItem.label) &&
             triageMenuFollowUpHintText.Contains(triageItem.topCaseId) &&
-            triageMenuStatus.Contains("보정 triage:") &&
+            triageMenuStatus.Contains("보정 분류:") &&
             triageMenuStatus.Contains(triageItem.label) &&
             triageMenuStatus.Contains(triageItem.topCaseId) &&
             triageMenuStatus.Contains(triageSharedCountText) &&
-            reportAppealArchiveStatus.Contains("보정 그래프 triage 추천: 보정 triage:") &&
+            reportAppealArchiveStatus.Contains("보정 그래프 분류 추천: 보정 분류:") &&
             reportAppealArchiveStatus.Contains(triageItem.label) &&
             reportAppealArchiveStatus.Contains(triageItem.topCaseId) &&
             reportAppealArchiveStatus.Contains(triageSharedCountText) &&
@@ -9824,7 +9824,7 @@ public sealed class CareReviewGame : MonoBehaviour
             tutorialRoot.gameObject.activeSelf &&
             CurrentCampaignIsAppealRemedyObjective() &&
             string.Equals(currentCampaignCaseObjectiveId, "W-207", StringComparison.OrdinalIgnoreCase) &&
-            currentCampaignCaseObjectiveChallenge.Contains("이의제기 보정 triage") &&
+            currentCampaignCaseObjectiveChallenge.Contains("이의제기 보정 분류") &&
             triageCandidateStartBody.Contains("이의제기 보정 목표");
         BeginCampaignReview();
         yield return null;
@@ -9864,7 +9864,7 @@ public sealed class CareReviewGame : MonoBehaviour
             tutorialRoot.gameObject.activeSelf &&
             CurrentCampaignIsAppealRemedyObjective() &&
             string.Equals(currentCampaignCaseObjectiveId, "W-207", StringComparison.OrdinalIgnoreCase) &&
-            currentCampaignCaseObjectiveChallenge.Contains("이의제기 보정 triage") &&
+            currentCampaignCaseObjectiveChallenge.Contains("이의제기 보정 분류") &&
             triageMenuCandidateStartBody.Contains("이의제기 보정 목표");
 
         bool completed = archiveActive &&
@@ -12198,7 +12198,7 @@ public sealed class CareReviewGame : MonoBehaviour
         float achievementRecordLinkHintMaxDisplayLineWidth = MaxDisplayLineWidth(achievementRecordLinkHint);
         bool achievementNextGoalMentionsAppealTriage =
             achievementStatus.Contains("이의제기 보정 설계자") &&
-            achievementStatus.Contains("보정 triage:") &&
+            achievementStatus.Contains("보정 분류:") &&
             achievementStatus.Contains("AG-349") &&
             achievementNextGoalButtonLabel.Contains("보정 추천");
         string achievementTriageCandidateButtonLabel = achievementAppealRemedyTriageCandidateButtonText != null ? achievementAppealRemedyTriageCandidateButtonText.text : "";
@@ -12356,7 +12356,7 @@ public sealed class CareReviewGame : MonoBehaviour
         bool achievementAppealRemedyTriageCandidateCycleSelectsNext =
             achievementAppealRemedyTriageCandidateCycleReady &&
             appealRemedyGraphTriageCandidateIndex == 1 &&
-            achievementTriageCandidateCycleStatus.Contains("보정 triage 후보 전환") &&
+            achievementTriageCandidateCycleStatus.Contains("보정 분류 후보 전환") &&
             achievementTriageCandidateCycleStatus.Contains("W-207") &&
             achievementTriageCandidateCycleButtonLabel.Contains("후보 2/2");
         OpenAchievementNextGoalAction();
@@ -12366,12 +12366,12 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementAppealRemedyTriageCandidateCycleSelectsNext &&
             caseArchiveRoot != null &&
             caseArchiveRoot.gameObject.activeSelf &&
-            achievementSharedTriageArchiveStatus.Contains("성과 보정 triage 추천") &&
+            achievementSharedTriageArchiveStatus.Contains("성과 보정 분류 추천") &&
             achievementSharedTriageArchiveStatus.Contains("W-207");
         bool achievementNextGoalButtonExecutesAction =
             (achievementNextGoalButtonLabel.Contains("성장") && tutorialRoot != null && tutorialRoot.gameObject.activeSelf && currentCampaignStartedFromGrowthObjective) ||
             (achievementNextGoalButtonLabel.Contains("후속") && tutorialRoot != null && tutorialRoot.gameObject.activeSelf && currentCampaignStartedFromGrowthFollowUpObjective) ||
-            (achievementNextGoalButtonLabel.Contains("보정") && caseArchiveRoot != null && caseArchiveRoot.gameObject.activeSelf && caseArchiveStatusText != null && caseArchiveStatusText.text.Contains("성과 보정 triage 추천")) ||
+            (achievementNextGoalButtonLabel.Contains("보정") && caseArchiveRoot != null && caseArchiveRoot.gameObject.activeSelf && caseArchiveStatusText != null && caseArchiveStatusText.text.Contains("성과 보정 분류 추천")) ||
             (achievementNextGoalButtonLabel.Contains("목표 사례") && caseArchiveRoot != null && caseArchiveRoot.gameObject.activeSelf && caseArchiveStatusText != null && caseArchiveStatusText.text.Contains("장기 추천 포커스")) ||
             (achievementNextGoalButtonLabel.Contains("비교") && caseArchiveRoot != null && caseArchiveRoot.gameObject.activeSelf && caseArchiveStatusText != null && caseArchiveStatusText.text.Contains("판단 비교 연습 목표")) ||
             (achievementNextGoalButtonLabel.Contains("로그") && achievementRoot.gameObject.activeSelf && IsAchievementUnlocked("analytics_export")) ||
@@ -15209,7 +15209,7 @@ public sealed class CareReviewGame : MonoBehaviour
         builder.AppendLine($"- 외부 JSON 사례: {audit.externalCaseCount}건 / 런타임 사례: {audit.runtimeCaseCount}건");
         builder.AppendLine($"- 일차 수: {audit.dayCount}, 8건 이상 일차: {audit.daysWithEightCases}");
         builder.AppendLine($"- 가상 플레이어 페르소나: {audit.personaCount}개");
-        builder.AppendLine($"- 임베디드 fallback 사용: {BoolLabel(audit.embeddedFallbackUsed)}");
+        builder.AppendLine($"- 내장 대체 사용: {BoolLabel(audit.embeddedFallbackUsed)}");
         builder.AppendLine();
         builder.AppendLine("## 사례 JSON 파일");
         builder.AppendLine();
@@ -15791,7 +15791,7 @@ public sealed class CareReviewGame : MonoBehaviour
             manifestJson.Contains("\"externalHandoffHashReferencePath\": \"Builds/Handoff/CareReviewOffice_ExternalValidationHandoff_v0.3.0_SHA256.txt\"") &&
             manifestJson.Contains("\"externalHandoffHashReferenceAvailable\": true") &&
             manifestJson.Contains("\"externalHandoffZipSha256\":") &&
-            manifestMarkdown.Contains("외부 handoff zip SHA256");
+            manifestMarkdown.Contains("외부 인계 zip SHA256");
         bool manifestHasNoLocalAbsolutePath = !ContainsLocalAbsolutePath(manifestJson) && !ContainsLocalAbsolutePath(manifestMarkdown);
         bool completed = Directory.Exists(bundle.bundleDirectoryPath) &&
             hasManifestJson &&
@@ -16273,7 +16273,7 @@ public sealed class CareReviewGame : MonoBehaviour
             markdownText.Contains("PLAYTEST_COMMERCIAL_TRIAGE_ACTIONS.csv");
         bool csvHasAppealRemedyGraphTriageColumns = csvText.Contains("decision_audit_appeal_remedy_case_count") && csvText.Contains("decision_audit_top_appeal_before_after_graph");
         bool jsonHasAppealRemedyGraphTriage = jsonText.Contains("\"appealRemedyGraphCaseCount\"") && jsonText.Contains("\"appealRemedyGraphTriage\"");
-        bool markdownMentionsAppealRemedyGraphTriage = markdownText.Contains("이의제기/보정 그래프 유형 triage") && markdownText.Contains("보정 전/후 그래프") && markdownText.Contains("담당 사례 자료실");
+        bool markdownMentionsAppealRemedyGraphTriage = markdownText.Contains("이의제기/보정 그래프 유형 분류") && markdownText.Contains("보정 전/후 그래프") && markdownText.Contains("담당 사례 자료실");
         bool csvHasDecisionAuditCoachingColumns = csvText.Contains("decision_audit_coaching_pattern") &&
             csvText.Contains("decision_audit_coaching_recommended_mandate_id") &&
             csvText.Contains("decision_audit_coaching_appeal_case_id");
@@ -20447,7 +20447,7 @@ public sealed class CareReviewGame : MonoBehaviour
         }
 
         objective = BuildCaseReplayObjective(careCase);
-        return IsAppealRemedyObjective(objective) && objective.challenge.Contains("보정 triage");
+        return IsAppealRemedyObjective(objective) && objective.challenge.Contains("보정 분류");
     }
 
     private void StartCareerRecordNextObjective()
@@ -21430,7 +21430,7 @@ public sealed class CareReviewGame : MonoBehaviour
                     if (caseArchiveStatusText != null)
                     {
                         caseArchiveStatusText.text =
-                            "성과 보정 triage 추천: " +
+                            "성과 보정 분류 추천: " +
                             BuildAppealRemedyGraphTriageRecommendationSummary(triageItem, triageCase, false) +
                             " · 목표 심사로 바로 시작 가능\n" +
                             caseArchiveStatusText.text;
@@ -23465,7 +23465,7 @@ public sealed class CareReviewGame : MonoBehaviour
     {
         if (!TryFindLatestAppealRemedyTriageCareerRecord(records, out CareerRecord record))
         {
-            return "보정 후보: triage 후보 결과 대기";
+            return "보정 후보: 분류 후보 결과 대기";
         }
 
         int candidateCount = CountAppealRemedyTriageCareerRecords(records, out int successCount);
@@ -23628,7 +23628,7 @@ public sealed class CareReviewGame : MonoBehaviour
             case "budget_explained":
                 return "예산 초과를 1,000만 원 미만으로 관리";
             case "analytics_export":
-                return "리포트 이후 로그 export 실행";
+                return "리포트 이후 로그 저장 실행";
             case "agent_lab":
                 return "가상 심사 에이전트 분석 실행";
             case "mandate_replay":
@@ -27994,7 +27994,7 @@ public sealed class CareReviewGame : MonoBehaviour
             return "";
         }
 
-        string cta = result.succeeded ? "보정 후속 CTA" : "보정 재도전 CTA";
+        string cta = result.succeeded ? "보정 후속 안내" : "보정 재도전 안내";
         string action = result.succeeded ? "유지 목표" : "재도전 목표";
         return $"{cta}: 추천 심사 버튼으로 {CampaignMandateLabel(nextObjective.mandate)} {action}를 바로 시작하세요.\n";
     }
@@ -30799,7 +30799,7 @@ public sealed class CareReviewGame : MonoBehaviour
         builder.AppendLine("## 우선 확인 지점");
         AppendAggregateCountMarkdown(builder, aggregate.focusCounts);
         builder.AppendLine();
-        builder.AppendLine("## 이의제기/보정 그래프 유형 triage");
+        builder.AppendLine("## 이의제기/보정 그래프 유형 분류");
         builder.AppendLine();
         if (aggregate.appealRemedyGraphTriage != null && aggregate.appealRemedyGraphTriage.Count > 0)
         {
