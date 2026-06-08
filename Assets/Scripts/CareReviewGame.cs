@@ -10877,7 +10877,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 menuStatus.Contains("10/14") &&
                 menuStatus.Contains("다음 성과") &&
                 menuStatus.Contains("사례 재심사 목표") &&
-                menuStatus.Contains("A/성과 보기");
+                menuStatus.Contains("A 성과 보기");
             bool menuAchievementBadgeMentionsReplayProgress =
                 menuStatus.Contains("반복 0/6");
             bool menuAchievementHintMentionsNextGoalAction =
@@ -13682,11 +13682,33 @@ public sealed class CareReviewGame : MonoBehaviour
             RunAgentSimulation();
             yield return null;
             CareerRecordDatabase smokeDatabase = LoadCareerRecordDatabase();
-            if (smokeDatabase.records.Count < 2)
+            CareerRecord currentSmokeRecord = null;
+            if (smokeDatabase.records != null)
             {
-                smokeDatabase.records.Insert(0, BuildCareerRecordSmokeCurrentRecord());
-                SaveCareerRecordDatabase(smokeDatabase);
+                for (int i = 0; i < smokeDatabase.records.Count; i++)
+                {
+                    CareerRecord candidate = smokeDatabase.records[i];
+                    if (candidate != null &&
+                        !string.Equals(candidate.sessionId, "CR-SMOKE-BASELINE", StringComparison.Ordinal))
+                    {
+                        currentSmokeRecord = candidate;
+                        break;
+                    }
+                }
             }
+
+            if (currentSmokeRecord == null)
+            {
+                currentSmokeRecord = BuildCareerRecordSmokeCurrentRecord();
+            }
+
+            smokeDatabase.records = new List<CareerRecord>
+            {
+                currentSmokeRecord,
+                BuildCareerRecordSmokeBaselineRecord()
+            };
+            SaveCareerRecordDatabase(smokeDatabase);
+
             ShowCareerRecords();
             yield return new WaitForEndOfFrame();
 
@@ -13857,11 +13879,9 @@ public sealed class CareReviewGame : MonoBehaviour
                 record != null &&
                 !string.IsNullOrWhiteSpace(record.decisionAuditCoachingAppealCaseId) &&
                 actionHintText.Contains("복기") &&
-                actionHintText.Contains(record.decisionAuditCoachingAppealCaseId) &&
-                actionHintText.Contains("기록 복귀");
+                actionHintText.Contains(record.decisionAuditCoachingAppealCaseId);
             bool careerRecordActionHintMentionsCoachingFirstUse =
-                careerRecordActionHintMentionsCoachingRoundTrip &&
-                actionHintText.Contains("기록 복귀");
+                careerRecordActionHintMentionsCoachingRoundTrip;
             bool detailMentionsAppealRemedyActionPlan = false;
             bool statusMentionsCount = careerRecordStatusText != null && careerRecordStatusText.text.Contains("기록 2회");
             bool representativeCaseButtonActive = careerRecordRepresentativeCaseButton != null && careerRecordRepresentativeCaseButton.interactable;
@@ -15035,7 +15055,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 menuAchievementBadgeLine.Contains("성과 배지") &&
                 menuAchievementBadgeLine.Contains("다음 성과") &&
                 menuAchievementBadgeLine.Contains("반복") &&
-                menuAchievementBadgeLine.Contains("A/성과 보기") &&
+                menuAchievementBadgeLine.Contains("A 성과 보기") &&
                 menuAchievementBadgeWidth <= 76f;
             mainMenuAchievementHintReadable &=
                 menuRoot != null &&
@@ -17942,7 +17962,6 @@ public sealed class CareReviewGame : MonoBehaviour
             careerRecordRoot != null &&
             careerRecordRoot.gameObject.activeSelf &&
             achievementCoachingCareerActionHint.Contains("복기 W-207") &&
-            achievementCoachingCareerActionHint.Contains("기록 복귀") &&
             achievementCoachingCareerDetail.Contains("처음 열 때");
         ShowCaseArchive();
         yield return null;
@@ -17984,7 +18003,6 @@ public sealed class CareReviewGame : MonoBehaviour
             careerRecordRoot != null &&
             careerRecordRoot.gameObject.activeSelf &&
             caseArchiveDecisionAuditCoachingReturnedActionHint.Contains("복기 W-207") &&
-            caseArchiveDecisionAuditCoachingReturnedActionHint.Contains("기록 복귀") &&
             caseArchiveDecisionAuditCoachingReturnedDetail.Contains("처음 열 때");
 
         ShowEndingGallery();
@@ -20903,10 +20921,10 @@ public sealed class CareReviewGame : MonoBehaviour
         int replayCount = CountReplayObjectiveRecords(LoadCareerRecordDatabase().records);
         if (replayCount >= 2)
         {
-            return $"성과 배지: {unlocked}/{achievements.Length} · 다음 성과 · {AdvancedReplayChallengeBadge(replayCount)} · 반복 {replayCount}/6 · A/성과 보기";
+            return $"성과 배지 {unlocked}/{achievements.Length} · 다음 성과: {AdvancedReplayChallengeBadge(replayCount)} · 반복 {replayCount}/6 · A 성과 보기";
         }
 
-        return $"성과 배지: {unlocked}/{achievements.Length} · 다음 성과 {Shorten(next, 16)} · 반복 {replayCount}/6 · A/성과 보기";
+        return $"성과 배지 {unlocked}/{achievements.Length} · 다음 성과: {Shorten(next, 16)} · 반복 {replayCount}/6 · A 성과 보기";
     }
 
     private void UpdateMenuAchievementHint()
@@ -22827,7 +22845,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 : "보정 " + Shorten(record.appealRemedyObjectiveCaseId, 12));
         string coaching = string.IsNullOrWhiteSpace(record.decisionAuditCoachingAppealCaseId)
             ? ""
-            : " · 복기 " + Shorten(record.decisionAuditCoachingAppealCaseId, 8) + " 기록 복귀";
+            : " · 복기 " + Shorten(record.decisionAuditCoachingAppealCaseId, 8);
         string next = "목표 없음";
         if (!string.IsNullOrWhiteSpace(record.nextCampaignChallenge))
         {
