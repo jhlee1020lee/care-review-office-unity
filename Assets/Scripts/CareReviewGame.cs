@@ -1308,16 +1308,16 @@ public sealed class CareReviewGame : MonoBehaviour
             FontStyle.Bold);
         caseSnapshotBacker = caseSnapshotText.transform.parent.GetComponent<Image>();
 
-        CreatePanel("Center Paper Shadow", reviewRoot, new Vector2(-55, 44), new Vector2(640, 592), new Color32(8, 10, 12, 42));
-        CreateImage("Center Case Folder", reviewRoot, GridSprite(uiPanelsSheet, 4, 3, 3, 2), new Vector2(-55, 78), new Vector2(636, 458), Color.white).preserveAspect = true;
-        CreatePanel("Center Paper Tint", reviewRoot, new Vector2(-55, 58), new Vector2(586, 598), new Color32(246, 231, 197, 154));
+        CreatePanel("Center Paper Shadow", reviewRoot, new Vector2(-55, 42), new Vector2(638, 594), new Color32(8, 10, 12, 58));
+        CreateImage("Center Case Folder", reviewRoot, GridSprite(uiPanelsSheet, 4, 3, 3, 2), new Vector2(-55, 78), new Vector2(636, 458), new Color32(255, 255, 255, 244)).preserveAspect = true;
+        CreatePanel("Center Paper Tint", reviewRoot, new Vector2(-55, 58), new Vector2(586, 598), new Color32(246, 231, 197, 196));
 
         caseBodyText = CreateTextBox(
             reviewRoot,
             "Case Body Box",
             new Vector2(-55, 70),
             new Vector2(562, 314),
-            new Color32(246, 231, 197, 118),
+            new Color32(246, 231, 197, 148),
             22,
             "",
             18,
@@ -1332,7 +1332,7 @@ public sealed class CareReviewGame : MonoBehaviour
             "Documents Box",
             new Vector2(-55, -181),
             new Vector2(610, 156),
-            new Color32(241, 221, 184, 134),
+            new Color32(241, 221, 184, 164),
             28,
             "",
             15,
@@ -1659,10 +1659,13 @@ public sealed class CareReviewGame : MonoBehaviour
         }
 
         CreatePanel("Menu Dim", menuRoot, Vector2.zero, new Vector2(1920, 1080), new Color32(12, 14, 16, 154));
-        CreatePanel("Menu Document Shadow", menuRoot, new Vector2(-470, -24), new Vector2(560, 438), new Color32(8, 10, 12, 62));
-        Image menuDocument = CreateImage("Menu Case Folder", menuRoot, GridSprite(uiPanelsSheet, 4, 3, 3, 2), new Vector2(-470, -20), new Vector2(620, 430), Color.white);
+        CreatePanel("Menu Document Shadow", menuRoot, new Vector2(-470, -28), new Vector2(520, 408), new Color32(8, 10, 12, 78));
+        Image menuDocument = CreateImage("Menu Case Folder", menuRoot, GridSprite(uiPanelsSheet, 4, 3, 3, 2), new Vector2(-470, -20), new Vector2(596, 414), new Color32(255, 255, 255, 238));
         menuDocument.preserveAspect = true;
-        CreatePanel("Menu Paper Tint", menuRoot, new Vector2(-470, -20), new Vector2(502, 416), new Color32(246, 231, 198, 154));
+        CreatePanel("Menu Paper Tint", menuRoot, new Vector2(-470, -18), new Vector2(472, 386), new Color32(246, 231, 198, 206));
+        CreatePanel("Menu Paper Top Edge", menuRoot, new Vector2(-470, 172), new Vector2(438, 3), new Color32(93, 68, 43, 72));
+        CreatePanel("Menu Paper Center Rule", menuRoot, new Vector2(-470, -68), new Vector2(412, 2), new Color32(93, 68, 43, 54));
+        CreatePanel("Menu Paper Bottom Edge", menuRoot, new Vector2(-470, -207), new Vector2(438, 3), new Color32(35, 27, 20, 58));
 
         Text title = CreateText(menuRoot, "Menu Title", "돌봄지원 심사소", 48, TextAnchor.MiddleCenter, new Color32(246, 232, 202, 255), FontStyle.Bold);
         SetRect(title.rectTransform, new Vector2(0, 338), new Vector2(900, 70));
@@ -1671,39 +1674,34 @@ public sealed class CareReviewGame : MonoBehaviour
         Text version = CreateText(menuRoot, "Menu Version", BuildVersionLabel, 12, TextAnchor.MiddleCenter, new Color32(172, 164, 146, 210), FontStyle.Normal);
         SetRect(version.rectTransform, new Vector2(0, 252), new Vector2(420, 22));
 
-        Text brief = CreateTextBox(
+        Text brief = CreateText(
             menuRoot,
             "Menu Brief",
-            new Vector2(-470, 48),
-            new Vector2(456, 204),
-            new Color32(246, 231, 198, 54),
-            16,
             "신청서를 읽고 기준표와 대조한 뒤 도장을 찍습니다.\n\n예산, 안정, 형평, 누락 위험이 캠페인 끝까지 누적됩니다.",
-            19,
+            16,
             TextAnchor.UpperLeft,
             new Color32(40, 31, 24, 255),
             FontStyle.Normal);
+        SetRect(brief.rectTransform, new Vector2(-470, 48), new Vector2(412, 176));
         brief.lineSpacing = 1.12f;
 
-        menuMandateText = CreateTextBox(
+        menuMandateText = CreateText(
             menuRoot,
-            "Menu Mandate Card",
-            new Vector2(-470, -130),
-            new Vector2(456, 112),
-            new Color32(246, 231, 198, 48),
-            12,
+            "Menu Mandate Note",
             "",
             13,
             TextAnchor.UpperLeft,
             new Color32(40, 31, 24, 255),
             FontStyle.Normal);
+        SetRect(menuMandateText.rectTransform, new Vector2(-470, -132), new Vector2(412, 118));
+        menuMandateText.lineSpacing = 1.0f;
 
         menuCampaignBriefingText = CreateTextBox(
             menuRoot,
-            "Menu Campaign Briefing Card",
+            "Menu Campaign Briefing Note",
             new Vector2(-470, -420),
             new Vector2(500, 86),
-            new Color32(10, 12, 14, 174),
+            new Color32(10, 12, 14, 132),
             12,
             "",
             12,
@@ -1981,26 +1979,26 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementCardTexts[i].lineSpacing = 0.96f;
         }
 
-        CreatePanel("Achievement Replay Reward Panel", achievementRoot, new Vector2(0, -296), new Vector2(1180, 48), new Color32(48, 60, 58, 198));
+        CreatePanel("Achievement Replay Reward Panel", achievementRoot, new Vector2(0, -294), new Vector2(1180, 62), new Color32(48, 60, 58, 206));
         achievementReplayRewardText = CreateText(
             achievementRoot,
             "Achievement Replay Reward Text",
             "",
-            11,
+            12,
             TextAnchor.MiddleLeft,
             new Color32(246, 232, 202, 255),
             FontStyle.Bold);
-        SetRect(achievementReplayRewardText.rectTransform, new Vector2(-238, -286), new Vector2(628, 20));
+        SetRect(achievementReplayRewardText.rectTransform, new Vector2(-198, -282), new Vector2(708, 24));
 
         achievementRecordLinkHintText = CreateText(
             achievementRoot,
             "Achievement Record Link Hint",
             "",
-            10,
+            11,
             TextAnchor.MiddleLeft,
             new Color32(246, 232, 202, 245),
             FontStyle.Bold);
-        SetRect(achievementRecordLinkHintText.rectTransform, new Vector2(-238, -310), new Vector2(628, 18));
+        SetRect(achievementRecordLinkHintText.rectTransform, new Vector2(-198, -310), new Vector2(708, 22));
 
         int[] tierThresholds = { 2, 4, 6 };
         achievementReplayTierRecordButtons = new Button[tierThresholds.Length];
@@ -23243,13 +23241,20 @@ public sealed class CareReviewGame : MonoBehaviour
         string appealRate = appealRemedyCount > 0 ? "성공률 점검" : "성공률 0%";
         StringBuilder builder = new();
         builder.AppendLine(BuildCareerRecordViewHeader(filterLabel, CareerRecordViewMode.Summary));
-        builder.AppendLine(Shorten(BuildCareerRecordGrowthComparisonLine(records, latest), 94));
-        builder.AppendLine(Shorten(BuildCareerRecordCompactRepresentativeRetrospectiveLine(latest, records), 84));
-        builder.AppendLine(Shorten(BuildCareerRecordBriefingRetrospectiveLine(latest), 92));
-        builder.AppendLine($"성장 목표 요약: 목표 {Mathf.Max(1, growthCount)}회 · 후속 {Mathf.Max(1, growthFollowUpCount)}회 · {growthState} · 성장 후속 근거 {Shorten(FallbackText(latest.growthFollowUpReason, "성장 목표 성공"), 36)}");
-        builder.AppendLine($"이의제기 누적: 즉시 재검토 {FallbackText(latest.appealReviewCaseId, "C-031")} · 보정 목표 요약 {appealRate} · 최근 미달 · 추천 {appealTriageCount}회 · {FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")}");
-        builder.AppendLine(Shorten(BuildCareerRecordDecisionPracticeObjectiveSummaryLine(records), 58) + " · " + Shorten(BuildCareerRecordDecisionAuditCoachingLine(latest), 58) + " · 검증 질문");
-        builder.AppendLine();
+        builder.AppendLine(
+            $"최근 캠페인 기록: {Shorten(latest.completedAt, 16)} · {latest.campaignGrade}{latest.campaignScore}점 · " +
+            $"엔딩 {latest.endingTitle} · 마지막 회차 세부 아래 패널 · 챌린지 {Shorten(latest.campaignChallengeTitle, 18)} · 조사 후속 {latest.investigationFollowUpCount}건 · 내 판단 기준 {FallbackText(latest.closestAgentPersonaName, "기록 없음")}");
+        builder.AppendLine(
+            $"성장 비교: 직전/이전 최고/비교 초점 · {Shorten(BuildCareerRecordGrowthComparisonLine(records, latest), 42)} · " +
+            $"동일 사례 회고: {FallbackText(latest.representativeCaseId, "AG-349")} · 판단 변화 · 목표 재도전 결과 {Shorten(BuildCareerRecordObjectiveOutcome(latest), 24)}");
+        builder.AppendLine(
+            $"브리핑 회고: 예고 위험/예고 보상/실제 결과 · {Shorten(BuildCareerRecordBriefingRetrospectiveLine(latest), 58)}");
+        builder.AppendLine(
+            $"성장 목표 요약: 목표 {Mathf.Max(1, growthCount)}회 · 후속 {Mathf.Max(1, growthFollowUpCount)}회 · {growthState} · " +
+            $"이의제기 누적: 즉시 재검토 {FallbackText(latest.appealReviewCaseId, "C-031")} · 보정 목표 요약 {appealRate} · 최근 미달 · 추천 {appealTriageCount}회 · {FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")}");
+        builder.AppendLine(
+            Shorten(BuildCareerRecordDecisionPracticeObjectiveSummaryLine(records), 46) + " · " +
+            Shorten(BuildCareerRecordDecisionAuditCoachingLine(latest), 48) + " · 판단 복기 · 추천 운영 · 검증 질문");
         if (focusedRecord != null && !string.IsNullOrWhiteSpace(focusLabel))
         {
             builder.AppendLine($"▶ 포커스: {focusLabel} · {Shorten(latest.completedAt, 16)}");
@@ -23259,10 +23264,6 @@ public sealed class CareReviewGame : MonoBehaviour
             int practiceCount = CountDecisionPracticeObjectiveRecordsThrough(records, latest);
             builder.AppendLine($"판단 비교 연습 요약: {DecisionPracticeRewardTier(practiceCount)} · {DecisionPracticeRewardDecoration(practiceCount)}");
         }
-        builder.AppendLine($"최근 회차: {Shorten(latest.completedAt, 16)} · {latest.campaignGrade}{latest.campaignScore}점 · {Shorten(latest.nextCampaignMandateName + " " + latest.nextCampaignChallenge, 42)}");
-        builder.AppendLine(
-            (focusedRecord != null ? "선택 회차 세부" : "마지막 회차 세부") +
-            $": 아래 상세 패널 · 엔딩 {latest.endingTitle} · 챌린지 {Shorten(latest.campaignChallengeTitle, 22)} · 조사 후속 {latest.investigationFollowUpCount}건 · 내 판단 기준 {FallbackText(latest.closestAgentPersonaName, "기록 없음")}");
         if (!string.IsNullOrWhiteSpace(filterLabel) && !string.IsNullOrWhiteSpace(latest.growthObjectiveTitle))
         {
             builder.AppendLine($"성장 목표: {Shorten(latest.growthObjectiveChallenge, 58)} · 성장 판정 {(latest.growthObjectiveSucceeded ? "성공" : "미달")}");
@@ -26386,8 +26387,8 @@ public sealed class CareReviewGame : MonoBehaviour
         reportLogPathText = CreateTextBox(
             reportDashboardRoot,
             "Report Log Path",
-            new Vector2(340, -250),
-            new Vector2(700, 78),
+            new Vector2(340, -244),
+            new Vector2(700, 64),
             new Color32(24, 29, 30, 166),
             12,
             "",
@@ -26421,15 +26422,15 @@ public sealed class CareReviewGame : MonoBehaviour
         }
 #endif
 
-        CreatePanel("Report Action Rail", reportRoot, new Vector2(260, -328), new Vector2(1010, 82), new Color32(222, 205, 166, 210));
-        CreatePanel("Report Action Rail Top Edge", reportRoot, new Vector2(260, -286), new Vector2(970, 4), new Color32(79, 64, 48, 118));
-        CreatePanel("Report Primary Action Dock", reportRoot, new Vector2(612, -328), new Vector2(318, 68), new Color32(78, 45, 29, 92));
-        reportAppealRemedyCaseButton = CreateTextButton(reportRoot, "보정 사례", new Vector2(-414, -328), new Vector2(156, 50), new Color32(96, 129, 67, 238), OpenReportAppealRemedyCase);
+        CreatePanel("Report Action Rail", reportRoot, new Vector2(260, -312), new Vector2(1010, 66), new Color32(222, 205, 166, 218));
+        CreatePanel("Report Action Rail Top Edge", reportRoot, new Vector2(260, -278), new Vector2(970, 3), new Color32(79, 64, 48, 126));
+        CreatePanel("Report Primary Action Dock", reportRoot, new Vector2(612, -312), new Vector2(302, 60), new Color32(78, 45, 29, 84));
+        reportAppealRemedyCaseButton = CreateTextButton(reportRoot, "보정 사례", new Vector2(-414, -312), new Vector2(156, 46), new Color32(96, 129, 67, 238), OpenReportAppealRemedyCase);
         reportAppealRemedyCaseButtonText = reportAppealRemedyCaseButton.GetComponentInChildren<Text>(true);
-        CreateTextButton(reportRoot, "메인 메뉴", new Vector2(-216, -328), new Vector2(166, 50), new Color32(35, 45, 48, 235), ReturnToMenu);
-        CreateTextButton(reportRoot, "판단 복기", new Vector2(28, -328), new Vector2(186, 50), new Color32(84, 72, 56, 235), ShowDecisionAudit);
-        CreateTextButton(reportRoot, "판단 비교", new Vector2(266, -328), new Vector2(198, 50), new Color32(65, 82, 104, 235), RunAgentSimulation);
-        recommendedCampaignButton = CreateTextButton(reportRoot, "추천 심사", new Vector2(612, -328), new Vector2(264, 58), new Color32(116, 82, 50, 238), Restart);
+        CreateTextButton(reportRoot, "메인 메뉴", new Vector2(-216, -312), new Vector2(166, 46), new Color32(35, 45, 48, 235), ReturnToMenu);
+        CreateTextButton(reportRoot, "판단 복기", new Vector2(28, -312), new Vector2(186, 46), new Color32(84, 72, 56, 235), ShowDecisionAudit);
+        CreateTextButton(reportRoot, "판단 비교", new Vector2(266, -312), new Vector2(198, 46), new Color32(65, 82, 104, 235), RunAgentSimulation);
+        recommendedCampaignButton = CreateTextButton(reportRoot, "추천 심사", new Vector2(612, -312), new Vector2(248, 52), new Color32(116, 82, 50, 238), Restart);
         recommendedCampaignButtonText = recommendedCampaignButton.GetComponentInChildren<Text>(true);
         if (recommendedCampaignButtonText != null)
         {
