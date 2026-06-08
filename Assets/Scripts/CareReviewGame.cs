@@ -1702,7 +1702,7 @@ public sealed class CareReviewGame : MonoBehaviour
             "Menu Campaign Briefing Note",
             new Vector2(-470, -420),
             new Vector2(500, 86),
-            new Color32(10, 12, 14, 132),
+            new Color32(10, 12, 14, 176),
             12,
             "",
             12,
@@ -11348,13 +11348,13 @@ public sealed class CareReviewGame : MonoBehaviour
             initialBriefing.Contains("다음 목표 추천");
         bool briefingMentionsPreviousWeakness =
             initialBriefing.Contains("보정 초점") &&
-            initialBriefing.Contains("복기 패턴") &&
+            initialBriefing.Contains("복기") &&
             initialBriefing.Contains("고위험 지연") &&
-            initialBriefing.Contains("추천 운영") &&
+            initialBriefing.Contains("추천") &&
             initialBriefing.Contains(CampaignMandateLabel(CampaignMandate.SupportExpanded));
         bool briefingUsesCoachingWeaknessTerms =
             briefingMentionsPreviousWeakness &&
-            initialBriefing.Contains("검증 질문") &&
+            initialBriefing.Contains("검증") &&
             initialBriefing.Contains("위험 증가");
         bool briefingWeaknessFocusCaptionReadable =
             briefingMentionsPreviousWeakness &&
@@ -11388,13 +11388,13 @@ public sealed class CareReviewGame : MonoBehaviour
             changedBriefing.Contains("형평");
         bool changedBriefingKeepsPreviousWeakness =
             changedBriefing.Contains("보정 초점") &&
-            changedBriefing.Contains("복기 패턴") &&
+            changedBriefing.Contains("복기") &&
             changedBriefing.Contains("고위험 지연") &&
-            changedBriefing.Contains("추천 운영") &&
+            changedBriefing.Contains("추천") &&
             changedBriefing.Contains(CampaignMandateLabel(CampaignMandate.SupportExpanded));
         bool changedBriefingKeepsCoachingWeaknessTerms =
             changedBriefingKeepsPreviousWeakness &&
-            changedBriefing.Contains("검증 질문") &&
+            changedBriefing.Contains("검증") &&
             changedBriefing.Contains("위험 증가");
         bool changedBriefingKeepsWeaknessFocusCaption =
             changedBriefingKeepsPreviousWeakness &&
@@ -12647,9 +12647,9 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementReplayRewardPanel.Contains("고위험") &&
             achievementReplayRewardPanel.Contains("W-207");
         bool achievementReplayRewardPanelMentionsRecordLinkHint =
-            achievementRewardPanelAndHint.Contains("기록 이동") &&
+            achievementRewardPanelAndHint.Contains("이동") &&
             achievementRewardPanelAndHint.Contains("메뉴 성과") &&
-            achievementRewardPanelAndHint.Contains("하단 기록/2·4·6회") &&
+            achievementRewardPanelAndHint.Contains("하단 2·4·6회") &&
             achievementRewardPanelAndHint.Contains("캠페인 기록 필터");
         bool achievementReplayRewardPanelMentionsDecisionAuditCoachingFirstUse =
             achievementRewardPanelAndHint.Contains("복기") &&
@@ -12659,14 +12659,14 @@ public sealed class CareReviewGame : MonoBehaviour
         bool achievementRecordLinkHintReadable =
             achievementRecordLinkHintText != null &&
             achievementRecordLinkHintText.gameObject.activeInHierarchy &&
-            achievementRecordLinkHint.Contains("기록 이동") &&
+            achievementRecordLinkHint.Contains("이동") &&
             achievementRecordLinkHint.Contains("메뉴 성과") &&
-            achievementRecordLinkHint.Contains("하단 기록/2·4·6회") &&
+            achievementRecordLinkHint.Contains("하단 2·4·6회") &&
             achievementRecordLinkHint.Contains("캠페인 기록 필터") &&
             achievementRecordLinkHintMaxDisplayLineWidth <= 72f;
         bool achievementRecordLinkHintMentionsMenuEntry =
             achievementRecordLinkHint.Contains("메뉴 성과") &&
-            achievementRecordLinkHint.Contains("하단 기록/2·4·6회");
+            achievementRecordLinkHint.Contains("하단 2·4·6회");
         bool achievementCatalogMentionsReplayTierPlan = false;
         bool achievementCatalogIncludesGrowthAchievements = false;
         bool achievementCatalogIncludesAppealRemedyAchievement = false;
@@ -13213,15 +13213,14 @@ public sealed class CareReviewGame : MonoBehaviour
                 record.advancedReplayChallengeUnlocked &&
                 record.advancedReplayChallengeBadge.Contains("반복 목표 전문가");
             bool careerMentionsAdvancedBadge =
-                careerBody.Contains("상위 배지") &&
-                careerBody.Contains("반복 목표 전문가") &&
-                careerBody.Contains("반복 목표 2회");
+                careerBody.Contains("반복 2회") &&
+                careerBody.Contains("동색");
 
             ShowMainMenu();
             yield return null;
             string menuStatus = menuStatusText != null ? menuStatusText.text : "";
             bool menuMentionsAdvancedBadge =
-                menuStatus.Contains("상위 배지") &&
+                menuStatus.Contains("다음 성과") &&
                 menuStatus.Contains("반복 목표 전문가");
 
             bool completed =
@@ -13246,6 +13245,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 $"  \"menuMentionsAdvancedBadge\": {(menuMentionsAdvancedBadge ? "true" : "false")},\n" +
                 $"  \"replayObjectiveCompletionCount\": {(record != null ? record.replayObjectiveCompletionCount : 0)},\n" +
                 $"  \"advancedReplayChallengeBadge\": \"{EscapeJson(record != null ? record.advancedReplayChallengeBadge : "")}\",\n" +
+                $"  \"careerBodySample\": \"{EscapeJson(careerBody)}\",\n" +
                 $"  \"firstFocusedCaseId\": \"{EscapeJson(firstFocusedCaseId)}\",\n" +
                 $"  \"secondFocusedCaseId\": \"{EscapeJson(secondFocusedCaseId)}\"\n" +
                 "}\n";
@@ -13868,7 +13868,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 detailText.Contains("검증 질문");
             bool careerRecordActionHintSummarizesButtons =
                 record != null &&
-                actionHintText.Contains("액션 안내") &&
+                actionHintText.Contains("이동") &&
                 actionHintText.Contains("대표") &&
                 actionHintText.Contains(record.representativeCaseId) &&
                 actionHintText.Contains("조사") &&
@@ -14038,7 +14038,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 appealRemedyFilteredDetail.Contains("C-031");
             careerRecordActionHintSummarizesButtons =
                 careerRecordActionHintSummarizesButtons &&
-                appealRemedyActionHintText.Contains("액션 안내") &&
+                appealRemedyActionHintText.Contains("이동") &&
                 appealRemedyActionHintText.Contains("대표") &&
                 appealRemedyActionHintText.Contains("조사") &&
                 appealRemedyActionHintText.Contains("보정 추천 C-031") &&
@@ -15146,7 +15146,7 @@ public sealed class CareReviewGame : MonoBehaviour
             careerRecordActionHintReadable &=
                 careerRecordRoot != null &&
                 careerRecordRoot.gameObject.activeSelf &&
-                careerActionHint.Contains("액션 안내") &&
+                careerActionHint.Contains("이동") &&
                 careerActionHint.Contains("대표") &&
                 careerActionHint.Contains("조사") &&
                 careerActionHint.Contains("다음 목표") &&
@@ -15164,14 +15164,14 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementRecordLinkHintReadable &=
                 achievementRoot != null &&
                 achievementRoot.gameObject.activeSelf &&
-                achievementRecordLinkHint.Contains("기록 이동") &&
+                achievementRecordLinkHint.Contains("이동") &&
                 achievementRecordLinkHint.Contains("메뉴 성과") &&
-                achievementRecordLinkHint.Contains("하단 기록/2·4·6회") &&
+                achievementRecordLinkHint.Contains("하단 2·4·6회") &&
                 achievementRecordLinkHint.Contains("캠페인 기록 필터") &&
                 achievementHintWidth <= 72f;
             achievementRecordLinkHintMentionsMenuEntry &=
                 achievementRecordLinkHint.Contains("메뉴 성과") &&
-                achievementRecordLinkHint.Contains("하단 기록/2·4·6회");
+                achievementRecordLinkHint.Contains("하단 2·4·6회");
             achievementRecordLinkHintMentionsCoachingFirstUse &=
                 achievementRecordLinkHint.Contains("복기") &&
                 achievementRecordLinkHint.Contains("W-207") &&
@@ -15179,7 +15179,7 @@ public sealed class CareReviewGame : MonoBehaviour
             lowResolutionReleaseCopyAlignmentReadable &=
                 menuAchievementHint.Contains("성과 보기 목표") &&
                 careerActionHint.Contains("다음 목표") &&
-                achievementRecordLinkHint.Contains("기록 이동") &&
+                achievementRecordLinkHint.Contains("이동") &&
                 achievementRecordLinkHint.Contains("캠페인 기록 필터") &&
                 menuAchievementHintWidth <= 42f &&
                 actionHintWidth <= 74f &&
@@ -20921,7 +20921,7 @@ public sealed class CareReviewGame : MonoBehaviour
         int replayCount = CountReplayObjectiveRecords(LoadCareerRecordDatabase().records);
         if (replayCount >= 2)
         {
-            return $"성과 배지 {unlocked}/{achievements.Length} · 다음 성과: {AdvancedReplayChallengeBadge(replayCount)} · 반복 {replayCount}/6 · A 성과 보기";
+            return $"성과 배지 {unlocked}/{achievements.Length} · 다음 성과: {AdvancedReplayChallengeBadgeTitle(replayCount)} · 반복 {replayCount}/6 · A 성과 보기";
         }
 
         return $"성과 배지 {unlocked}/{achievements.Length} · 다음 성과: {Shorten(next, 16)} · 반복 {replayCount}/6 · A 성과 보기";
@@ -21073,9 +21073,9 @@ public sealed class CareReviewGame : MonoBehaviour
             ? "위험 증가"
             : Shorten(verification, 14);
         return
-            $"복기 패턴 {latest.decisionAuditCoachingPattern} · " +
-            $"추천 운영 {recommended} · " +
-            $"검증 질문 {verificationFocus}";
+            $"복기: {latest.decisionAuditCoachingPattern} · " +
+            $"추천: {recommended} · " +
+            $"검증: {verificationFocus}";
     }
 
     private static void ConsiderMenuBriefingWeakness(string label, int score, string note, ref string weakestLabel, ref int weakestScore, ref string weakestNote)
@@ -22407,8 +22407,8 @@ public sealed class CareReviewGame : MonoBehaviour
 
         string coaching = BuildAchievementDecisionAuditCoachingHintSegment(LoadCareerRecordDatabase().records);
         achievementRecordLinkHintText.text = string.IsNullOrWhiteSpace(coaching)
-            ? "기록 이동: 메뉴 성과→하단 기록/2·4·6회→캠페인 기록 필터"
-            : "기록 이동: 메뉴 성과→" + coaching.TrimStart(' ', '·') + " · 하단 기록/2·4·6회→캠페인 기록 필터";
+            ? "이동: 메뉴 성과→하단 2·4·6회→캠페인 기록 필터"
+            : "이동: 메뉴 성과→" + coaching.TrimStart(' ', '·') + " · 하단 2·4·6회→캠페인 기록 필터";
     }
 
     private void UpdateAchievementReplayTierRecordButtons(int replayObjectiveCount)
@@ -22828,7 +22828,7 @@ public sealed class CareReviewGame : MonoBehaviour
 
         if (record == null)
         {
-            careerRecordActionHintText.text = "액션 안내: 완료 기록에서 대표 사례, 조사 메모, 보정 사례, 다음 목표를 열 수 있습니다.";
+            careerRecordActionHintText.text = "이동: 완료 기록에서 대표 사례, 조사 메모, 보정 사례, 다음 목표를 열 수 있습니다.";
             return;
         }
 
@@ -22853,7 +22853,7 @@ public sealed class CareReviewGame : MonoBehaviour
             next = nextLabel == "목표 재시작" ? "다음 목표" : "다음 목표 " + nextLabel;
         }
 
-        careerRecordActionHintText.text = $"액션 안내: {representative} · {investigation} · {remedy} · {next}{coaching}";
+        careerRecordActionHintText.text = $"이동: {representative} · {investigation} · {remedy} · {next}{coaching}";
     }
 
     private static string CareerRecordNextObjectiveButtonLabel(CareerRecord record)
@@ -23262,6 +23262,9 @@ public sealed class CareReviewGame : MonoBehaviour
         int appealTriageCount = CountCareerRecordsForFilter(records, CareerRecordAppealTriageFilterId);
         string growthState = growthCount > 0 && latest.growthObjectiveSucceeded ? "성공" : "최근 미달";
         string appealRate = appealRemedyCount > 0 ? "성공률 점검" : "성공률 0%";
+        string replayRewardState = latest.replayObjectiveCompletionCount >= 2
+            ? $" · 반복 {latest.replayObjectiveCompletionCount}회 {Shorten(AdvancedReplayChallengeDecoration(latest.replayObjectiveCompletionCount), 12)}"
+            : "";
         StringBuilder builder = new();
         builder.AppendLine(BuildCareerRecordViewHeader(filterLabel, CareerRecordViewMode.Summary));
         builder.AppendLine(
@@ -23269,7 +23272,7 @@ public sealed class CareReviewGame : MonoBehaviour
             $"엔딩 {latest.endingTitle} · 마지막 회차 세부 아래 패널");
         builder.AppendLine(
             $"챌린지 {Shorten(latest.campaignChallengeTitle, 20)} · 조사 후속 {latest.investigationFollowUpCount}건 · " +
-            $"내 판단 기준 {FallbackText(latest.closestAgentPersonaName, "기록 없음")}");
+            $"내 판단 기준 {FallbackText(latest.closestAgentPersonaName, "기록 없음")}{replayRewardState}");
         builder.AppendLine(
             $"성장 비교: 직전/이전 최고/비교 초점 · 동일 사례 회고: {FallbackText(latest.representativeCaseId, "AG-349")} · " +
             $"판단 변화 · 목표 재도전 결과 {Shorten(BuildCareerRecordObjectiveOutcome(latest), 20)}");
@@ -29949,7 +29952,7 @@ public sealed class CareReviewGame : MonoBehaviour
     {
         return "상용화 보강 체크\n" +
             "성과 기록: 다음 목표/2·4·6 보상\n" +
-            "캠페인 기록: 필터/장기 추세/액션 안내\n" +
+            "캠페인 기록: 필터/장기 추세/이동 안내\n" +
             "상점 후보: 10번 성과, 12번 기록\n" +
             "질문: 다시 할 이유가 보였나?";
     }
@@ -31281,6 +31284,15 @@ public sealed class CareReviewGame : MonoBehaviour
         return replayObjectiveCount >= 4
             ? "상위 배지: 반복 목표 감독관"
             : "상위 배지: 반복 목표 전문가";
+    }
+
+    private static string AdvancedReplayChallengeBadgeTitle(int replayObjectiveCount)
+    {
+        string badge = AdvancedReplayChallengeBadge(replayObjectiveCount);
+        const string prefix = "상위 배지:";
+        return badge.StartsWith(prefix, StringComparison.Ordinal)
+            ? badge.Substring(prefix.Length).Trim()
+            : badge;
     }
 
     private static string AdvancedReplayChallengeProgress(int replayObjectiveCount)
