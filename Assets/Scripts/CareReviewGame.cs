@@ -1989,7 +1989,9 @@ public sealed class CareReviewGame : MonoBehaviour
             TextAnchor.MiddleLeft,
             new Color32(246, 232, 202, 255),
             FontStyle.Bold);
-        SetRect(achievementReplayRewardText.rectTransform, new Vector2(-198, -282), new Vector2(708, 24));
+        achievementReplayRewardText.fontSize = 11;
+        achievementReplayRewardText.lineSpacing = 0.94f;
+        SetRect(achievementReplayRewardText.rectTransform, new Vector2(-198, -282), new Vector2(708, 30));
 
         achievementRecordLinkHintText = CreateText(
             achievementRoot,
@@ -12638,9 +12640,7 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementReplayRewardPanel.Contains("회");
         bool achievementReplayRewardPanelMentionsDecisionPracticeTiers =
             achievementReplayRewardPanel.Contains("비교 연습 보상") &&
-            achievementReplayRewardPanel.Contains("2회 비교 노트 인장") &&
-            achievementReplayRewardPanel.Contains("4회 분기 카드 프레임") &&
-            achievementReplayRewardPanel.Contains("6회 판단 훈련 명패") &&
+            achievementReplayRewardPanel.Contains("2/4/6회") &&
             achievementReplayRewardPanel.Contains("비교 최고 단계");
         bool achievementReplayRewardPanelMentionsAppealTriageResult =
             achievementReplayRewardPanel.Contains("보정 추천:") &&
@@ -22419,7 +22419,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 i < achievementReplayTierRecordButtonTexts.Length &&
                 achievementReplayTierRecordButtonTexts[i] != null)
             {
-                achievementReplayTierRecordButtonTexts[i].text = unlocked ? "반복 " + thresholds[i] + "회" : thresholds[i] + "회 대기";
+                achievementReplayTierRecordButtonTexts[i].text = unlocked ? "반복 " + thresholds[i] + "회" : "반복 " + thresholds[i] + "회 대기";
                 achievementReplayTierRecordButtonTexts[i].fontSize = 11;
             }
         }
@@ -22512,7 +22512,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 i < achievementDecisionPracticeTierRecordButtonTexts.Length &&
                 achievementDecisionPracticeTierRecordButtonTexts[i] != null)
             {
-                achievementDecisionPracticeTierRecordButtonTexts[i].text = unlocked ? "비교 " + thresholds[i] + "회" : "비교 " + thresholds[i] + "대기";
+                achievementDecisionPracticeTierRecordButtonTexts[i].text = unlocked ? "비교 " + thresholds[i] + "회" : "비교 " + thresholds[i] + "회 대기";
                 achievementDecisionPracticeTierRecordButtonTexts[i].fontSize = 11;
             }
         }
@@ -24584,10 +24584,10 @@ public sealed class CareReviewGame : MonoBehaviour
     {
         string current = replayObjectiveCount <= 0
             ? "현재 0회"
-            : $"현재 {replayObjectiveCount}회 · {AdvancedReplayChallengeTier(replayObjectiveCount)} · {AdvancedReplayChallengeDecoration(replayObjectiveCount)}";
-        string bronze = replayObjectiveCount >= 2 ? "2회 동색 반복 목표 인장 해금" : "2회 동색 반복 목표 인장 대기";
-        string silver = replayObjectiveCount >= 4 ? "4회 은색 챌린지 카드 해금" : "4회 은색 챌린지 카드 대기";
-        string gold = replayObjectiveCount >= 6 ? "6회 금색 엔딩 장식 해금" : "6회 금색 엔딩 장식 대기";
+            : $"현재 {replayObjectiveCount}회 · {AdvancedReplayChallengeTier(replayObjectiveCount)}";
+        string bronze = replayObjectiveCount >= 2 ? "2회 동색" : "2회 동색 대기";
+        string silver = replayObjectiveCount >= 4 ? "4회 은색" : "4회 은색 대기";
+        string gold = replayObjectiveCount >= 6 ? "6회 금색 엔딩 장식" : "6회 금색 엔딩 장식 대기";
         string next = replayObjectiveCount >= 6
             ? "최고 단계 유지"
             : $"다음 보상 {Mathf.Max(2, replayObjectiveCount >= 4 ? 6 : 4)}회";
@@ -24595,7 +24595,8 @@ public sealed class CareReviewGame : MonoBehaviour
         int appealRemedyObjectiveCount = CountAppealRemedyObjectiveRecords(records);
         int decisionPracticeObjectiveCount = CountDecisionPracticeObjectiveRecords(records);
         string coaching = BuildAchievementDecisionAuditCoachingRewardSegment(records);
-        return $"반복 보상 이력: {current} · {bronze} / {silver} / {gold} · {next} · 보정 목표 {appealRemedyObjectiveCount}회 · {BuildAppealRemedyTriageAchievementProgressText(records)} · 비교 연습 {decisionPracticeObjectiveCount}회 · {BuildDecisionPracticeRewardHistorySegment(decisionPracticeObjectiveCount)} · {BuildAchievementGrowthProgressSegment()}{coaching}";
+        return $"반복 보상 이력: {current} · {bronze} / {silver} / {gold} · {next}\n" +
+            $"보정 목표 {appealRemedyObjectiveCount}회 · {BuildAppealRemedyTriageAchievementRewardBarText(records)} · 비교 연습 {decisionPracticeObjectiveCount}회 · {BuildDecisionPracticeRewardHistorySegment(decisionPracticeObjectiveCount)} · {BuildAchievementGrowthProgressSegment()}{coaching}";
     }
 
     private static string BuildAchievementDecisionAuditCoachingHintSegment(List<CareerRecord> records)
@@ -24623,7 +24624,7 @@ public sealed class CareReviewGame : MonoBehaviour
         string caseId = string.IsNullOrWhiteSpace(record.decisionAuditCoachingAppealCaseId)
             ? FallbackText(record.representativeCaseId, "대표")
             : record.decisionAuditCoachingAppealCaseId;
-        return $" · 복기 사례 {Shorten(caseId, 8)} 기록 복귀";
+        return $" · 복기 {Shorten(caseId, 8)} 기록 복귀";
     }
 
     private static CareerRecord LatestDecisionAuditCoachingRecord(List<CareerRecord> records)
@@ -24659,6 +24660,21 @@ public sealed class CareReviewGame : MonoBehaviour
         return $"보정 추천: {label} {record.appealRemedyObjectiveCaseId} {result} · 추천 기록 {candidateCount}회/{successCount}성공 · {Shorten(summary, 34)}";
     }
 
+    private static string BuildAppealRemedyTriageAchievementRewardBarText(List<CareerRecord> records)
+    {
+        if (!TryFindLatestAppealRemedyTriageCareerRecord(records, out CareerRecord record))
+        {
+            return "보정 추천: 추천 결과 대기";
+        }
+
+        string result = record.appealRemedyObjectiveSucceeded ? "성공" : "미달";
+        string label = FallbackText(record.appealRemedyObjectiveTriageLabel, "추천");
+        string caseId = record.appealRemedyObjectiveTriageSummary != null && record.appealRemedyObjectiveTriageSummary.Contains("W-207")
+            ? "W-207"
+            : FallbackText(record.appealRemedyObjectiveCaseId, "추천");
+        return $"보정 추천: {label} {caseId} {result}";
+    }
+
     private static string BuildAppealRemedyTriageAchievementStatusText(List<CareerRecord> records)
     {
         if (!TryFindLatestAppealRemedyTriageCareerRecord(records, out CareerRecord record))
@@ -24675,16 +24691,10 @@ public sealed class CareReviewGame : MonoBehaviour
 
     private static string BuildDecisionPracticeRewardHistorySegment(int practiceCount)
     {
-        string current = practiceCount <= 0
-            ? "현재 0회"
-            : $"현재 {practiceCount}회 · {DecisionPracticeRewardTier(practiceCount)} · {DecisionPracticeRewardDecoration(practiceCount)}";
-        string first = practiceCount >= 2 ? "2회 비교 노트 인장 해금" : "2회 비교 노트 인장 대기";
-        string second = practiceCount >= 4 ? "4회 분기 카드 프레임 해금" : "4회 분기 카드 프레임 대기";
-        string third = practiceCount >= 6 ? "6회 판단 훈련 명패 해금" : "6회 판단 훈련 명패 대기";
         string next = practiceCount >= 6
             ? "비교 최고 단계 유지"
             : $"비교 다음 보상 {Mathf.Max(2, practiceCount >= 4 ? 6 : 4)}회";
-        return $"비교 연습 보상: {current} · {first} / {second} / {third} · {next}";
+        return $"비교 연습 보상: 2/4/6회 · {next}";
     }
 
     private static string DecisionPracticeRewardTier(int practiceCount)
@@ -24725,7 +24735,7 @@ public sealed class CareReviewGame : MonoBehaviour
 
     private static string BuildAchievementGrowthProgressSegment()
     {
-        string objectiveState = IsAchievementUnlocked("growth_objective_success") ? "목표 달성" : "목표 대기";
+        string objectiveState = IsAchievementUnlocked("growth_objective_success") ? "목표 완료" : "목표 대기";
         string followUpState = IsAchievementUnlocked("growth_follow_up_complete") ? "후속 완료" : "후속 대기";
         return $"성장 성과: {objectiveState}/{followUpState}";
     }
