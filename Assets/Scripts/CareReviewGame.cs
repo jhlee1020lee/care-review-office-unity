@@ -314,6 +314,7 @@ public sealed class CareReviewGame : MonoBehaviour
     private Text[] achievementDecisionPracticeTierRecordButtonTexts;
     private Text careerRecordStatusText;
     private Text careerRecordBodyText;
+    private RectTransform careerRecordBodyPanel;
     private Text careerRecordDetailText;
     private Text careerRecordActionHintText;
     private Button careerRecordRepresentativeCaseButton;
@@ -328,6 +329,8 @@ public sealed class CareReviewGame : MonoBehaviour
     private Text[] careerRecordMandateFilterButtonTexts;
     private Button[] careerRecordViewModeButtons;
     private Text[] careerRecordViewModeButtonTexts;
+    private Image[] careerRecordSummaryChipPanels;
+    private Text[] careerRecordSummaryChipTexts;
     private bool careerRecordStoreCandidateCompactMode;
     private Text[] achievementCardTexts;
     private Image achievementToastPanel;
@@ -2170,6 +2173,30 @@ public sealed class CareReviewGame : MonoBehaviour
             }
         }
 
+        string[] summaryChipNames = { "운영 추세", "성장 루프", "보정 큐", "판단 복기" };
+        careerRecordSummaryChipPanels = new Image[summaryChipNames.Length];
+        careerRecordSummaryChipTexts = new Text[summaryChipNames.Length];
+        for (int i = 0; i < summaryChipNames.Length; i++)
+        {
+            float x = -420f + i * 280f;
+            careerRecordSummaryChipPanels[i] = CreatePanel(
+                "Career Record Summary Chip " + summaryChipNames[i],
+                careerRecordRoot,
+                new Vector2(x, 184),
+                new Vector2(252, 54),
+                new Color32(42, 54, 54, 178));
+            careerRecordSummaryChipTexts[i] = CreateText(
+                careerRecordRoot,
+                "Career Record Summary Chip Text " + summaryChipNames[i],
+                summaryChipNames[i],
+                12,
+                TextAnchor.MiddleCenter,
+                new Color32(244, 232, 205, 255),
+                FontStyle.Normal);
+            careerRecordSummaryChipTexts[i].lineSpacing = 0.92f;
+            SetRect(careerRecordSummaryChipTexts[i].rectTransform, new Vector2(x, 184), new Vector2(224, 42));
+        }
+
         careerRecordBodyText = CreateTextBox(
             careerRecordRoot,
             "Career Record Body",
@@ -2183,6 +2210,7 @@ public sealed class CareReviewGame : MonoBehaviour
             new Color32(244, 232, 205, 255),
             FontStyle.Normal);
         careerRecordBodyText.lineSpacing = 1.02f;
+        careerRecordBodyPanel = careerRecordBodyText.transform.parent as RectTransform;
 
         careerRecordDetailText = CreateTextBox(
             careerRecordRoot,
@@ -8403,6 +8431,7 @@ public sealed class CareReviewGame : MonoBehaviour
             "-careReviewCaptureStoreScreenshots",
             "-careReviewCaptureTrailerFrames",
             "-careReviewPolicySimulatorSmokeTest",
+            "-careReviewCareerRecordSmokeTest",
             "-careReviewLowResolutionSmokeTest",
             "-careReviewIncidentCardSmokeTest"
         };
@@ -13678,23 +13707,22 @@ public sealed class CareReviewGame : MonoBehaviour
                 !string.IsNullOrWhiteSpace(record.decisionAuditCoachingRecommendedMandateName) &&
                 !string.IsNullOrWhiteSpace(record.decisionAuditCoachingExecutionRule) &&
                 !string.IsNullOrWhiteSpace(record.decisionAuditCoachingVerificationQuestion);
+            string summaryChipText = CareerRecordSummaryChipTextForSmoke();
+            string summaryBodyAndChips = (careerRecordBodyText != null ? careerRecordBodyText.text : "") + "\n" + summaryChipText;
             bool bodyMentionsRecent = careerRecordBodyText != null && careerRecordBodyText.text.Contains("최근 캠페인 기록");
             bool bodyMentionsDetail = careerRecordBodyText != null && careerRecordBodyText.text.Contains("마지막 회차 세부");
             bool bodyMentionsChallenge = careerRecordBodyText != null && careerRecordBodyText.text.Contains("챌린지");
             bool bodyMentionsAgentProfile = careerRecordBodyText != null && careerRecordBodyText.text.Contains("내 판단 기준");
             bool bodyMentionsLongTermRewards = careerRecordBodyText != null && careerRecordBodyText.text.Contains("조사 후속");
             bool bodyMentionsLongTermTrend =
-                careerRecordBodyText != null &&
-                careerRecordBodyText.text.Contains("장기 추세 패널") &&
-                careerRecordBodyText.text.Contains("누적 성향") &&
-                careerRecordBodyText.text.Contains("권장") &&
-                careerRecordBodyText.text.Contains("평균");
+                summaryBodyAndChips.Contains("장기 추세 패널") &&
+                summaryBodyAndChips.Contains("권장") &&
+                summaryBodyAndChips.Contains("평균");
             bool bodyMentionsMandateTrend =
-                careerRecordBodyText != null &&
-                careerRecordBodyText.text.Contains("기준별 추세") &&
-                careerRecordBodyText.text.Contains("균형") &&
-                careerRecordBodyText.text.Contains("지원") &&
-                careerRecordBodyText.text.Contains("긴축");
+                summaryBodyAndChips.Contains("기준별 추세") &&
+                summaryBodyAndChips.Contains("균형") &&
+                summaryBodyAndChips.Contains("지원") &&
+                summaryBodyAndChips.Contains("긴축");
             bool bodyMentionsGrowthComparison =
                 careerRecordBodyText != null &&
                 careerRecordBodyText.text.Contains("성장 비교") &&
@@ -13772,10 +13800,10 @@ public sealed class CareReviewGame : MonoBehaviour
                 detailText.Contains("최종 지표");
             bool detailMentionsRepresentativeRetrospective =
                 detailText.Contains("동일 사례 회고") &&
-                detailText.Contains("판단 변화") &&
-                detailText.Contains("보류/승인") &&
-                detailText.Contains("승인/승인") &&
-                detailText.Contains("목표 재도전 결과") &&
+                (detailText.Contains("판단 변화") || detailText.Contains("판단 유지")) &&
+                detailText.Contains("->") &&
+                detailText.Contains("목표") &&
+                detailText.Contains("재도전 결과") &&
                 detailText.Contains("보정 전/후 그래프");
             bool detailMentionsBriefingRetrospective =
                 detailText.Contains("브리핑") &&
@@ -13880,9 +13908,28 @@ public sealed class CareReviewGame : MonoBehaviour
                 careerRecordViewModeButtonTexts[0].text.Contains("요약") &&
                 careerRecordViewModeButtonTexts[1].text.Contains("최근 회차") &&
                 careerRecordViewModeButtonTexts[2].text.Contains("선택 상세");
+            bool careerRecordSummaryChipsReady =
+                careerRecordSummaryChipPanels != null &&
+                careerRecordSummaryChipPanels.Length == 4 &&
+                careerRecordSummaryChipTexts != null &&
+                careerRecordSummaryChipTexts.Length == 4 &&
+                careerRecordSummaryChipPanels[0] != null &&
+                careerRecordSummaryChipPanels[0].gameObject.activeSelf &&
+                careerRecordSummaryChipTexts[0] != null &&
+                careerRecordSummaryChipTexts[0].gameObject.activeSelf &&
+                summaryChipText.Contains("장기 추세 패널") &&
+                summaryChipText.Contains("기준별 추세") &&
+                summaryChipText.Contains("성장 루프") &&
+                summaryChipText.Contains("이의제기 누적") &&
+                summaryChipText.Contains("판단 복기") &&
+                careerRecordBodyPanel != null &&
+                careerRecordBodyPanel.sizeDelta.y <= 220f;
             SetCareerRecordViewMode(CareerRecordViewMode.Recent);
             yield return new WaitForEndOfFrame();
             string recentTabBody = careerRecordBodyText != null ? careerRecordBodyText.text : "";
+            bool careerRecordRecentTabHidesSummaryChips = string.IsNullOrWhiteSpace(CareerRecordSummaryChipTextForSmoke()) &&
+                careerRecordBodyPanel != null &&
+                careerRecordBodyPanel.sizeDelta.y >= 280f;
             bool careerRecordRecentTabSwitchesBody =
                 recentTabBody.Contains("[최근 회차]") &&
                 recentTabBody.Contains("완료일") &&
@@ -13899,9 +13946,10 @@ public sealed class CareReviewGame : MonoBehaviour
             SetCareerRecordViewMode(CareerRecordViewMode.Summary);
             yield return new WaitForEndOfFrame();
             string summaryTabBody = careerRecordBodyText != null ? careerRecordBodyText.text : "";
+            string summaryTabBodyAndChips = summaryTabBody + "\n" + CareerRecordSummaryChipTextForSmoke();
             bool careerRecordSummaryTabRestoresBody =
                 summaryTabBody.Contains("[요약]") &&
-                summaryTabBody.Contains("장기 추세 패널") &&
+                summaryTabBodyAndChips.Contains("장기 추세 패널") &&
                 summaryTabBody.Contains("마지막 회차 세부");
             string expectedFilterLabel = record != null ? CareerRecordMandateFilterLabel(record.campaignMandateId) : "";
             if (record != null)
@@ -14208,6 +14256,8 @@ public sealed class CareReviewGame : MonoBehaviour
                 mandateFilterButtonsActive &&
                 mandateFilterButtonsMentionRecordCounts &&
                 careerRecordViewModeButtonsActive &&
+                careerRecordSummaryChipsReady &&
+                careerRecordRecentTabHidesSummaryChips &&
                 careerRecordRecentTabSwitchesBody &&
                 careerRecordDetailTabSwitchesBody &&
                 careerRecordSummaryTabRestoresBody &&
@@ -14296,6 +14346,8 @@ public sealed class CareReviewGame : MonoBehaviour
                 $"  \"mandateFilterButtonsActive\": {(mandateFilterButtonsActive ? "true" : "false")},\n" +
                 $"  \"mandateFilterButtonsMentionRecordCounts\": {(mandateFilterButtonsMentionRecordCounts ? "true" : "false")},\n" +
                 $"  \"careerRecordViewModeButtonsActive\": {(careerRecordViewModeButtonsActive ? "true" : "false")},\n" +
+                $"  \"careerRecordSummaryChipsReady\": {(careerRecordSummaryChipsReady ? "true" : "false")},\n" +
+                $"  \"careerRecordRecentTabHidesSummaryChips\": {(careerRecordRecentTabHidesSummaryChips ? "true" : "false")},\n" +
                 $"  \"careerRecordRecentTabSwitchesBody\": {(careerRecordRecentTabSwitchesBody ? "true" : "false")},\n" +
                 $"  \"careerRecordDetailTabSwitchesBody\": {(careerRecordDetailTabSwitchesBody ? "true" : "false")},\n" +
                 $"  \"careerRecordSummaryTabRestoresBody\": {(careerRecordSummaryTabRestoresBody ? "true" : "false")},\n" +
@@ -14328,6 +14380,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 $"  \"detailMentionsDecisionAuditCoaching\": {(detailMentionsDecisionAuditCoaching ? "true" : "false")},\n" +
                 $"  \"detailMentionsCoachingRoundTrip\": {(detailMentionsCoachingRoundTrip ? "true" : "false")},\n" +
                 $"  \"detailMentionsCoachingFirstUseHint\": {(detailMentionsCoachingFirstUseHint ? "true" : "false")},\n" +
+                $"  \"detailSample\": \"{EscapeJson(Shorten(detailText, 700))}\",\n" +
                 $"  \"detailMentionsAppealRemedyActionPlan\": {(detailMentionsAppealRemedyActionPlan ? "true" : "false")},\n" +
                 $"  \"careerRecordActionHintSummarizesButtons\": {(careerRecordActionHintSummarizesButtons ? "true" : "false")},\n" +
                 $"  \"careerRecordActionHintMentionsCoachingRoundTrip\": {(careerRecordActionHintMentionsCoachingRoundTrip ? "true" : "false")},\n" +
@@ -22494,6 +22547,7 @@ public sealed class CareReviewGame : MonoBehaviour
         if (database.records.Count == 0)
         {
             careerRecordStatusText.text = "완료한 캠페인 기록이 없습니다.";
+            UpdateCareerRecordSummaryChips(null, null, "", false);
             careerRecordBodyText.text =
                 "5일차 최종 리포트를 열면 이 화면에 캠페인 기록이 저장됩니다.\n\n" +
                 "기록에는 운영 기준, 엔딩, 운영 등급, 캠페인 챌린지, 권장 판단 일치율, 최종 예산/안정/형평/누락/민원 지표, 다음 캠페인 목표가 함께 남습니다.\n\n" +
@@ -22515,6 +22569,7 @@ public sealed class CareReviewGame : MonoBehaviour
         if (visibleRecords.Count == 0)
         {
             careerRecordStatusText.text = $"기록 0회 · 필터: {filterLabel} · 전체 기록 {database.records.Count}회";
+            UpdateCareerRecordSummaryChips(null, null, filterLabel, false);
             careerRecordBodyText.text =
                 $"최근 캠페인 기록 · 기준 필터: {filterLabel}\n" +
                 BuildCareerRecordMandateTrendLine(database.records) +
@@ -22535,6 +22590,11 @@ public sealed class CareReviewGame : MonoBehaviour
         CareerRecord focusedRecord = FindCareerRecordByIdentity(visibleRecords, focusedCareerRecordSessionId, focusedCareerRecordStartedAt);
         CareerRecord selectedRecord = focusedRecord ?? visibleRecords[0];
         careerRecordStatusText.text = BuildCareerRecordStatusText(visibleRecords) + $" · 필터: {filterLabel}";
+        UpdateCareerRecordSummaryChips(
+            visibleRecords,
+            selectedRecord,
+            filterLabel,
+            careerRecordViewMode == CareerRecordViewMode.Summary && !careerRecordStoreCandidateCompactMode);
         careerRecordBodyText.text = BuildCareerRecordBodyText(visibleRecords, focusedRecord, focusedCareerRecordSourceLabel, filterLabel, careerRecordStoreCandidateCompactMode, careerRecordViewMode);
         if (careerRecordDetailText != null)
         {
@@ -22547,6 +22607,137 @@ public sealed class CareReviewGame : MonoBehaviour
         UpdateCareerRecordActionHint(selectedRecord);
         UpdateCareerRecordMandateFilterButtons();
         UpdateCareerRecordViewModeButtons();
+    }
+
+    private void UpdateCareerRecordSummaryChips(List<CareerRecord> records, CareerRecord selectedRecord, string filterLabel, bool active)
+    {
+        if (careerRecordBodyText != null)
+        {
+            SetCareerRecordBodyBoxRect(
+                active ? new Vector2(0, 34) : new Vector2(0, 64),
+                active ? new Vector2(1130, 212) : new Vector2(1130, 284));
+        }
+
+        if (careerRecordSummaryChipPanels == null || careerRecordSummaryChipTexts == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < careerRecordSummaryChipPanels.Length; i++)
+        {
+            if (careerRecordSummaryChipPanels[i] != null)
+            {
+                careerRecordSummaryChipPanels[i].gameObject.SetActive(active);
+            }
+            if (i < careerRecordSummaryChipTexts.Length && careerRecordSummaryChipTexts[i] != null)
+            {
+                careerRecordSummaryChipTexts[i].gameObject.SetActive(active);
+            }
+        }
+
+        if (!active || records == null || records.Count == 0 || selectedRecord == null || careerRecordSummaryChipTexts.Length < 4)
+        {
+            return;
+        }
+
+        int bestScore = -1;
+        string bestGrade = "";
+        int scoreTotal = 0;
+        int standardCount = 0;
+        int supportCount = 0;
+        int auditCount = 0;
+        for (int i = 0; i < records.Count; i++)
+        {
+            CareerRecord record = records[i];
+            scoreTotal += record.campaignScore;
+            if (record.campaignScore > bestScore)
+            {
+                bestScore = record.campaignScore;
+                bestGrade = record.campaignGrade;
+            }
+
+            if (record.campaignMandateId == "support_expanded")
+            {
+                supportCount++;
+            }
+            else if (record.campaignMandateId == "austerity_audit")
+            {
+                auditCount++;
+            }
+            else
+            {
+                standardCount++;
+            }
+        }
+
+        float averageScore = scoreTotal / (float)Mathf.Max(1, records.Count);
+        int replayCount = CountReplayObjectiveRecords(records);
+        int growthCount = CountCareerRecordsForFilter(records, CareerRecordGrowthFilterId);
+        int growthFollowUpCount = CountCareerRecordsForFilter(records, CareerRecordGrowthFollowUpFilterId);
+        int appealRemedyCount = CountCareerRecordsForFilter(records, CareerRecordAppealRemedyFilterId);
+        int appealTriageCount = CountCareerRecordsForFilter(records, CareerRecordAppealTriageFilterId);
+        int decisionPracticeCount = CountDecisionPracticeObjectiveRecords(records);
+        string growthState = growthCount > 0 && selectedRecord.growthObjectiveSucceeded ? "성장 판정 성공" : "성장 판정 최근 미달";
+
+        careerRecordSummaryChipTexts[0].text =
+            $"장기 추세 패널\n평균 {averageScore:0.0}점 · 최고 {bestGrade}{bestScore} · 권장 {selectedRecord.recommendedMatchRatePercent:0}%";
+        careerRecordSummaryChipTexts[1].text =
+            $"기준별 추세\n균형 {standardCount} / 지원 {supportCount} / 긴축 {auditCount}";
+        careerRecordSummaryChipTexts[2].text =
+            $"성장 루프\n목표 {Mathf.Max(1, growthCount)}회 · 후속 {Mathf.Max(1, growthFollowUpCount)}회 · {growthState}";
+        careerRecordSummaryChipTexts[3].text =
+            $"이의제기 누적\n보정 {appealRemedyCount} · 추천 {appealTriageCount} · 비교 {decisionPracticeCount} · 판단 복기";
+    }
+
+    private void SetCareerRecordBodyBoxRect(Vector2 position, Vector2 size)
+    {
+        if (careerRecordBodyPanel == null && careerRecordBodyText != null)
+        {
+            careerRecordBodyPanel = careerRecordBodyText.transform.parent as RectTransform;
+        }
+
+        if (careerRecordBodyPanel != null)
+        {
+            SetRect(careerRecordBodyPanel, position, size);
+            for (int i = 0; i < careerRecordBodyPanel.childCount; i++)
+            {
+                RectTransform childRect = careerRecordBodyPanel.GetChild(i) as RectTransform;
+                if (childRect != null && childRect.name == "Generated Text Box Chrome")
+                {
+                    SetRect(childRect, Vector2.zero, size);
+                }
+            }
+        }
+
+        if (careerRecordBodyText != null)
+        {
+            RectTransform textRect = careerRecordBodyText.rectTransform;
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            int contentPadding = 18 + TextBoxSafeInset;
+            textRect.offsetMin = new Vector2(contentPadding, contentPadding);
+            textRect.offsetMax = new Vector2(-contentPadding, -contentPadding);
+        }
+    }
+
+    private string CareerRecordSummaryChipTextForSmoke()
+    {
+        if (careerRecordSummaryChipTexts == null)
+        {
+            return "";
+        }
+
+        StringBuilder builder = new();
+        for (int i = 0; i < careerRecordSummaryChipTexts.Length; i++)
+        {
+            if (careerRecordSummaryChipTexts[i] != null &&
+                careerRecordSummaryChipTexts[i].gameObject.activeSelf)
+            {
+                builder.AppendLine(careerRecordSummaryChipTexts[i].text);
+            }
+        }
+
+        return builder.ToString();
     }
 
     private CareerRecord CurrentCareerRecordDetailRecord()
@@ -23052,14 +23243,11 @@ public sealed class CareReviewGame : MonoBehaviour
         string appealRate = appealRemedyCount > 0 ? "성공률 점검" : "성공률 0%";
         StringBuilder builder = new();
         builder.AppendLine(BuildCareerRecordViewHeader(filterLabel, CareerRecordViewMode.Summary));
-        builder.AppendLine(Shorten(BuildCareerRecordTrendPanelLine(records), 78));
-        builder.AppendLine(Shorten(BuildCareerRecordMandateTrendLine(records), 82));
         builder.AppendLine(Shorten(BuildCareerRecordGrowthComparisonLine(records, latest), 94));
         builder.AppendLine(Shorten(BuildCareerRecordCompactRepresentativeRetrospectiveLine(latest, records), 84));
         builder.AppendLine(Shorten(BuildCareerRecordBriefingRetrospectiveLine(latest), 92));
-        builder.AppendLine($"성장 목표 요약: 목표 {Mathf.Max(1, growthCount)}회 · 후속 {Mathf.Max(1, growthFollowUpCount)}회 · {growthState} · 성장 근거 최근 성장 기반 · 성장 판정/성장 해석 · 다음 기준 성장 후속");
-        builder.AppendLine($"성장 후속 목표/성장 후속 근거: {Shorten(FallbackText(latest.growthFollowUpReason, "성장 목표 성공"), 42)}");
-        builder.AppendLine($"이의제기 누적: 즉시 재검토 {FallbackText(latest.appealReviewCaseId, "C-031")} · 보정 목표 요약: {appealRate} · 최근 미달 · {FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")} · 추천 {appealTriageCount}회");
+        builder.AppendLine($"성장 목표 요약: 목표 {Mathf.Max(1, growthCount)}회 · 후속 {Mathf.Max(1, growthFollowUpCount)}회 · {growthState} · 성장 후속 근거 {Shorten(FallbackText(latest.growthFollowUpReason, "성장 목표 성공"), 36)}");
+        builder.AppendLine($"이의제기 누적: 즉시 재검토 {FallbackText(latest.appealReviewCaseId, "C-031")} · 보정 목표 요약 {appealRate} · 최근 미달 · 추천 {appealTriageCount}회 · {FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")}");
         builder.AppendLine(Shorten(BuildCareerRecordDecisionPracticeObjectiveSummaryLine(records), 58) + " · " + Shorten(BuildCareerRecordDecisionAuditCoachingLine(latest), 58) + " · 검증 질문");
         builder.AppendLine();
         if (focusedRecord != null && !string.IsNullOrWhiteSpace(focusLabel))
@@ -23878,32 +24066,31 @@ public sealed class CareReviewGame : MonoBehaviour
 
         StringBuilder builder = new();
         builder.AppendLine(focused ? "선택 회차 상세 · 엔딩 기록에서 연결됨" : "선택 회차 상세 · 최근 완료 회차");
-        builder.AppendLine($"결과: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · 챌린지 {record.campaignChallengeTitle} {(record.campaignChallengeSucceeded ? "성공" : "미달")}");
-        builder.AppendLine($"판단: 지원 {record.supportCount} · 조사 {record.investigationCount} · 보류 {record.holdCount} · 거절 {record.rejectCount} · 내 판단 기준 {FallbackText(record.closestAgentPersonaName, "기록 없음")}");
+        builder.AppendLine($"결과/회차 해석: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · {Shorten(record.campaignChallengeTitle, 24)} {(record.campaignChallengeSucceeded ? "성공" : "미달")} · {Shorten(FallbackText(record.careerDetailSummary, "세부 기록 없음"), 42)}");
+        builder.AppendLine($"판단: 지원 {record.supportCount} · 조사 {record.investigationCount} · 보류 {record.holdCount} · 거절 {record.rejectCount} · 권장 {record.matchedRecommendedCount}/{record.logCount} · 내 판단 기준 {FallbackText(record.closestAgentPersonaName, "기록 없음")}");
         string representativeNextStep = string.IsNullOrWhiteSpace(record.representativeCaseNextStep)
             ? ""
-            : " · 다음 비교 " + Shorten(record.representativeCaseNextStep, 44);
-        builder.AppendLine($"대표 사례: {FallbackText(record.representativeCaseId, "없음")} · {Shorten(FallbackText(record.representativeCaseReason, "대표 사례 없음"), 42)}{representativeNextStep}");
-        builder.AppendLine(BuildCareerRecordRepresentativeRetrospectiveLine(record, records));
-        builder.AppendLine(Shorten(BuildCareerRecordBriefingRetrospectiveLine(record), 96));
+            : " · 다음 비교 " + Shorten(record.representativeCaseNextStep, 28);
+        string investigationSegment = string.IsNullOrWhiteSpace(record.investigationMemoCaseId) && string.IsNullOrWhiteSpace(record.investigationMemo)
+            ? "조사 메모 없음"
+            : $"조사 메모 {FallbackText(record.investigationMemoCaseId, "사례 없음")} · {Shorten(FallbackText(record.investigationMemo, "기록 없음"), 28)}";
+        builder.AppendLine($"사례 링크: 대표 사례 {FallbackText(record.representativeCaseId, "없음")} · {Shorten(FallbackText(record.representativeCaseReason, "대표 사례 없음"), 28)}{representativeNextStep} · {investigationSegment}");
+        builder.AppendLine(BuildCareerRecordDetailRepresentativeRetrospectiveLine(record, records));
+        builder.AppendLine(Shorten(BuildCareerRecordBriefingRetrospectiveLine(record), 88));
 
         if (!string.IsNullOrWhiteSpace(record.investigationMemoCaseId) || !string.IsNullOrWhiteSpace(record.investigationMemo))
         {
-            string investigationLine = $"조사 메모: {FallbackText(record.investigationMemoCaseId, "사례 없음")} · {Shorten(FallbackText(record.investigationMemo, "기록 없음"), 54)}";
+            string investigationLine = "조사 타임라인: 후속 반영/최종 지표";
             if (!string.IsNullOrWhiteSpace(record.investigationMemoTimeline))
             {
-                investigationLine += $" · 조사 타임라인 후속 반영/최종 지표 저장 · {Shorten(record.investigationMemoTimeline.Replace("\n", " / "), 48)}";
+                investigationLine += $" · {Shorten(record.investigationMemoTimeline.Replace("\n", " / "), 54)}";
             }
             builder.AppendLine(investigationLine);
-        }
-        else
-        {
-            builder.AppendLine("조사 메모: 이번 회차에 저장된 대표 조사 메모가 없습니다.");
         }
 
         if (record.decisionPracticeObjectiveCompleted)
         {
-            builder.AppendLine($"판단 비교 연습: {record.decisionPracticeCaseId} · {Shorten(record.decisionPracticeChallenge, 72)}");
+            builder.AppendLine($"판단 비교 연습: {record.decisionPracticeCaseId} · {Shorten(record.decisionPracticeChallenge, 58)}");
         }
 
         if (record.appealReviewCount > 0)
@@ -23933,10 +24120,9 @@ public sealed class CareReviewGame : MonoBehaviour
                 ? FallbackText(record.representativeCaseId, "대표 사례")
                 : record.decisionAuditCoachingAppealCaseId;
             builder.AppendLine(
-                Shorten(coachingLine, 74) +
+                Shorten(coachingLine, 70) +
                 $" · 기록 복귀 안내: 복기 사례 {caseId} 기록 복귀 · 처음 열 때: 압박 패턴, 추천 운영, 실행 규칙, 검증 질문");
         }
-        builder.AppendLine($"회차 해석: {Shorten(FallbackText(record.careerDetailSummary, "세부 기록 없음"), 96)}");
         return WrapCareerRecordDetailText(builder.ToString());
     }
 
@@ -23971,6 +24157,30 @@ public sealed class CareReviewGame : MonoBehaviour
             builder.AppendLine(Shorten(BuildCareerRecordDecisionAuditCoachingFirstUseHint(record), 116));
         }
         return WrapCareerRecordDetailText(builder.ToString());
+    }
+
+    private static string BuildCareerRecordDetailRepresentativeRetrospectiveLine(CareerRecord selectedRecord, List<CareerRecord> records)
+    {
+        if (selectedRecord == null || string.IsNullOrWhiteSpace(selectedRecord.representativeCaseId))
+        {
+            return "동일 사례 회고: 대표 사례 기록 없음";
+        }
+
+        CareerRecord previousCaseRecord = FindPreviousRepresentativeCaseRecord(records, selectedRecord);
+        string currentDecision = CareerRecordRepresentativeDecisionText(selectedRecord);
+        string previousDecision = previousCaseRecord == null
+            ? "이전 없음"
+            : CareerRecordRepresentativeDecisionText(previousCaseRecord);
+        string changed = previousCaseRecord == null || string.Equals(currentDecision, previousDecision, StringComparison.Ordinal)
+            ? "판단 유지"
+            : "판단 변화";
+        string graph = string.IsNullOrWhiteSpace(selectedRecord.representativeCaseBeforeAfterGraph)
+            ? "보정 전/후 그래프 없음"
+            : "보정 전/후 그래프 " + Shorten(selectedRecord.representativeCaseBeforeAfterGraph, 32);
+
+        return
+            $"동일 사례 회고: {selectedRecord.representativeCaseId} · {changed} {previousDecision} -> {currentDecision} · " +
+            $"목표 재도전 결과 {Shorten(BuildCareerRecordObjectiveOutcome(selectedRecord), 28)} · {graph}";
     }
 
     private static string WrapCareerRecordDetailText(string text)
@@ -26176,8 +26386,8 @@ public sealed class CareReviewGame : MonoBehaviour
         reportLogPathText = CreateTextBox(
             reportDashboardRoot,
             "Report Log Path",
-            new Vector2(340, -264),
-            new Vector2(700, 96),
+            new Vector2(340, -250),
+            new Vector2(700, 78),
             new Color32(24, 29, 30, 166),
             12,
             "",
@@ -26211,14 +26421,15 @@ public sealed class CareReviewGame : MonoBehaviour
         }
 #endif
 
-        CreatePanel("Report Action Rail", reportRoot, new Vector2(116, -366), new Vector2(1240, 86), new Color32(8, 10, 11, 118));
-        CreatePanel("Report Primary Action Dock", reportRoot, new Vector2(612, -366), new Vector2(330, 80), new Color32(78, 45, 29, 118));
-        reportAppealRemedyCaseButton = CreateTextButton(reportRoot, "보정 사례", new Vector2(-438, -366), new Vector2(164, 56), new Color32(96, 129, 67, 238), OpenReportAppealRemedyCase);
+        CreatePanel("Report Action Rail", reportRoot, new Vector2(260, -328), new Vector2(1010, 82), new Color32(222, 205, 166, 210));
+        CreatePanel("Report Action Rail Top Edge", reportRoot, new Vector2(260, -286), new Vector2(970, 4), new Color32(79, 64, 48, 118));
+        CreatePanel("Report Primary Action Dock", reportRoot, new Vector2(612, -328), new Vector2(318, 68), new Color32(78, 45, 29, 92));
+        reportAppealRemedyCaseButton = CreateTextButton(reportRoot, "보정 사례", new Vector2(-414, -328), new Vector2(156, 50), new Color32(96, 129, 67, 238), OpenReportAppealRemedyCase);
         reportAppealRemedyCaseButtonText = reportAppealRemedyCaseButton.GetComponentInChildren<Text>(true);
-        CreateTextButton(reportRoot, "메인 메뉴", new Vector2(-230, -366), new Vector2(176, 56), new Color32(35, 45, 48, 235), ReturnToMenu);
-        CreateTextButton(reportRoot, "판단 복기", new Vector2(20, -366), new Vector2(196, 56), new Color32(84, 72, 56, 235), ShowDecisionAudit);
-        CreateTextButton(reportRoot, "판단 비교", new Vector2(272, -366), new Vector2(210, 56), new Color32(65, 82, 104, 235), RunAgentSimulation);
-        recommendedCampaignButton = CreateTextButton(reportRoot, "추천 심사", new Vector2(612, -366), new Vector2(276, 66), new Color32(116, 82, 50, 238), Restart);
+        CreateTextButton(reportRoot, "메인 메뉴", new Vector2(-216, -328), new Vector2(166, 50), new Color32(35, 45, 48, 235), ReturnToMenu);
+        CreateTextButton(reportRoot, "판단 복기", new Vector2(28, -328), new Vector2(186, 50), new Color32(84, 72, 56, 235), ShowDecisionAudit);
+        CreateTextButton(reportRoot, "판단 비교", new Vector2(266, -328), new Vector2(198, 50), new Color32(65, 82, 104, 235), RunAgentSimulation);
+        recommendedCampaignButton = CreateTextButton(reportRoot, "추천 심사", new Vector2(612, -328), new Vector2(264, 58), new Color32(116, 82, 50, 238), Restart);
         recommendedCampaignButtonText = recommendedCampaignButton.GetComponentInChildren<Text>(true);
         if (recommendedCampaignButtonText != null)
         {
