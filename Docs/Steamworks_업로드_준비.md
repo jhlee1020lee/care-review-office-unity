@@ -16,12 +16,12 @@
 - 외부 검증 핸드오프: `Builds/Handoff/v0.3.0`
 - 외부 검증 증거 노트: `Builds/Handoff/v0.3.0/Evidence`
 - 백업 zip: `Builds/Steamworks/CareReviewOffice_Steamworks_v0.3.0.zip`
-- 백업 zip 크기: 81,769,470 bytes
-- 백업 zip SHA256: `6C4BAA9C124BC4A42E1A86AFF6CD48AE6F21D9CEDFA863DB18469821E75D0CCF`
+- 백업 zip 크기: 60,166,347 bytes
+- 백업 zip SHA256: `882CE9159B8DE4E9B1DC92021CEA7A2F4EB19CF8AD83C11505CDE2BF03DA1F1C`
 - Store Presence QA 카드 우선순위 배지 회수 컬럼: `triage_priority_badge_id`, `triage_priority_badge_status`, `triage_priority_badge_evidence`
 - 외부 검증 핸드오프 zip: `Builds/Handoff/CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip`
-- 외부 검증 핸드오프 zip 크기: 35,500 bytes
-- 외부 검증 핸드오프 zip SHA256: `AC97C36D34323D90DC51390F081F3C8CD8489A88F99C21689D419305DBD8AB05`
+- 외부 검증 핸드오프 zip 크기: 35,424 bytes
+- 외부 검증 핸드오프 zip SHA256: `9FDDAA075440117BA90AFABE0C32AC62B6A269C49FE987444DECB25EB202DE3E`
 - 외부 handoff Store Presence 증거 묶음 우선순위 배지 회수 컬럼: `triage_priority_badge_id`, `triage_priority_badge_status`, `triage_priority_badge_evidence`, `triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB`
 - 외부 handoff action CSV 우선순위 배지 owner_screen 행: `우선순위 배지: 상점 후보 루프 이해`, `우선순위 배지: 메인 메뉴 기준 화면`, `우선순위 배지: 성과-캠페인 문구 일치`
 - Steamworks upload manifest priority badge memberSummary 요약: `priority_badges=store_presence_priority_badge_backreference`, `triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB`, `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`
@@ -36,9 +36,9 @@
 - 외부 게이트 감사 Store Presence after_collection_inputs 별도 필드: `store_presence_after_collection_input_summary`, `storePresenceAfterCollectionInputSummary`, `EXTERNAL_RELEASE_GATE_TRACKER.csv`
 - 릴리즈 후보 감사 노트 Store Presence after_collection 입력란: `RELEASE_CANDIDATE_AUDIT_NOTE_KO.md`, `storePresenceAfterCollectionInputSummary`, `store_presence_after_collection_input_summary`, `after_collection_status_reward_loop_candidate`
 - 외부 게이트 smoke Handoff zip SHA 상호참조: `handoffZipSha256`, `handoffZipBytes`, `handoffZipHashFileMatches=true`
-- 외부 게이트 smoke handoffZipSha256 사람용 감사 항목: `care_review_external_gate_audit_smoke_result.json`, `handoffZipSha256=AC97C36D34323D90DC51390F081F3C8CD8489A88F99C21689D419305DBD8AB05`, `handoffZipBytes=35500`, `handoffZipHashFileMatches=true`
-- 외부 게이트 smoke Steamworks zip SHA 사람용 감사 항목: `care_review_external_gate_audit_smoke_result.json`, `steamworksZipSha256=6C4BAA9C124BC4A42E1A86AFF6CD48AE6F21D9CEDFA863DB18469821E75D0CCF`, `steamworksZipBytes=81769470`, `steamworksZipHashFileMatches=true`
-- README 첫 섹션 smoke zip SHA 요약 사람용 감사 항목: `README_STEAMWORKS_KR.txt`, `Store Presence 증거 묶음 상태`, `외부 게이트 smoke zip SHA`, `care_review_external_gate_audit_smoke_result.json`, `handoffZipSha256=AC97C36D34323D90DC51390F081F3C8CD8489A88F99C21689D419305DBD8AB05`, `handoffZipBytes=35500`, `steamworksZipSha256=6C4BAA9C124BC4A42E1A86AFF6CD48AE6F21D9CEDFA863DB18469821E75D0CCF`, `steamworksZipBytes=81769470`
+- 외부 게이트 smoke handoffZipSha256 사람용 감사 항목: `care_review_external_gate_audit_smoke_result.json`, `handoffZipSha256=9FDDAA075440117BA90AFABE0C32AC62B6A269C49FE987444DECB25EB202DE3E`, `handoffZipBytes=35424`, `handoffZipHashFileMatches=true`
+- 외부 게이트 smoke Steamworks zip SHA 사람용 감사 항목: `care_review_external_gate_audit_smoke_result.json`, `steamworksZipSha256=882CE9159B8DE4E9B1DC92021CEA7A2F4EB19CF8AD83C11505CDE2BF03DA1F1C`, `steamworksZipBytes=60166347`, `steamworksZipHashFileMatches=true`
+- README 첫 섹션 smoke zip SHA 요약 사람용 감사 항목: `README_STEAMWORKS_KR.txt`, `Store Presence 증거 묶음 상태`, `외부 게이트 smoke zip SHA`, `care_review_external_gate_audit_smoke_result.json`, `handoffZipSha256=9FDDAA075440117BA90AFABE0C32AC62B6A269C49FE987444DECB25EB202DE3E`, `handoffZipBytes=35424`, `steamworksZipSha256=882CE9159B8DE4E9B1DC92021CEA7A2F4EB19CF8AD83C11505CDE2BF03DA1F1C`, `steamworksZipBytes=60166347`
 
 `content_windows` 바로 아래에 `CareReviewOffice.exe`, `CareReviewOffice_Data`, `UnityPlayer.dll`, `MonoBleedingEdge`가 놓이도록 구성했다. 이 구조를 Windows depot의 content root로 사용한다.
 
@@ -76,17 +76,17 @@
 - [ ] 실제 입력 증거: `pending_external`, `Evidence/STORE_PRESENCE.md`, `status: draft_not_evidence`
 - [x] 예시와 초안 구분: `Evidence/STORE_PRESENCE_EXAMPLE.md`, `status: example_not_evidence`
 - [x] 외부 게이트 row 연결: `storePresenceDraftStatusSummary`, `store_presence_draft_status_summary`, `actual_status=pending_external`
-- [x] 제출 전 자체점검 연결: `STEAM_SUBMISSION_PREFLIGHT_KO.md`, `Store Presence 외부 액션 연결`, `externalActionCount=10`
+- [x] 제출 전 자체점검 연결: `STEAM_SUBMISSION_PREFLIGHT_KO.md`, `Store Presence 외부 액션 연결`, `externalActionCount=8`
 - [x] A/B 응답 회수 보류: `screenshot_ab_loop_response_count=0`, `screenshot_ab_loop_not_collected_count=221`, `screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses`, `screenshot_ab_loop_understanding_comment_count=0`
 - [x] 브리핑 회고 후보 입력란: `Evidence/STORE_PRESENCE.md`, `briefing_retrospective_candidate_evidence`, `briefing_retrospective_candidate_file`, `briefing_retrospective_candidate_terms`, `briefing_retrospective_candidate_smoke`, `storeCandidateMentionsBriefingRetrospective=true`, `12_career_record_next_objective.png`
-- [x] 결정 감사 코칭 보조 후보: `14_case_archive_decision_audit_coaching_focus.png`, `코칭 W-207`, `decision_audit_coaching_candidate_evidence`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`
+- [x] 판단 복기 보조 후보: `14_case_archive_decision_audit_coaching_focus.png`, `복기 W-207`, `decision_audit_coaching_candidate_evidence`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`
 - [x] 실제 증거 초안 14번 후보 입력란: `Evidence/STORE_PRESENCE.md`, `decision_audit_coaching_candidate_file`, `decision_audit_coaching_candidate_case`, `decision_audit_coaching_candidate_round_trip`
-- [x] 작성 완료 전 자체점검 표: `STORE_PRESENCE_QA_CARD_KO.md`, `Evidence/README_KO.md`, `Steamworks URL/화면 캡처`, `SHA 확인`, `14번 코칭 후보`, `토스트 UI 캡처`, `A/B 응답 회수`
-- [x] 실제 증거 초안 자체점검 TODO: `Evidence/STORE_PRESENCE.md`, `작성 완료 전 자체점검 TODO`, `[ ] Steamworks URL/화면 캡처`, `[ ] SHA 확인`, `[ ] 14번 코칭 후보`, `[ ] 브리핑 회고 후보`, `[ ] A/B 응답 회수`
+- [x] 작성 완료 전 자체점검 표: `STORE_PRESENCE_QA_CARD_KO.md`, `Evidence/README_KO.md`, `Steamworks URL/화면 캡처`, `SHA 확인`, `14번 복기 후보`, `토스트 UI 캡처`, `A/B 응답 회수`
+- [x] 실제 증거 초안 자체점검 TODO: `Evidence/STORE_PRESENCE.md`, `작성 완료 전 자체점검 TODO`, `[ ] Steamworks URL/화면 캡처`, `[ ] SHA 확인`, `[ ] 14번 복기 후보`, `[ ] 브리핑 회고 후보`, `[ ] A/B 응답 회수`
 - [x] STORE_PRESENCE.md 통과 전 TODO 요약: `Evidence/STORE_PRESENCE.md`, `통과 전 확인`, `자체점검 TODO 요약`, `completion_todo=작성 완료 전 자체점검 TODO`
 - [x] STORE_PRESENCE_EXAMPLE.md TODO 예시 요약: `Evidence/STORE_PRESENCE_EXAMPLE.md`, `작성 순서`, `자체점검 TODO 요약 예시`, `completion_todo=작성 완료 전 자체점검 TODO`
 - [x] STORE_PRESENCE 템플릿 TODO 요약: `Evidence/_templates/STORE_PRESENCE.md`, `후보 스크린샷 A/B 판정`, `자체점검 TODO 요약 템플릿`, `completion_todo=작성 완료 전 자체점검 TODO`
-- [x] tracker/README 자체점검 TODO 요약: `EXTERNAL_RELEASE_GATE_TRACKER.csv`, `README_STEAMWORKS_KR.txt`, `completion_todo=작성 완료 전 자체점검 TODO`, `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`
+- [x] tracker/README 자체점검 TODO 요약: `EXTERNAL_RELEASE_GATE_TRACKER.csv`, `README_STEAMWORKS_KR.txt`, `completion_todo=작성 완료 전 자체점검 TODO`, `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`
 - [x] Steamworks README 첫 섹션 TODO 요약: `README_STEAMWORKS_KR.txt`, `Store Presence 증거 묶음 상태`, `제출 전 TODO 첫 확인`, `completion_todo=작성 완료 전 자체점검 TODO`
 - [x] Steamworks README 감사 노트 템플릿 TODO 역참조: `README_STEAMWORKS_KR.txt`, `Store Presence 증거 묶음 상태`, `감사 노트 템플릿 TODO 역참조`, `STEAM_SUBMISSION_PREFLIGHT_KO.md`, `RELEASE_CANDIDATE_AUDIT_NOTE_KO.md`
 - [x] handoff README 첫 확인 TODO 요약: `README_KO.txt`, `첫 확인 항목`, `handoff TODO 첫 확인`, `completion_todo=작성 완료 전 자체점검 TODO`
@@ -94,12 +94,12 @@
 - [x] QA 카드 첫 섹션 TODO 요약: `STORE_PRESENCE_QA_CARD_KO.md`, `준비`, `자체점검 TODO 요약`, `completion_todo=작성 완료 전 자체점검 TODO`
 - [x] Evidence README 첫 섹션 TODO 요약: `Evidence/README_KO.md`, `Store Presence 증거 작성`, `자체점검 TODO 요약`, `completion_todo=작성 완료 전 자체점검 TODO`
 - [x] 제출 전 자체점검 TODO 요약: `STEAM_SUBMISSION_PREFLIGHT_KO.md`, `외부 검증 Store Presence 자체점검 TODO 요약`, `completion_todo=작성 완료 전 자체점검 TODO`
-- [x] 최상단 판정 요약 TODO 요약: `STEAM_SUBMISSION_PREFLIGHT_KO.md`, `최상단 판정 요약`, `Store Presence 자체점검 TODO 요약`, `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`
+- [x] 최상단 판정 요약 TODO 요약: `STEAM_SUBMISSION_PREFLIGHT_KO.md`, `최상단 판정 요약`, `Store Presence 자체점검 TODO 요약`, `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`
 - [x] 릴리즈 감사 노트 TODO 요약: `RELEASE_CANDIDATE_AUDIT_NOTE_KO.md`, `care_review_release_candidate_audit.md`, `자체점검 TODO 요약`, `completion_todo=작성 완료 전 자체점검 TODO`
 - [x] 감사 노트 템플릿 TODO 역참조: `RELEASE_CANDIDATE_AUDIT_NOTE_KO.md`, `STEAM_SUBMISSION_PREFLIGHT_KO.md`, `외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조`, `자체점검 TODO 요약 템플릿`
-- [x] upload manifest TODO 요약: `STEAMWORKS_UPLOAD_MANIFEST.txt`, `Store Presence evidence draft`, `completion_todo=작성 완료 전 자체점검 TODO`, `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`
+- [x] upload manifest TODO 요약: `STEAMWORKS_UPLOAD_MANIFEST.txt`, `Store Presence evidence draft`, `completion_todo=작성 완료 전 자체점검 TODO`, `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`
 - [x] upload manifest 감사 노트 템플릿 TODO 역참조: `STEAMWORKS_UPLOAD_MANIFEST.txt`, `Store Presence evidence draft`, `README_STEAMWORKS_KR.txt 감사 노트 템플릿 TODO 역참조`, `STEAM_SUBMISSION_PREFLIGHT_KO.md 외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조`
-- [x] 결정 감사 코칭 패턴 분포 Store/QA handoff: `Builds/Handoff/v0.3.0/STORE_PRESENCE_QA_CARD_KO.md`, `Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md`, `decisionAuditCoachingSessionCount=10/221`, `decisionAuditCoachingPatternCounts=고비용 지원`, `decisionAuditCoachingMandateCounts=긴축 감사`
+- [x] 판단 복기 패턴 분포 Store/QA handoff: `Builds/Handoff/v0.3.0/STORE_PRESENCE_QA_CARD_KO.md`, `Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md`, `decisionAuditCoachingSessionCount=10/221`, `decisionAuditCoachingPatternCounts=고비용 지원`, `decisionAuditCoachingMandateCounts=긴축 감사`
 - [x] upload manifest memberSummary 상호참조: `STEAMWORKS_UPLOAD_MANIFEST.txt`, `Store Presence upload doc cross-check`, `Store Presence evidence draft`, `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`
 - [x] 플레이테스트 QA 패킷 상호참조: `Docs/플레이테스트_QA_패킷.md`, `Store Presence Draft 독립 체크`, `플레이테스트 회수 자료와 Store Presence 실제 입력 증거를 분리`
 - 실제 Steamworks URL/화면 캡처와 A/B 응답 회수 수치를 `Evidence/STORE_PRESENCE.md`에 채우기 전까지 `STORE_PRESENCE` 외부 게이트는 `pending_external`로 유지한다.
@@ -147,14 +147,14 @@
 - 저사양 성능 검증: `Logs/runtime_performance_smoke_steamworks_content.log`, `Builds/QA/v0.3.0/performance`, 1280x720 저사양 모드 6개 주요 화면 p95 프레임 시간 약 33.65-33.73ms
 - 플레이테스트 패킷 검증: `Logs/runtime_playtest_packet_review_queue_v030.log`, `Builds/QA/v0.3.0/playtest_packet`, 익명 세션 ID/플레이 시간/판단 경과 시간이 포함된 플레이 로그, 사건 로그, 세션 요약, 설문 Markdown, 운영 등급/캠페인 챌린지/재검토 큐/결정 감사/다음 캠페인 목표 JSON/Markdown/HTML export 생성 및 로컬 사용자 절대경로 미포함 확인
 - 플레이테스트 세션별 원본 보관: `Builds/QA/v0.3.0/playtest_packet/playtest_sessions/<sessionId>`, 실제 수집 시 `playtest_sessions/<sessionId>` 폴더 단위로 회수
-- 플레이테스트 세션 집계 검증: `Logs/runtime_playtest_aggregate_campaign_challenge_v030.log`, `Logs/runtime_playtest_aggregate_decision_audit_coaching_pattern.log`, `care_review_playtest_sessions_index.csv`, `care_review_playtest_aggregate.json`, `care_review_playtest_aggregate.md`, 여러 회차의 운영 기준/엔딩/평균 지표/평균 운영 점수/캠페인 챌린지 성공률/다음 캠페인 목표/최다 판단 근거/결정 감사 코칭 패턴 분포/상점 후보 A/B 루프 질문 컬럼 집계 생성 및 로컬 사용자 절대경로 미포함 확인
+- 플레이테스트 세션 집계 검증: `Logs/runtime_playtest_aggregate_campaign_challenge_v030.log`, `Logs/runtime_playtest_aggregate_decision_audit_coaching_pattern.log`, `care_review_playtest_sessions_index.csv`, `care_review_playtest_aggregate.json`, `care_review_playtest_aggregate.md`, 여러 회차의 운영 기준/엔딩/평균 지표/평균 운영 점수/캠페인 챌린지 성공률/다음 캠페인 목표/최다 판단 근거/판단 복기 패턴 분포/상점 후보 A/B 루프 질문 컬럼 집계 생성 및 로컬 사용자 절대경로 미포함 확인
 - 플레이테스트 설문 집계 검증: `Logs/runtime_playtest_aggregate_survey_value_retry_v030.log`, `Builds/QA/v0.3.0/playtest_packet/care_review_playtest_aggregate_smoke_result.json`, 세션별 `price_value_rating`/`replay_intent` CSV 컬럼과 평균 10달러 가치감/재플레이 의향 Markdown 요약 확인
 - 추천 심사 재시작 검증: `Logs/runtime_recommended_replay_steamworks_v030.log`, `Builds/QA/v0.3.0/care_review_recommended_replay_smoke_result.json`, 추천 버튼 문구/운영 기준 적용/예산 초기화/튜토리얼 복귀 확인
 - 플레이테스트 회수 준비 검증: `Logs/runtime_playtest_readiness_v030.log`, `Builds/QA/v0.3.0/care_review_playtest_readiness_smoke_result.json`, 판단 35건 이상/인게임 설문/로그 패킷/환경 진단/로컬 절대경로 미포함 기준을 게임 안 `회수 준비: 회수 완료` 상태로 확인
 - 환경 진단 export 검증: `Logs/runtime_system_diagnostic_steamworks_v030.log`, `Builds/QA/v0.3.0/care_review_system_diagnostic_smoke_result.json`, CPU/GPU/RAM, 화면 설정, FPS 샘플 JSON/Markdown 생성 및 로컬 사용자 절대경로 미포함 확인
 - 런타임 이슈 로그 검증: `Logs/runtime_issue_log_v030.log`, `Builds/QA/v0.3.0/care_review_runtime_issue_smoke_result.json`, Warning/Error/Exception JSON/Markdown 기록, 메시지/스택 로컬 절대경로 익명화, 지원 번들 포함 확인
 - 컨트롤러 단축 입력 검증: `Logs/runtime_controller_shortcut_v030.log`, `Builds/QA/v0.3.0/care_review_controller_shortcut_smoke_result.json`, 설정 화면 컨트롤러 안내, A/B/X/Y/LB/RB/View/Menu 기본 매핑, 승인 판단 경로와 다음 버튼 상태 확인
-- 컨트롤러 포커스 이동 검증: `Logs/runtime_focus_coaching_first_use_round_trip.log`, `Builds/QA/v0.3.0/care_review_focus_navigation_smoke_result.json`, 설정/메뉴/심사/심사 기록 오버레이 기본 선택, 선택 외곽선, 활성 루트 내부 포커스 유지, 성과 기록 `코칭 W-207 첫 안내`, 사례 자료실 코칭 버튼, 첫 사용 안내 진입, 기록 복귀 확인
+- 컨트롤러 포커스 이동 검증: `Logs/runtime_focus_coaching_first_use_round_trip.log`, `Builds/QA/v0.3.0/care_review_focus_navigation_smoke_result.json`, 설정/메뉴/심사/심사 기록 오버레이 기본 선택, 선택 외곽선, 활성 루트 내부 포커스 유지, 성과 기록 `복기 W-207 첫 안내`, 사례 자료실 복기 버튼, 첫 사용 안내 진입, 기록 복귀 확인
 - 성과 반복 단계 버튼 포커스 검증: `Logs/runtime_focus_navigation_tier_record_buttons.log`, `Builds/QA/v0.3.0/care_review_focus_navigation_smoke_result.json`, `achievementTierRecordButtonsFocusable=true`, `achievementTierRecordSelectionIsTierButton=true`
 - 엔딩 기록/캠페인 기록 필터 포커스 검증: `Logs/runtime_focus_navigation_ending_career_filters.log`, `Builds/QA/v0.3.0/care_review_focus_navigation_smoke_result.json`, `endingGalleryRecordButtonsFocusable=true`, `endingGalleryRecordSelectionIsRecordButton=true`, `careerRecordMandateFilterButtonsFocusable=true`, `careerRecordMandateFilterSelectionIsFilterButton=true`
 - 후속 연락함/사례 자료실 포커스 검증: `Logs/runtime_focus_navigation_inbox_archive_filters.log`, `Builds/QA/v0.3.0/care_review_focus_navigation_smoke_result.json`, `followUpInboxActionButtonsFocusable=true`, `followUpInboxSelectionIsActionButton=true`, `caseArchiveNavigationButtonsFocusable=true`, `caseArchiveSelectionIsNavigationButton=true`
@@ -183,7 +183,7 @@
 - 크레딧/고지 화면 결과: 합성 프로필, 실제 개인정보 미사용, 로컬 로그, 서버 자동 업로드 없음, 환경 진단/지원 번들 데이터 범위, 생성형 AI 활용, 실제 행정 판단 비대체 문구와 QA JSON 로컬 절대경로 미포함 확인
 - content 파일 수: 151
 - content 용량: 162,285,158 bytes
-- release zip SHA256: `7CE61894F3A69E48A924B993465D8CED36A629F4BBB7D0D64D31E68DD74EA58D`
+- release zip SHA256: `EACCB1BB5F39391CC6423F92BE7B96142BCEB64DBB28811074F90B13A2DB16BA`
 - Steam 업로드 후보 트레일러: `Builds/Marketing/v0.3.0/trailer/care_review_office_trailer_steam_upload_v0.3.0.mp4`
 - 트레일러 규격: H.264, 1920x1080, 30fps, AAC stereo, video 약 8,050Kbps, 전체 약 8,218Kbps, 45.000s
 - 트레일러 SHA256: `C266305CEE20CD8D66E1BD697B9661EBEEF73C7938F1D90FC3F1210A9B62B59F`
@@ -193,7 +193,7 @@
 - 트레일러 리마스터 업로드 후보: `Builds/Marketing/v0.3.0/trailer/care_review_office_trailer_steam_upload_v0.3.0_remaster_upload.mp4`, 67,267,146 bytes, `trailerRemasterUploadCandidateReady=true`, 공식 업로드 후보 승격 전 검증 산출물
 - 트레일러 리마스터 업로드 switch: `Builds/Marketing/v0.3.0/trailer/trailer_remaster_upload_switch.md`, `current_selection: current_upload`, `switch_state: ready_not_applied`, `candidate_validation: passed`, `hasTrailerRemasterUploadSwitch=true`
 - 설문 회수 화면 저해상도 QA: `Builds/QA/v0.3.0/low_resolution_ui/care_review_low_resolution_ui_smoke_result.json`, `screenshotCount=36`, `playtestSurveyGuideMentionsKeyboard=true`, `playtestSurveyGuideMentionsController=true`
-- 설문 회수 화면 상점 QA 후보: `Builds/Marketing/v0.3.0/screenshots/09_playtest_survey.png`, `1920x1080`, 1,813,992 bytes, `storeCandidateScreenshotCount=1`, 실제 상점 업로드 8장과 분리된 내부 QA 비교용
+- 설문 회수 화면은 상점 QA 후보에서 제외하고 인게임 QA 회수 전용으로 유지한다. 상점 후보 비교는 `10_achievement_next_goal.png`부터 `14_case_archive_decision_audit_coaching_focus.png`까지 5장만 사용한다.
 - 지원 번들 외부 handoff 참조 QA: `Builds/QA/v0.3.0/support_bundle/care_review_support_bundle_smoke_result.json`, `manifestHasTriageActionsReference=true`, `manifestHasExternalHandoffHashReference=true`
 
 ## 남은 작업

@@ -1812,7 +1812,7 @@
 - Steam 출시작 UI 기준 비교: `Papers, Please`는 심사대/서류/도장 자체가 조작 UI가 되고, `Death and Taxes`는 책상 위 문서와 권한 있는 버튼 질감이 세계관을 만든다. `Strange Horticulture`와 `Orwell`은 조사/기록 게임답게 패널, 탭, 문서 표면을 일반 사각형보다 강하게 사용한다.
 - 현재 빌드의 약점이던 단색 `Image` 버튼을 이미지 생성 기반 금속/문서/에나멜 플레이트로 교체했다.
 - 생성 원본: `Assets/Resources/Art/ui_chrome_sheet_generated_source.png`
-- 프로젝트 적용 자산: `ui_button_primary_generated.png`, `ui_button_secondary_generated.png`, `ui_button_utility_generated.png`, `ui_button_danger_generated.png`, `ui_button_export_generated.png`, `ui_button_analysis_generated.png`, `ui_action_rail_generated.png`, `ui_panel_paper_generated.png`, `ui_panel_modal_generated.png`, `ui_hotkey_badge_generated.png`, `ui_button_tab_generated.png`, `ui_focus_frame_generated.png`
+- 프로젝트 적용 자산: `ui_button_primary_generated.png`, `ui_button_secondary_generated.png`, `ui_button_utility_generated.png`, `ui_button_danger_generated.png`, `ui_button_analysis_generated.png`, `ui_action_rail_generated.png`, `ui_panel_paper_generated.png`, `ui_panel_modal_generated.png`, `ui_hotkey_badge_generated.png`, `ui_button_tab_generated.png`
 - 모든 텍스트 버튼은 역할별 생성 스프라이트를 9-slice 방식으로 사용하고, 심사 도장의 핫키 배지/라벨 배지도 생성 자산으로 교체했다.
 - 주요 종이 패널, 헤더, 액션 레일, 카드에는 생성 자산 프레임을 오버레이해 색상 사각형 느낌을 줄였다.
 - 생성 UI 적용 QA: `Builds/QA/v0.3.0/care_review_ui_cleanup_smoke_result.json`, `completed=true`, `generatedUiChromeApplied=true`, `generatedButtonChromeCount=54`, `generatedPanelChromeCount=16`

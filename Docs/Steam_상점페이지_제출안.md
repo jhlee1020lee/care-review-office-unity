@@ -1,7 +1,7 @@
 # 돌봄지원 심사소 Steam 상점 페이지 제출안
 
 작성일: 2026-05-27
-대상 버전: v0.3.0 내부 콘텐츠 빌드
+대상 버전: v0.3.0
 가격 기준: USD 9.99
 
 ## 1. 공식 검토 기준 요약
@@ -49,7 +49,7 @@ Care Review Office
 
 하루가 끝나면 판단의 합계가 다음 날 브리핑과 특별 사건으로 돌아옵니다. 예산 감사, 민원 회의, 긴급 안전점검, 형평성 이의제기 같은 사건은 전날 어떤 기준을 우선했는지 되묻습니다. 새 캠페인에서는 메인 메뉴의 운영 기준 카드에서 시작 예산과 기준 효과를 확인하고, 균형 심사, 지원 확대, 긴축 감사 운영 기준을 선택해 같은 사례를 다른 압박 조건에서 다시 플레이할 수 있습니다. 각 운영 기준에는 권장 판단 일치, 고위험 지연 억제, 예산 방어처럼 서로 다른 캠페인 챌린지가 붙어 있어, 지원 확대와 긴축 감사가 단순 난이도 변경이 아니라 서로 다른 심사 실험으로 작동하도록 돕습니다. 캠페인 시작 브리핑은 선택한 기준의 예산 압박, 판단 전략, 챌린지 목표를 먼저 안내합니다.
 
-캠페인을 마치면 최종 리포트와 엔딩 카드가 표시됩니다. 운영 등급/점수/배지로 이번 회차의 예산 관리, 안정/형평 유지, 위험 방어, 민원 억제, 권장 판단 일치율을 빠르게 확인하고, 캠페인 챌린지 카드로 이번 운영 기준의 목표 달성 여부와 부족했던 지표를 확인합니다. 어떤 사례 그룹에 더 쉽게 지원했는지, 위험 신호를 얼마나 우선했는지, 추가조사를 언제 선택했는지 가족 유형 판단 지도와 재검토 큐로 확인할 수 있습니다. 재검토 큐는 고압력 사례마다 재검토 이유, 사례 자료실 권장 필터, 다음 회차 실험 질문을 붙여 반복 플레이와 플레이테스트 인터뷰를 연결합니다. 판단 근거 분포에서는 균형, 위험, 형평, 서류, 예산 중 어떤 기준이 가장 자주 쓰였는지와 근거별 지원/추가조사/지연, 권장 일치율을 보여줍니다. 결정 감사 대시보드에서는 일차별 지출, 위험 증가, 권장 일치율과 고압력 대표 사례를 다시 점검할 수 있습니다. 이번 회차에서 예산을 과하게 썼는지, 고위험 지연이 많았는지, 권장 판단과 자주 어긋났는지를 바탕으로 다음 캠페인에서 도전할 운영 기준과 목표도 추천되며, `추천 심사` 버튼으로 추천된 기준을 바로 적용해 새 회차를 시작할 수 있습니다. 목표 심사/성과 목표로 시작한 반복 목표는 2/4/6회 누적에 따라 동색 인장, 은색 챌린지 카드, 금색 엔딩 장식으로 이어지고, 성과 기록의 Steam 업적 후보 설명과 엔딩 기록 장식에도 같은 진행도가 표시됩니다. 최종 리포트에서는 난이도, 판단 기준 명확성, 결과 납득도, UI 가독성, 가격 가치감을 5점 척도와 빠른 체크로 저장할 수 있어 반복 플레이 피드백을 한 회차 로그와 묶어 남길 수 있습니다. 로그 저장 시 생성되는 HTML 분석 대시보드에도 같은 운영 등급 근거, 캠페인 챌린지 결과, 판단 근거 분포, 결정 감사 일차표, 재검토 큐, 다음 캠페인 목표가 포함되어 판단 분포와 특별 사건을 브라우저에서 다시 볼 수 있고, 가상 플레이어 에이전트 분석을 통해 예산 우선형, 위험 우선형, 서류 우선형 판단이 같은 사례를 어떻게 다르게 처리하는지도 지원/조사/일치율 막대 대시보드로 비교할 수 있습니다. 메인 메뉴의 성과 기록에서는 캠페인 완료, 위험 방어, 로그 분석 패킷 생성 같은 반복 목표를 확인할 수 있고, 캠페인 기록 화면에서는 최근 완료 회차의 등급, 엔딩, 캠페인 챌린지, 권장 일치율, 최종 지표, 다음 목표를 비교할 수 있습니다.
+캠페인을 마치면 최종 리포트와 엔딩 카드가 표시됩니다. 운영 등급/점수/배지로 이번 회차의 예산 관리, 안정/형평 유지, 위험 방어, 민원 억제, 권장 판단 일치율을 빠르게 확인하고, 캠페인 챌린지 카드로 이번 운영 기준의 목표 달성 여부와 부족했던 지표를 확인합니다. 어떤 사례 그룹에 더 쉽게 지원했는지, 위험 신호를 얼마나 우선했는지, 추가조사를 언제 선택했는지 가족 유형 판단 지도와 재검토 큐로 확인할 수 있습니다. 판단 근거 분포에서는 균형, 위험, 형평, 서류, 예산 중 어떤 기준이 가장 자주 쓰였는지와 근거별 지원/추가조사/지연, 권장 일치율을 보여줍니다. 판단 복기에서는 일차별 지출, 위험 증가, 권장 일치율과 고압력 대표 사례를 다시 점검할 수 있습니다. 이번 회차에서 예산을 과하게 썼는지, 고위험 지연이 많았는지, 권장 판단과 자주 어긋났는지를 바탕으로 다음 캠페인에서 도전할 운영 기준과 목표도 추천되며, `추천 심사` 버튼으로 추천된 기준을 바로 적용해 새 회차를 시작할 수 있습니다. 목표 심사/성과 목표로 시작한 반복 목표는 2/4/6회 누적에 따라 동색 인장, 은색 챌린지 카드, 금색 엔딩 장식으로 이어지고, 성과 기록과 엔딩 기록 장식에도 같은 진행도가 표시됩니다. 메인 메뉴의 성과 기록에서는 캠페인 완료, 위험 방어, 반복 목표를 확인할 수 있고, 캠페인 기록 화면에서는 최근 완료 회차의 등급, 엔딩, 캠페인 챌린지, 권장 일치율, 최종 지표, 다음 목표를 비교할 수 있습니다.
 
 캠페인 기록의 장기 추세 패널은 누적 지원/조사/지연 성향, 평균 점수, 최고 등급, 반복 목표 단계를 한 줄로 압축해 다음 회차의 운영 기준 선택을 돕습니다.
 
@@ -67,12 +67,10 @@ Care Review Office
 - 최종 리포트에서 목표 달성 여부와 부족한 지표를 보여주는 캠페인 챌린지 카드
 - 최종 리포트에서 예산, 안정도, 형평성, 누락 위험, 민원 위험을 보여주는 게이지 대시보드
 - 최종 리포트에서 넓은 사례 그룹별 지원율과 권장 일치율을 보여주는 가족 유형 판단 지도
-- 일차별 지출/위험 증가/권장 일치율을 비교하는 결정 감사 대시보드
+- 일차별 지출/위험 증가/권장 일치율을 비교하는 판단 복기 화면
 - 회차 성과를 바탕으로 다음 운영 기준과 구체 목표를 제안하는 다음 캠페인 목표 추천
 - 추천된 운영 기준을 바로 적용해 새 회차를 시작하는 추천 심사 버튼
-- 결정 감사 export가 포함된 로컬 HTML 분석 대시보드
-- 최종 리포트에서 회차별 난이도, 명확성, UI 가독성, 가격 가치감을 저장하는 구조화 피드백
-- 캠페인 완료와 분석 기능 사용을 기록하는 로컬 성과 기록 화면
+- 캠페인 완료와 반복 목표 달성을 기록하는 로컬 성과 기록 화면
 - 최근 완료 회차의 등급, 엔딩, 권장 일치율, 최종 지표를 비교하는 캠페인 기록 화면
 - 균형 심사, 지원 확대, 긴축 감사 3종 운영 기준
 - 승인, 조건부 승인, 보류, 추가조사, 거절의 5가지 판단
@@ -82,17 +80,15 @@ Care Review Office
 - 최근 판단, 권장 판단, 예산 변화, 위험 증가를 되짚는 심사 중 결정 기록 오버레이
 - 가족 연락, 민원, 감사 요청, 안전 확인 메모를 다시 읽는 후속 연락함
 - 판단마다 균형/위험/형평/서류/예산 근거를 남기는 판단 근거 선택
-- 최종 리포트와 HTML 대시보드에 표시되는 판단 근거 분포 분석
+- 최종 리포트에 표시되는 판단 근거 분포 분석
 - 예산 감사, 민원 회의, 긴급 안전점검, 형평성 이의제기 이벤트
 - 최종 지표에 따라 달라지는 4종 엔딩 카드
 - 엔딩별 후속 에필로그와 다음 캠페인 과제
 - 발견한 엔딩을 전체/운영 기준별로 다시 볼 수 있는 엔딩 기록 화면
-- 최종 리포트와 CSV/JSON 로그 내보내기
-- 여러 가상 플레이어 에이전트의 지원/조사/일치율을 비교하는 분석 대시보드
+- 여러 판단 성향의 지원/조사/일치율을 비교하는 판단 비교 화면
 - 3개 세이브 슬롯, 이어하기, 선택 슬롯 삭제, 음량, 해상도, 창/전체화면 설정
-- 설정 화면에서 CPU/GPU/RAM, 화면 설정, FPS 샘플을 JSON/Markdown으로 저장하는 환경 진단 export
 - 큰 글자 모드, 고대비 모드, 키보드 조작 지원
-- 합성 사례, 실제 개인정보 미사용, 로컬 로그 저장, 생성형 AI 활용 범위를 밝히는 크레딧/고지 화면
+- 합성 사례, 실제 개인정보 미사용, 로컬 저장, 생성형 AI 활용 범위를 밝히는 크레딧/고지 화면
 
 ## 5. 태그 후보
 
@@ -193,8 +189,8 @@ Care Review Office
 | Library Header Capsule | `Builds/Marketing/v0.3.0/steam_assets/library_header_capsule_920x430.png` | 920x430 | Ready |
 | Library Logo | `Builds/Marketing/v0.3.0/steam_assets/library_logo_1280x720.png` | 1280x720 | Ready |
 
-자동 감사: `Builds/QA/v0.3.0/marketing_assets/care_review_marketing_asset_audit.md` 기준 상점 스크린샷 8장, 상점 후보 스크린샷 6장, Steam 캡슐 9장, 트레일러 프레임 13장, 업로드 후보 트레일러, 그래픽/트레일러 자산 zip, 로컬 절대경로 미포함 통과.
-Steamworks 제출 패키지 사본: `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_CANDIDATES_KO.md`, `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md`, `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_CANDIDATE_AB_TEST_KO.md`, `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_UPLOAD_SELECTION_KO.md`, `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_UPLOAD_APPLICATION_KO.md`, `Builds/Steamworks/v0.3.0/store_page/screenshot_candidates/09_playtest_survey.png`, `Builds/Steamworks/v0.3.0/store_page/screenshot_candidates/10_achievement_next_goal.png`, `Builds/Steamworks/v0.3.0/store_page/screenshot_candidates/11_growth_follow_up_menu.png`, `Builds/Steamworks/v0.3.0/store_page/screenshot_candidates/12_career_record_next_objective.png`, `Builds/Steamworks/v0.3.0/store_page/screenshot_candidates/13_case_archive_appeal_remedy_history.png`, `Builds/Steamworks/v0.3.0/store_page/screenshot_candidates/14_case_archive_decision_audit_coaching_focus.png`.
+자동 감사: `Builds/QA/v0.3.0/marketing_assets/care_review_marketing_asset_audit.md` 기준 상점 스크린샷 8장, QA 비교 스크린샷 5장, Steam 캡슐 9장, 트레일러 프레임 13장, 업로드 후보 트레일러, 그래픽/트레일러 자산 zip, 로컬 절대경로 미포함 통과.
+Steamworks 제출 패키지 사본: `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_CANDIDATES_KO.md`, `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md`, `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_CANDIDATE_AB_TEST_KO.md`, `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_UPLOAD_SELECTION_KO.md`, `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_UPLOAD_APPLICATION_KO.md`, `Builds/Steamworks/v0.3.0/store_page/screenshot_candidates/10_achievement_next_goal.png`, `Builds/Steamworks/v0.3.0/store_page/screenshot_candidates/11_growth_follow_up_menu.png`, `Builds/Steamworks/v0.3.0/store_page/screenshot_candidates/12_career_record_next_objective.png`, `Builds/Steamworks/v0.3.0/store_page/screenshot_candidates/13_case_archive_appeal_remedy_history.png`, `Builds/Steamworks/v0.3.0/store_page/screenshot_candidates/14_case_archive_decision_audit_coaching_focus.png`.
 
 ## 11. 스크린샷 업로드 순서
 
@@ -204,21 +200,20 @@ Steam 리뷰 기준에 맞춰 모두 실제 게임 화면만 사용한다.
 2. `Builds/Marketing/v0.3.0/screenshots/03_decision_feedback.png` - 판단 직후 권장 판단 대비 차이와 다음 날 후폭풍을 보여준다.
 3. `Builds/Marketing/v0.3.0/screenshots/04_day_transition.png` - 후속 연락함, 특별 사건, 다음 날 운영 압박을 보여준다.
 4. `Builds/Marketing/v0.3.0/screenshots/05_final_report.png` - 최종 리포트, 엔딩, 캠페인 등급, 판단 표를 보여준다.
-5. `Builds/Marketing/v0.3.0/screenshots/08_career_record_filter.png` - 캠페인 기록의 보정 후보 필터, 후보별 회차 결과, 기준별 장기 추세, 직전/이전 최고 대비 성장 비교, 반복 보상 연결을 보여준다.
+5. `Builds/Marketing/v0.3.0/screenshots/08_career_record_filter.png` - 캠페인 기록의 보정 추천 필터, 추천별 회차 결과, 기준별 장기 추세, 직전/이전 최고 대비 성장 비교, 반복 보상 연결을 보여준다.
 6. `Builds/Marketing/v0.3.0/screenshots/07_agent_analysis.png` - 여러 가상 플레이어 성향의 판단 차이와 재심사 근거를 보여준다.
 7. `Builds/Marketing/v0.3.0/screenshots/06_ending_gallery.png` - 엔딩 기록과 반복 장식 보상을 보여준다.
 8. `Builds/Marketing/v0.3.0/screenshots/01_main_menu.png` - 실제 메인 메뉴, 운영 기준 선택, 성과/캠페인 기록 진입점을 보여준다.
 
-메인 메뉴 이미지는 실제 게임 화면이지만, 게임플레이 이해도 면에서는 후순위로 둔다. `08_career_record_filter.png`는 보정 후보별 반복 플레이 가치와 성장 비교가 보이는 핵심 장면이므로 최종 리포트 직후에 배치한다.
+메인 메뉴 이미지는 실제 게임 화면이지만, 게임플레이 이해도 면에서는 후순위로 둔다. `08_career_record_filter.png`는 보정 추천별 반복 플레이 가치와 성장 비교가 보이는 핵심 장면이므로 최종 리포트 직후에 배치한다.
 
 ### QA 후보 스크린샷
 
-- `Builds/Marketing/v0.3.0/screenshots/09_playtest_survey.png` - 최종 리포트 직후 플레이테스트 설문 회수 준비, 키보드/패드 안내, 가격/반복 가치감 질문을 검수하는 후보 이미지다.
-- `Builds/Marketing/v0.3.0/screenshots/10_achievement_next_goal.png` - 성과 다음 목표 후보 이미지다. 성과 기록, 다음 성과 목표, 목표 실행 버튼, 목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적 성과-캠페인 루프를 검수한다.
-- `Builds/Marketing/v0.3.0/screenshots/11_growth_follow_up_menu.png` - 성장 후속 메인 메뉴 후보 이미지다. 성장 후속 추천 대기, `후속 심사` 버튼, H 단축키, 후속 운영 기준 힌트를 검수한다.
-- `Builds/Marketing/v0.3.0/screenshots/12_career_record_next_objective.png` - 캠페인 기록 목표 재시작 후보 이미지다. 성장 후속/보정 기록, 동일 사례 회고, 다음 목표 재시작 버튼, 성과 기록 보상 누적으로 돌아가는 성과-캠페인 루프, 포커스 하이라이트를 검수한다.
-- `Builds/Marketing/v0.3.0/screenshots/13_case_archive_appeal_remedy_history.png` - 사례 자료실 보정 이력 후보 이미지다. 원 이의제기 사례, 보정 이력, 성공률, 다음 재도전 목표를 검수한다.
-- `Builds/Marketing/v0.3.0/screenshots/14_case_archive_decision_audit_coaching_focus.png` - 사례 자료실 결정 감사 코칭 포커스 후보 이미지다. 사례 자료실의 `코칭 W-207` 버튼, `결정 감사 코칭 포커스`, `기록 복귀`, `코칭 왕복 힌트`가 한 화면에서 읽히는지 검수한다.
+- `Builds/Marketing/v0.3.0/screenshots/10_achievement_next_goal.png` - 성과 다음 목표 QA 비교 이미지다. 성과 기록, 다음 성과 목표, 목표 실행 버튼, 목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적 성과-캠페인 루프를 검수한다.
+- `Builds/Marketing/v0.3.0/screenshots/11_growth_follow_up_menu.png` - 성장 후속 메인 메뉴 QA 비교 이미지다. 성장 후속 추천 대기, `후속 심사` 버튼, H 단축키, 후속 운영 기준 힌트를 검수한다.
+- `Builds/Marketing/v0.3.0/screenshots/12_career_record_next_objective.png` - 캠페인 기록 목표 재시작 QA 비교 이미지다. 성장 후속/보정 기록, 동일 사례 회고, 다음 목표 재시작 버튼, 성과 기록 보상 누적으로 돌아가는 성과-캠페인 루프, 포커스 하이라이트를 검수한다.
+- `Builds/Marketing/v0.3.0/screenshots/13_case_archive_appeal_remedy_history.png` - 사례 자료실 보정 이력 QA 비교 이미지다. 원 이의제기 사례, 보정 이력, 성공률, 다음 재도전 목표를 검수한다.
+- `Builds/Marketing/v0.3.0/screenshots/14_case_archive_decision_audit_coaching_focus.png` - 사례 자료실 판단 복기 복기 포커스 QA 비교 이미지다. 사례 자료실의 `복기 W-207` 버튼, `판단 복기 복기 포커스`, `기록 복귀`, `복기 왕복 힌트`가 한 화면에서 읽히는지 검수한다.
 - Steamworks 사본은 `store_page/screenshot_candidates`와 `store_page/SCREENSHOT_CANDIDATES_KO.md`에 함께 보관해 Store Presence 입력 전 비교 검토에 사용한다.
 - 후보 승격 우선순위는 `store_page/SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md`에서 관리한다. 이 문서는 플레이테스트 집계의 설문 회수 7/169, 10달러 가치감 3.9/5, 반복 보상 가치감 3.7/5, UI 가독성 3.6/5, 재플레이 의향 4/7을 읽어 현재 1순위를 `12_career_record_next_objective.png`로 자동 판정하고 `13_case_archive_appeal_remedy_history.png`를 보정 이력 보조 후보로 비교한다. 단, 외부 회수 신뢰도는 실제 사람 완전 회수 세션 0/5, 상용 최소 10명 미달, `qa_or_incomplete_survey_sessions`로 분리 표시하며 공식 승격 확정 전까지는 `QA 샘플 기반 임시 판정`으로 취급한다.
 - 후보 A/B 판정은 `store_page/SCREENSHOT_CANDIDATE_AB_TEST_KO.md`에서 관리한다. 외부 A/B 피드백 전에는 기본 후보 `12_career_record_next_objective.png`를 유지하고, 보정 이력 후보 선호가 충분할 때만 `13_case_archive_appeal_remedy_history.png`를 공식 8장 교체 후보로 올린다.
@@ -268,7 +263,7 @@ Steam 리뷰 기준에 맞춰 모두 실제 게임 화면만 사용한다.
 2. 이 제출안의 기본 정보, 설명, 태그, 시스템 요구 사항 입력
 3. 그래픽 자산 업로드
 4. 스크린샷 8장 업로드
-5. 후보 스크린샷 `09_playtest_survey.png`, `10_achievement_next_goal.png`, `11_growth_follow_up_menu.png`, `12_career_record_next_objective.png`, `13_case_archive_appeal_remedy_history.png`, `14_case_archive_decision_audit_coaching_focus.png`는 내부 QA 비교용으로 보관하고 Steamworks `store_page/screenshot_candidates` 및 `SCREENSHOT_UPLOAD_SELECTION_KO.md` 사본을 대조한다.
+5. QA 비교 스크린샷 `10_achievement_next_goal.png`, `11_growth_follow_up_menu.png`, `12_career_record_next_objective.png`, `13_case_archive_appeal_remedy_history.png`, `14_case_archive_decision_audit_coaching_focus.png`는 내부 QA 비교용으로 보관하고 Steamworks `store_page/screenshot_candidates` 및 `SCREENSHOT_UPLOAD_SELECTION_KO.md` 사본을 대조한다. 플레이테스트 설문 화면은 출시 상점 업로드 세트에서 제외하고 QA 회수 전용으로만 사용한다.
 6. `TRAILER_UPLOAD_SELECTION_KO.md`의 `selected_file`과 이 제출안의 업로드 후보 파일명이 일치하는지 확인한 뒤 고비트레이트 트레일러 업로드
 7. `STORE_PRESENCE_SELECTION_KO.md`가 `store_presence_ready_for_manual_input: yes`인지 확인한 뒤 Store Presence 수동 입력을 시작
 8. 보정 후보 결과 확인: `STORE_PRESENCE_SELECTION_KO.md`의 `appeal_triage_qa_evidence`, `appealTriageQueueReturnOpensCareerRecord=true`, `achievementCardMentionsAppealTriageResult=true`, `보정 후보 결과`를 확인하고 `STORE_PRESENCE_QA_CARD_KO.md`에 같은 증거가 연결됐는지 대조

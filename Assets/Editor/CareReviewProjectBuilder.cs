@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Globalization;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
@@ -13,10 +15,15 @@ public static class CareReviewProjectBuilder
 {
     private const string ScenePath = "Assets/Scenes/CareReviewOffice.unity";
     private const string ReleaseVersion = "0.3.0";
+    private const string ReleaseCompanyName = "Care Review Office";
+    private const string ReleaseProductName = "Care Review Office";
     private const string WindowsBuildPath = "Builds/Windows";
+    private const string WindowsQaBuildPath = "Builds/Windows_QA";
     private const string ReleaseRootPath = "Builds/Release";
     private const string ReleasePackageName = "CareReviewOffice_Windows_v0.3.0";
     private const string SteamworksRootPath = "Builds/Steamworks/v0.3.0";
+    private const string SteamworksZipPath = "Builds/Steamworks/CareReviewOffice_Steamworks_v0.3.0.zip";
+    private const string SteamworksHashPath = "Builds/Steamworks/CareReviewOffice_Steamworks_v0.3.0_SHA256.txt";
     private const string SteamworksContentPath = "Builds/Steamworks/v0.3.0/content_windows";
     private const string SteamworksScriptsPath = "Builds/Steamworks/v0.3.0/scripts";
     private const string SteamworksOutputPath = "Builds/Steamworks/v0.3.0/output";
@@ -31,6 +38,8 @@ public static class CareReviewProjectBuilder
     private const string PlaytestQaSessionArchivePath = "Builds/QA/v0.3.0/playtest_packet/playtest_sessions";
     private const string PlaytestQaSupportBundleArchivePath = "Builds/QA/v0.3.0/support_bundle";
     private const string ReleaseCandidateAuditPath = "Builds/QA/v0.3.0/release_candidate";
+    private const string ReleaseLaunchDependencySmokeResultPath = "Builds/QA/v0.3.0/release_candidate/care_review_release_launch_dependency_smoke_result.json";
+    private const int ReleaseLaunchDependencySmokeWaitMilliseconds = 8000;
     private const string ExternalGateAuditPath = "Builds/QA/v0.3.0/external_gate_audit";
     private const string MarketingAssetAuditPath = "Builds/QA/v0.3.0/marketing_assets";
     private const string StorePageQaPath = "Builds/QA/v0.3.0/store_page";
@@ -43,17 +52,90 @@ public static class CareReviewProjectBuilder
     private const string PlaceholderSteamDepotId = "000001";
     private const string StorePresencePriorityBadgeMemberSummary = "priority_badges=store_presence_priority_badge_backreference:triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB,store_presence_main_menu_baseline_backreference:triage_priority_badge_main_menu_baseline/P1_BASELINE_GUARD,store_presence_copy_alignment_backreference:triage_priority_badge_copy_alignment/P1_COPY_ALIGNMENT_COLLECT";
     private const string StorePresenceBriefingRetrospectiveCandidateSummary = "briefing_retrospective_candidate_evidence=12_career_record_next_objective.png; briefing_retrospective_candidate_file=12_career_record_next_objective.png; briefing_retrospective_candidate_terms=브리핑 회고|예고 위험|실제 결과; briefing_retrospective_candidate_smoke=care_review_career_record_smoke_result.json; storeCandidateMentionsBriefingRetrospective=true";
-    private const string DecisionAuditCoachingHudStoreCandidateSummary = "decision_audit_coaching_hud_evidence=care_review_decision_audit_coaching_hud_smoke_result.json; decision_audit_coaching_hud_terms=결정 감사 코칭 진행|coachingStateApplied=true|reviewHudMentionsCoachingObjective=true|reviewHudUpdatesAfterDecision=true";
+    private const string DecisionAuditCoachingHudStoreCandidateSummary = "decision_audit_coaching_hud_evidence=care_review_decision_audit_coaching_hud_smoke_result.json; decision_audit_coaching_hud_terms=판단 복기 진행|coachingStateApplied=true|reviewHudMentionsCoachingObjective=true|reviewHudUpdatesAfterDecision=true";
     private const string PaperlogyUploadManifestEvidenceSummary = "Paperlogy font evidence: font=Paperlogy-6SemiBold; asset=Assets/Resources/Fonts/Paperlogy-6SemiBold.ttf; content_manifest=content_windows/RELEASE_MANIFEST.txt; content_readme=content_windows/README_KR.txt; license=Docs/THIRD_PARTY_FONTS.md; runtime_qa=care_review_ui_cleanup_smoke_result.json; paperlogyFontApplied=true; paperlogyTextFontCoverageApplied=true; paperlogyTextMismatchCount=0";
     private const string StorePresenceAfterCollectionTrackerHint = "after_collection_inputs=store_presence_priority_badge_after_collection_input,store_presence_main_menu_baseline_after_collection_input,store_presence_copy_alignment_after_collection_input; after_collection_fields=after_collection_status_reward_loop_candidate,manual_update_target_reward_loop_candidate,completion_gate_reward_loop_candidate,after_collection_status_main_menu_baseline,completion_gate_main_menu_baseline,after_collection_status_copy_alignment,completion_gate_copy_alignment";
     private static readonly string[] StorePageCandidateScreenshotFiles =
     {
-        "09_playtest_survey.png",
         "10_achievement_next_goal.png",
         "11_growth_follow_up_menu.png",
         "12_career_record_next_objective.png",
         "13_case_archive_appeal_remedy_history.png",
         "14_case_archive_decision_audit_coaching_focus.png"
+    };
+    private static readonly string[] ReleaseLaunchDependencyErrorTerms =
+    {
+        "DllNotFoundException",
+        "Unable to load DLL",
+        "Failed to load",
+        "The code execution cannot proceed",
+        "dstorage.dll was not found",
+        "dstoragecore.dll was not found",
+        "D3D12Core.dll was not found",
+        "UnityPlayer.dll was not found"
+    };
+    private static readonly string[] NonGameplayManagedModuleFiles =
+    {
+        "UnityEngine.AndroidJNIModule.dll",
+        "UnityEngine.AssetBundleModule.dll",
+        "UnityEngine.DirectorModule.dll",
+        "UnityEngine.GridModule.dll",
+        "UnityEngine.HierarchyCoreModule.dll",
+        "UnityEngine.MultiplayerModule.dll",
+        "UnityEngine.ParticleSystemModule.dll",
+        "UnityEngine.TerrainModule.dll",
+        "UnityEngine.TilemapModule.dll",
+        "UnityEngine.UnityConsentModule.dll",
+        "UnityEngine.UnityWebRequestModule.dll",
+        "UnityEngine.VFXModule.dll",
+        "UnityEngine.VideoModule.dll",
+        "UnityEngine.VRModule.dll",
+        "UnityEngine.XRModule.dll"
+    };
+    private static readonly string[] NonGameplayManagedLibraryFiles =
+    {
+        "Mono.Security.dll",
+        "System.Configuration.dll",
+        "System.Numerics.dll",
+        "System.Xml.dll",
+        "Unity.Scripting.dll"
+    };
+    private static readonly string[] NonGameplayMonoWebRuntimeFiles =
+    {
+        "browscap.ini",
+        "DefaultWsdlHelpGenerator.aspx",
+        "web.config",
+        "settings.map",
+        "Compat.browser"
+    };
+    private static readonly string[] NonGameplayMonoRuntimeRelativeFiles =
+    {
+        "MonoBleedingEdge/EmbedRuntime/MonoPosixHelper.dll",
+        "MonoBleedingEdge/etc/mono/2.0/machine.config",
+        "MonoBleedingEdge/etc/mono/4.0/machine.config",
+        "MonoBleedingEdge/etc/mono/4.5/machine.config",
+        "MonoBleedingEdge/etc/mono/mconfig/config.xml"
+    };
+    private static readonly string[] PlayerRuntimeArtTextureFiles =
+    {
+        "Assets/Resources/Art/documents_stamps_sheet_alpha.png",
+        "Assets/Resources/Art/ending_vignettes_sheet.png",
+        "Assets/Resources/Art/evidence_cards_sheet_v2.png",
+        "Assets/Resources/Art/family_portraits_sheet_v2.png",
+        "Assets/Resources/Art/incident_cards_sheet_v2.png",
+        "Assets/Resources/Art/menu_keyart_background.png",
+        "Assets/Resources/Art/review_desk_background.png",
+        "Assets/Resources/Art/ui_action_rail_generated.png",
+        "Assets/Resources/Art/ui_button_analysis_generated.png",
+        "Assets/Resources/Art/ui_button_danger_generated.png",
+        "Assets/Resources/Art/ui_button_primary_generated.png",
+        "Assets/Resources/Art/ui_button_secondary_generated.png",
+        "Assets/Resources/Art/ui_button_tab_generated.png",
+        "Assets/Resources/Art/ui_button_utility_generated.png",
+        "Assets/Resources/Art/ui_hotkey_badge_generated.png",
+        "Assets/Resources/Art/ui_panel_modal_generated.png",
+        "Assets/Resources/Art/ui_panel_paper_generated.png",
+        "Assets/Resources/Art/ui_panels_sheet_alpha.png"
     };
 
     [MenuItem("Care Review Office/Build Prototype Scene")]
@@ -63,7 +145,6 @@ public static class CareReviewProjectBuilder
         PrepareTexture("Assets/Resources/Art/review_desk_background.png", false);
         PrepareTexture("Assets/Resources/Art/menu_keyart_background.png", false);
         PrepareTexture("Assets/Resources/Art/family_portraits_sheet_v2.png", false);
-        PrepareTexture("Assets/Resources/Art/family_portraits_sheet.png", false);
         PrepareTexture("Assets/Resources/Art/evidence_cards_sheet_v2.png", true);
         PrepareTexture("Assets/Resources/Art/documents_stamps_sheet_alpha.png", true);
         PrepareTexture("Assets/Resources/Art/ui_panels_sheet_alpha.png", true);
@@ -71,17 +152,15 @@ public static class CareReviewProjectBuilder
         PrepareTexture("Assets/Resources/Art/ui_button_secondary_generated.png", true);
         PrepareTexture("Assets/Resources/Art/ui_button_utility_generated.png", true);
         PrepareTexture("Assets/Resources/Art/ui_button_danger_generated.png", true);
-        PrepareTexture("Assets/Resources/Art/ui_button_export_generated.png", true);
         PrepareTexture("Assets/Resources/Art/ui_button_analysis_generated.png", true);
         PrepareTexture("Assets/Resources/Art/ui_action_rail_generated.png", true);
         PrepareTexture("Assets/Resources/Art/ui_panel_paper_generated.png", true);
         PrepareTexture("Assets/Resources/Art/ui_panel_modal_generated.png", true);
         PrepareTexture("Assets/Resources/Art/ui_hotkey_badge_generated.png", true);
         PrepareTexture("Assets/Resources/Art/ui_button_tab_generated.png", true);
-        PrepareTexture("Assets/Resources/Art/ui_focus_frame_generated.png", true);
         PrepareTexture("Assets/Resources/Art/ending_vignettes_sheet.png", false);
         PrepareTexture("Assets/Resources/Art/incident_cards_sheet_v2.png", false);
-        PrepareTexture("Assets/Resources/Art/incident_cards_sheet.png", false);
+        PrepareAudioAssets();
 
         Directory.CreateDirectory("Assets/Scenes");
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -100,19 +179,11 @@ public static class CareReviewProjectBuilder
         game.reviewDeskBackground = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Art/review_desk_background.png");
         game.menuKeyartBackground = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Art/menu_keyart_background.png");
         game.familyPortraitsSheet = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Art/family_portraits_sheet_v2.png");
-        if (game.familyPortraitsSheet == null)
-        {
-            game.familyPortraitsSheet = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Art/family_portraits_sheet.png");
-        }
         game.evidenceCardsSheet = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Art/evidence_cards_sheet_v2.png");
         game.documentsStampsSheet = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Art/documents_stamps_sheet_alpha.png");
         game.uiPanelsSheet = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Art/ui_panels_sheet_alpha.png");
         game.endingVignettesSheet = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Art/ending_vignettes_sheet.png");
         game.incidentCardsSheet = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Art/incident_cards_sheet_v2.png");
-        if (game.incidentCardsSheet == null)
-        {
-            game.incidentCardsSheet = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Art/incident_cards_sheet.png");
-        }
         game.koreanFont = AssetDatabase.LoadAssetAtPath<Font>("Assets/Resources/Fonts/Paperlogy-6SemiBold.ttf");
 
         EditorUtility.SetDirty(gameObject);
@@ -123,8 +194,8 @@ public static class CareReviewProjectBuilder
             new EditorBuildSettingsScene(ScenePath, true)
         };
 
-        PlayerSettings.productName = "Care Review Office";
-        PlayerSettings.companyName = "SNU Final Project Prototype";
+        PlayerSettings.productName = ReleaseProductName;
+        PlayerSettings.companyName = ReleaseCompanyName;
         PlayerSettings.defaultScreenWidth = 1600;
         PlayerSettings.defaultScreenHeight = 900;
         PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
@@ -137,12 +208,21 @@ public static class CareReviewProjectBuilder
     public static void BuildWindows()
     {
         BuildPrototypeScene();
-        Directory.CreateDirectory(WindowsBuildPath);
-        BuildPipeline.BuildPlayer(
-            EditorBuildSettings.scenes,
-            Path.Combine(WindowsBuildPath, "CareReviewOffice.exe"),
-            BuildTarget.StandaloneWindows64,
-            BuildOptions.None);
+        ResetBuildDirectory(WindowsBuildPath);
+        ApplyReleasePlayerSettings();
+        BuildPipeline.BuildPlayer(CreateWindowsBuildOptions(WindowsBuildPath, Array.Empty<string>()));
+        RemoveDebugSymbolFiles(WindowsBuildPath);
+        RemoveNonGameplayPlayerFiles(WindowsBuildPath);
+    }
+
+    [MenuItem("Care Review Office/Build Windows QA Tools")]
+    public static void BuildWindowsQaTools()
+    {
+        BuildPrototypeScene();
+        ResetBuildDirectory(WindowsQaBuildPath);
+        ApplyReleasePlayerSettings();
+        BuildPipeline.BuildPlayer(CreateWindowsBuildOptions(WindowsQaBuildPath, new[] { "CARE_REVIEW_QA_TOOLS" }));
+        RemoveNonGameplayPlayerFiles(WindowsQaBuildPath);
     }
 
     [MenuItem("Care Review Office/Build Windows Release Package")]
@@ -150,6 +230,96 @@ public static class CareReviewProjectBuilder
     {
         BuildWindows();
         PackageWindowsRelease();
+    }
+
+    private static BuildPlayerOptions CreateWindowsBuildOptions(string buildPath, string[] extraScriptingDefines)
+    {
+        return new BuildPlayerOptions
+        {
+            scenes = EditorBuildSettings.scenes.Select(scene => scene.path).ToArray(),
+            locationPathName = Path.Combine(buildPath, "CareReviewOffice.exe"),
+            target = BuildTarget.StandaloneWindows64,
+            options = BuildOptions.None,
+            extraScriptingDefines = extraScriptingDefines
+        };
+    }
+
+    private static void ApplyReleasePlayerSettings()
+    {
+        PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+        PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Standalone, ManagedStrippingLevel.High);
+    }
+
+    private static void RemoveDebugSymbolFiles(string rootPath)
+    {
+        if (!Directory.Exists(rootPath))
+        {
+            return;
+        }
+
+        foreach (string filePath in Directory.GetFiles(rootPath, "*", SearchOption.AllDirectories))
+        {
+            string fileName = Path.GetFileName(filePath);
+            if (fileName.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase) ||
+                fileName.EndsWith(".mdb", StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(filePath);
+            }
+        }
+    }
+
+    private static void ResetBuildDirectory(string buildPath)
+    {
+        string fullBuildPath = Path.GetFullPath(buildPath);
+        string buildsRoot = Path.GetFullPath("Builds");
+        if (!fullBuildPath.StartsWith(buildsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Refusing to clear build path outside Builds: " + fullBuildPath);
+        }
+
+        StopRunningPlayerForBuildDirectory(fullBuildPath);
+
+        if (Directory.Exists(fullBuildPath))
+        {
+            Directory.Delete(fullBuildPath, true);
+        }
+
+        Directory.CreateDirectory(fullBuildPath);
+    }
+
+    private static void StopRunningPlayerForBuildDirectory(string fullBuildPath)
+    {
+        string fullExecutablePath = Path.Combine(fullBuildPath, "CareReviewOffice.exe");
+        foreach (System.Diagnostics.Process process in System.Diagnostics.Process.GetProcessesByName("CareReviewOffice"))
+        {
+            try
+            {
+                string processPath = process.MainModule?.FileName ?? "";
+                if (!string.Equals(processPath, fullExecutablePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                Debug.LogWarning("Stopping running CareReviewOffice player before rebuilding: " + processPath);
+                process.Kill();
+                if (!process.WaitForExit(5000))
+                {
+                    throw new InvalidOperationException("Timed out stopping running player before build reset: " + processPath);
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning("Could not inspect or stop CareReviewOffice player before build reset: " + exception.Message);
+            }
+            finally
+            {
+                process.Dispose();
+            }
+        }
     }
 
     [MenuItem("Care Review Office/Package Current Windows Build")]
@@ -199,6 +369,13 @@ public static class CareReviewProjectBuilder
         Debug.Log("Care Review Office distribution integrity audit created. passed=" + audit.passedCheckCount + "/" + audit.checkCount);
     }
 
+    [MenuItem("Care Review Office/Run Release Launch Dependency Smoke")]
+    public static void RunReleaseLaunchDependencySmoke()
+    {
+        ReleaseLaunchDependencySmokeResult result = BuildReleaseLaunchDependencySmoke();
+        Debug.Log("Care Review Office release launch dependency smoke created. completed=" + result.completed + " log=" + result.logPath);
+    }
+
     [MenuItem("Care Review Office/Audit External Release Gates")]
     public static void AuditExternalReleaseGates()
     {
@@ -236,6 +413,7 @@ public static class CareReviewProjectBuilder
         }
 
         Directory.CreateDirectory(ReleaseRootPath);
+        RemoveStaleReleasePackages();
         string targetPath = Path.Combine(ReleaseRootPath, ReleasePackageName);
         if (Directory.Exists(targetPath))
         {
@@ -246,75 +424,109 @@ public static class CareReviewProjectBuilder
         File.WriteAllText(Path.Combine(targetPath, "README_KR.txt"), BuildReadmeText(), new UTF8Encoding(false));
         File.WriteAllText(
             Path.Combine(targetPath, "RELEASE_MANIFEST.txt"),
-            BuildManifestText() +
-                "Included interaction QA: achievement next goal action smoke\n" +
-                "Included interaction QA: achievement appeal-remedy triage next goal\n" +
-                "Included interaction QA: achievement appeal-remedy triage focus label\n" +
-                "Included interaction QA: achievement long loop focus order\n" +
-                "Included interaction QA: appeal-remedy graph triage shared candidate state\n" +
-                "Included interaction QA: career record appeal remedy triage candidate result\n" +
-                "Included interaction QA: growth follow-up menu action button\n" +
-                "Included interaction QA: growth follow-up menu shortcut smoke\n" +
-                "Included interaction QA: growth follow-up menu focus navigation\n" +
-                "Included interaction QA: career record next objective restart\n" +
-                "Included interaction QA: career record next objective focus navigation\n" +
-                "Included interaction QA: appeal remedy achievement record link\n" +
-                "Included interaction QA: appeal remedy achievement record focus navigation\n" +
-                "Included interaction QA: case archive appeal remedy history\n" +
-                "Included interaction QA: case archive triage candidate focus navigation\n" +
-                "Included interaction QA: career record appeal remedy filter\n" +
-                "Included interaction QA: career record appeal remedy filter focus navigation\n" +
-                "Included interaction QA: career record appeal remedy case link\n" +
-                "Included interaction QA: career record appeal remedy case focus navigation\n" +
-                "Included interaction QA: career record appeal remedy next objective restart\n" +
-                "Included interaction QA: career record appeal remedy objective summary\n" +
-                "Included interaction QA: career record representative retrospective panel\n" +
-                "Included interaction QA: career record detail aggressive line wrap\n" +
-                "Included interaction QA: career record store candidate detail line wrap visual check\n" +
-                "Included interaction QA: career record appeal remedy action plan\n" +
-                "Included interaction QA: decision practice reward tiers\n" +
-                "Included interaction QA: decision practice reward detail lines\n" +
-                "Included interaction QA: main menu appeal-remedy graph triage recommendation\n" +
-                "Included interaction QA: appeal-remedy graph triage shared summary\n" +
-                "Included interaction QA: appeal-remedy graph triage candidate list\n" +
-                "Included interaction QA: appeal-remedy graph triage candidate actions\n" +
-                "Included interaction QA: appeal remedy briefing case archive quick link\n" +
-                "Included interaction QA: appeal remedy briefing case archive quick link focus navigation\n" +
-                "Included interaction QA: decision practice tier record links\n" +
-                "Included interaction QA: decision practice tier record focus navigation\n" +
-                "Included interaction QA: main menu appeal remedy objective summary\n" +
-                "Included interaction QA: appeal remedy menu follow-up button\n" +
-                "Included interaction QA: appeal remedy menu follow-up focus navigation\n" +
-                "Included interaction QA: final report appeal remedy retry CTA\n" +
-                "Included interaction QA: final report appeal remedy case link\n" +
-                "Included interaction QA: final report appeal remedy case focus navigation\n" +
-                "Included interaction QA: case archive decision comparison matrix\n" +
-                "Included interaction QA: case archive decision comparison practice objective\n" +
-                "Included interaction QA: case archive appeal-remedy graph triage objective\n" +
-                "Included interaction QA: main menu recommended campaign briefing card with prior-run weakness line\n" +
-                "Included systems addendum: appeal review queue, appeal review remedy guidance, appeal review CSV columns, appeal review smoke test\n" +
-                "Included systems addendum: appeal review report summary, appeal review career record summary\n" +
-                "Included systems addendum: decision audit appeal priority queue\n" +
-                "Included systems addendum: decision audit next-run coaching\n" +
-                "Included systems addendum: decision audit coaching in-run progress HUD\n" +
-                "Included systems addendum: playtest decision audit before-after graph export\n" +
-                "Included systems addendum: case archive appeal filter queue\n" +
-                "Included systems addendum: case archive appeal objective remedy\n" +
-                "Included systems addendum: appeal remedy recommended button label\n" +
-                "Included systems addendum: appeal remedy objective briefing\n" +
-                "Included systems addendum: appeal remedy objective review HUD\n" +
-                "Included systems addendum: appeal remedy objective result verdict\n" +
-                "Included systems addendum: appeal remedy result next objective\n" +
-                "Included systems addendum: appeal remedy retry briefing and HUD\n" +
-                "Included systems addendum: appeal remedy career badge\n" +
-                "Included systems addendum: appeal remedy achievement summary\n" +
-                "Included systems addendum: appeal remedy Steam achievement candidate\n" +
-                "Included interaction QA: appeal review queue smoke\n",
+            BuildManifestText(),
             new UTF8Encoding(false));
 
         WriteReleaseZipForCurrentPackage();
         AssetDatabase.Refresh();
         Debug.Log("Care Review Office release package created at " + targetPath);
+    }
+
+    private static void RemoveStaleReleasePackages()
+    {
+        if (!Directory.Exists(ReleaseRootPath))
+        {
+            return;
+        }
+
+        string releaseRootFullPath = Path.GetFullPath(ReleaseRootPath);
+        foreach (string directoryPath in Directory.GetDirectories(ReleaseRootPath, "CareReviewOffice_Windows_v*"))
+        {
+            if (string.Equals(Path.GetFileName(directoryPath), ReleasePackageName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            string fullPath = Path.GetFullPath(directoryPath);
+            if (!fullPath.StartsWith(releaseRootFullPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Refusing to delete release directory outside release root: " + fullPath);
+            }
+
+            Directory.Delete(fullPath, true);
+        }
+
+        foreach (string filePath in Directory.GetFiles(ReleaseRootPath, "CareReviewOffice_Windows_v*"))
+        {
+            string fileName = Path.GetFileName(filePath);
+            if (string.Equals(fileName, ReleasePackageName + ".zip", StringComparison.Ordinal) ||
+                string.Equals(fileName, ReleasePackageName + "_SHA256.txt", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            string fullPath = Path.GetFullPath(filePath);
+            if (!fullPath.StartsWith(releaseRootFullPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Refusing to delete release file outside release root: " + fullPath);
+            }
+
+            File.Delete(fullPath);
+        }
+    }
+
+    private static void RemoveNonGameplayPlayerFiles(string rootPath)
+    {
+        if (!Directory.Exists(rootPath))
+        {
+            return;
+        }
+
+        string crashHandlerPath = Path.Combine(rootPath, "UnityCrashHandler64.exe");
+        if (File.Exists(crashHandlerPath))
+        {
+            File.Delete(crashHandlerPath);
+        }
+
+        string managedPath = Path.Combine(rootPath, "CareReviewOffice_Data", "Managed");
+        foreach (string moduleName in NonGameplayManagedModuleFiles)
+        {
+            string modulePath = Path.Combine(managedPath, moduleName);
+            if (File.Exists(modulePath))
+            {
+                File.Delete(modulePath);
+            }
+        }
+
+        foreach (string libraryName in NonGameplayManagedLibraryFiles)
+        {
+            string libraryPath = Path.Combine(managedPath, libraryName);
+            if (File.Exists(libraryPath))
+            {
+                File.Delete(libraryPath);
+            }
+        }
+
+        string monoConfigPath = Path.Combine(rootPath, "MonoBleedingEdge", "etc", "mono");
+        if (Directory.Exists(monoConfigPath))
+        {
+            foreach (string fileName in NonGameplayMonoWebRuntimeFiles)
+            {
+                foreach (string filePath in Directory.GetFiles(monoConfigPath, fileName, SearchOption.AllDirectories))
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+
+        foreach (string relativePath in NonGameplayMonoRuntimeRelativeFiles)
+        {
+            string filePath = Path.Combine(rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+        }
     }
 
     private static void WriteReleaseZipForCurrentPackage()
@@ -381,9 +593,22 @@ public static class CareReviewProjectBuilder
         BuildExternalValidationHandoffFiles(null);
         File.WriteAllText(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), BuildSteamSubmissionPreflightReport(contentFileCount, contentBytes, zipHash), new UTF8Encoding(false));
         File.WriteAllText(Path.Combine(SteamworksRootPath, "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md"), BuildReleaseCandidateAuditNote(), new UTF8Encoding(false));
+        WriteSteamworksZip();
 
         AssetDatabase.Refresh();
         Debug.Log("Care Review Office Steamworks depot prepared at " + SteamworksRootPath);
+    }
+
+    private static void WriteSteamworksZip()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(SteamworksZipPath));
+        if (File.Exists(SteamworksZipPath))
+        {
+            File.Delete(SteamworksZipPath);
+        }
+
+        ZipFile.CreateFromDirectory(SteamworksRootPath, SteamworksZipPath, System.IO.Compression.CompressionLevel.Optimal, true);
+        File.WriteAllText(SteamworksHashPath, ComputeSha256(SteamworksZipPath), new UTF8Encoding(false));
     }
 
     private static CourseSubmissionAudit BuildCourseFinalSubmissionPackageFiles()
@@ -832,7 +1057,7 @@ public static class CareReviewProjectBuilder
             "| `review_desk_background.png` | 심사 책상 배경 |\n" +
             "| `family_portraits_sheet_v2.png` | 합성 가족 사례 프로필 초상 |\n" +
             "| `evidence_cards_sheet_v2.png` | 상담 메모, 학교 의견, 의료 기록 등 증빙 카드 |\n" +
-            "| `documents_stamps_sheet.png` / `documents_stamps_sheet_alpha.png` | 승인, 거절, 추가조사 도장 및 문서 질감 |\n" +
+            "| `documents_stamps_sheet_alpha.png` | 승인, 거절, 추가조사 도장 및 문서 질감 |\n" +
             "| `incident_cards_sheet_v2.png` | 민원, 감사, 안전 점검, 업무 과부하 이벤트 카드 |\n" +
             "| `ending_vignettes_sheet.png` | 최종 리포트/엔딩 분위기 이미지 |\n" +
             "| `ui_*_generated.png` | 버튼, 패널, 포커스 프레임 등 UI 크롬 |\n\n" +
@@ -1410,6 +1635,11 @@ public static class CareReviewProjectBuilder
 
     private static string BuildReadmeText()
     {
+        return BuildPlayerReadmeText();
+    }
+
+    private static string BuildPlayerReadmeText()
+    {
         return
             "돌봄지원 심사소 Windows 릴리즈 빌드\n" +
             "====================================\n\n" +
@@ -1417,81 +1647,45 @@ public static class CareReviewProjectBuilder
             "실행 파일: CareReviewOffice.exe\n" +
             "플랫폼: Windows 64-bit\n\n" +
             "게임 개요\n" +
-            "- 플레이어는 가족지원센터 심사 담당자가 되어 돌봄지원 신청 사례를 판단합니다.\n" +
+            "- 플레이어는 가족지원센터 심사 담당자가 되어 5일 동안 40개 돌봄지원 신청 사례를 판단합니다.\n" +
             "- 승인, 조건부 승인, 보류, 추가조사, 거절 선택이 예산, 안정도, 형평성, 민원, 누락 위험에 영향을 줍니다.\n" +
-            "- 5일차 40개 사례 캠페인, 3종 운영 기준(균형 심사/지원 확대/긴축 감사), 운영 기준별 캠페인 챌린지 계약, 키아트 기반 메인 메뉴 배경, 메인 메뉴 운영 기준 선택 카드, 메인 메뉴 추천 회차 브리핑/직전 약점, 운영 기준 시작 브리핑, 8장 가족 초상 v2 시트, 12종 증빙 카드 v2 시트, 사례 자료실 필터 큐, 사례 자료실 결정 감사 코칭 사례 버튼, 사례 압박 요약 패널, 심사 기준표 오버레이, 심사 중 결정 기록 오버레이, 후속 연락함, 판단 근거 선택, 선택지 미리보기, 판단 직후 권장 판단 비교 피드백, 다음 캠페인 목표 추천과 추천 기준 즉시 재시작, 판단 도장 타격감/색상 플래시, 튜토리얼, 첫 사례 하이라이트, 도움말, 판단 직후 지표 변화 패널, 절차적 효과음/앰비언스, 비주얼 특별 사건 카드, 사건별 경고 연출과 알림음, 일차·운영 기준별 사건 변형, 4종 엔딩 카드, 엔딩별 후속 에필로그, 엔딩 기록 화면, 운영 기준별 엔딩 기록, 성과 기록 화면과 해금 토스트, 캠페인 기록 화면, 캠페인 기록 결정 감사 코칭 요약, 캠페인 기록/사례 자료실 코칭 왕복 힌트, 최종 리포트 운영 등급/점수, 최종 리포트 게이지 대시보드, 가족 유형 판단 지도, 재검토 큐, 결정 감사 대시보드, 결정 감사 다음 회차 코칭, 결정 감사 코칭 진행 HUD, 플레이테스트 집계 결정 감사 코칭 패턴 분포, 가상 플레이어 에이전트 비교 대시보드, 결정 감사 export 포함 HTML 분석 대시보드, 익명 세션 ID 기반 플레이테스트 피드백 패킷, 인게임 구조화 플레이테스트 설문, 첫 실행 데이터/윤리 고지, 런타임 이슈 로그, 지원 번들 export, 저장 백업/복구, 로컬 데이터 삭제, 상용 콘텐츠 감사 export, 데이터 소스 무결성 감사, 컨트롤러 단축 입력, 저사양 모드/FPS 제한/환경 진단 export 설정을 포함합니다.\n\n" +
-            "- 항소/이의제기 검토는 고위험 판단 불일치, 지연, 서류 약점, 민원 압력을 다시 계산하고 사례별 보정 조치를 제안하며 최종 리포트와 캠페인 기록에 누적됩니다.\n\n" +
+            "- 같은 사례도 균형 심사, 지원 확대, 긴축 감사 운영 기준에 따라 다른 압박과 목표로 다시 읽힙니다.\n\n" +
+            "포함된 플레이 화면\n" +
+            "- 운영 기준 브리핑, 직전 약점 안내, 운영 기준별 캠페인 챌린지\n" +
+            "- 가족 초상, 신청서, 소득증명, 서류 카드, 위험 신호, 예산/안정/형평/누락/민원 지표가 있는 심사 화면\n" +
+            "- 심사 기준표, 심사 기록, 후속 연락함, 판단 근거 선택, 판단 직후 권장 판단 비교 피드백\n" +
+            "- 최종 리포트, 운영 등급/점수/배지, 캠페인 챌린지 결과, 가족 유형 판단 지도, 재검토 큐\n" +
+            "- 판단 비교, 판단 복기, 사례 자료실, 엔딩 기록, 성과 기록, 캠페인 기록\n" +
+            "- 3개 세이브 슬롯, 저장 백업/복구, 선택 슬롯 삭제, 로컬 데이터 삭제\n" +
+            "- 음량, 해상도, 창/전체화면, 큰 글자, 고대비, 저사양 모드, 키보드/컨트롤러 조작\n" +
+            "- 클릭, 판단 도장, 페이지 전환, 브리핑, 리포트 효과음과 낮은 사무실 앰비언스\n\n" +
             "실행 방법\n" +
             "1. 이 폴더 전체를 유지한 상태로 CareReviewOffice.exe를 실행합니다.\n" +
-            "2. CareReviewOffice_Data, MonoBleedingEdge, UnityPlayer.dll 파일/폴더를 삭제하거나 이동하지 마세요.\n" +
-            "3. 로그와 저장 파일은 Windows 사용자 LocalLow 폴더에 생성됩니다. 게임 내 설정의 로그 폴더 버튼으로 경로를 확인할 수 있습니다.\n" +
-            "4. 주요 단축키: 1-5 판단, Q 판단 근거, N/Enter 다음, P 기준표, L 심사 기록, F 후속 연락함/테스터 설문, H 도움말, S 저장, E 로그 저장, A 성과 기록/분석, V 사례 자료, R 캠페인 기록/추천 심사, D 운영 기준, X 선택 슬롯 삭제, T 큰 글자, C 고대비, B 환경 진단, U 지원 번들, O 로컬 데이터 삭제. 컨트롤러는 A 확인/승인, B 뒤로/거절, X 조건부/저장, Y 보류/설정, LB 추가조사/이전, RB 근거/다음, View 기록, Menu 저장/지원 번들을 기본으로 사용합니다.\n\n" +
-            "현재 빌드 성격\n" +
-            "- Steam 상용화 목표를 기준으로 만든 내부 콘텐츠 검증용 v0.3.0 빌드입니다.\n" +
-            "- 상점용 스크린샷은 -careReviewCaptureStoreScreenshots 실행 인자로 자동 생성할 수 있습니다.\n" +
-            "- 트레일러용 장면 프레임은 -careReviewCaptureTrailerFrames 실행 인자로 자동 생성할 수 있습니다.\n" +
-            "- 밸런스 QA 결과는 -careReviewBalanceQa 실행 인자로 3종 운영 기준 x 7개 플레이 성향 CSV/JSON과 운영 기준별 튜닝 권고 JSON/Markdown/HTML을 생성할 수 있습니다.\n" +
-            "- 엔딩 기록 화면은 -careReviewEndingGallerySmokeTest 실행 인자로 자동 검증할 수 있습니다.\n" +
-            "- 후속 연락함은 -careReviewFollowUpInboxSmokeTest 실행 인자로 빈 상태, 판단 후 연락/영향/우선 확인 표시, 닫기 흐름을 자동 검증할 수 있습니다.\n" +
-            "- 이의제기 검토는 -careReviewAppealReviewSmokeTest 실행 인자로 고위험 불일치 판단의 항소 점수, 후속 연락함 보정 안내, 사례 자료실 보정 조치, 최종 리포트 요약, 캠페인 기록 누적 요약, CSV export 컬럼을 자동 검증할 수 있습니다.\n" +
-            "- 판단 근거 선택은 -careReviewDecisionRationaleSmokeTest 실행 인자로 버튼/단축키 상태, 판단 로그, CSV 컬럼, 심사 기록, 후속 연락함 반영을 자동 검증할 수 있습니다.\n" +
-            "- 판단 근거 분석 대시보드는 -careReviewDecisionRationaleAnalyticsSmokeTest 실행 인자로 최종 리포트, 세션 요약 JSON, HTML 분석 대시보드의 근거 분포 반영을 자동 검증할 수 있습니다.\n" +
-            "- 캠페인 챌린지 계약은 -careReviewCampaignChallengeSmokeTest 실행 인자로 메인 메뉴 카드, 최종 리포트, 로그 JSON, 플레이테스트 요약, HTML 대시보드 반영을 자동 검증할 수 있습니다.\n" +
-            "- 성과 기록 화면과 14개 Steam 업적 후보 해금 조건은 -careReviewAchievementSmokeTest 실행 인자로 자동 검증할 수 있습니다.\n" +
-            "- 장기 진행 보상은 -careReviewLongTermProgressionSmokeTest 실행 인자로 사례 목표 심사/조사 후속 성과 해금과 캠페인 기록 반영을 자동 검증할 수 있습니다.\n" +
-            "- 장기 성과 기반 추천 목표는 -careReviewPersonalizedRecommendationSmokeTest 실행 인자로 미해금 성과가 최종 리포트/캠페인 기록/메인 메뉴 추천에 반영되는지 자동 검증할 수 있습니다.\n" +
-            "- 상위 반복 챌린지는 -careReviewAdvancedReplayChallengeSmokeTest 실행 인자로 반복 목표 2회 완료 시 상위 배지와 고난도 챌린지가 리포트/기록/메뉴에 표시되는지 자동 검증할 수 있습니다.\n" +
-            "- 상위 반복 챌린지 단계 장식은 -careReviewAdvancedReplayTierSmokeTest 실행 인자로 반복 목표 6회 완료 시 금색 엔딩 장식과 상위 단계 3 카드가 표시되는지 자동 검증할 수 있습니다.\n" +
-            "- 조사 후속 엔딩 에필로그는 -careReviewInvestigationEpilogueSmokeTest 실행 인자로 누적 조사 후속 건수가 최종 엔딩 카드에 반영되는지 자동 검증할 수 있습니다.\n" +
-            "- 조사 후속 엔딩 필터는 -careReviewEndingInvestigationFilterSmokeTest 실행 인자로 엔딩 기록 화면의 후속 배지와 필터 전환을 자동 검증할 수 있습니다.\n" +
-            "- 엔딩 기록 관련 캠페인 연결은 -careReviewEndingCareerLinkSmokeTest 실행 인자로 후속 배지/반복 장식 엔딩에서 해당 캠페인 기록 포커스로 이동하는지 자동 검증할 수 있습니다.\n" +
-            "- 캠페인 기록 화면은 -careReviewCareerRecordSmokeTest 실행 인자로 완료 회차 기록, 최고 점수, 최근 기록 목록, 동일 사례 회고 패널, 결정 감사 코칭 요약, 사례 자료실 코칭 사례 버튼, 운영 기준/성장/후속/보정/비교 필터, 보정 사례 바로가기, 다음 목표 저장을 자동 검증할 수 있습니다.\n" +
-            "- 크레딧/고지 화면은 -careReviewCreditsSmokeTest 실행 인자로 합성 사례, 개인정보 미사용, 로컬 저장, 자동 업로드 없음, 환경 진단/지원 번들 데이터 고지를 자동 검증할 수 있습니다.\n" +
-            "- 첫 실행 고지는 -careReviewFirstRunNoticeSmokeTest 실행 인자로 합성 사례, 개인정보 미사용, 로컬 저장, 자동 업로드 없음, 지원 번들, 로컬 데이터 삭제, 실제 판단 비대체 고지, 배경 클릭 차단, 확인 저장을 자동 검증할 수 있습니다.\n" +
-            "- 버튼/튜토리얼/UI 정리 QA는 -careReviewUiCleanupSmokeTest 실행 인자로 역할 기반 버튼 계층, 튜토리얼 6단계, 첫 사례 입력 차단, 선택지 권장/대체 표시, Paperlogy 폰트 적용을 자동 검증할 수 있습니다.\n" +
-            "- 저해상도 UI QA는 -careReviewLowResolutionSmokeTest 실행 인자로 1280x720/1600x900/1920x1080 주요 화면 42장 캡처, 첫 실행/첫 사례 가이드/캠페인 기록 액션 힌트/성과 기록 이동 힌트 포함, 버튼 글자 넘침/화면 밖 버튼/스크린샷 누락 검사를 JSON으로 생성할 수 있습니다.\n" +
-            "- 저사양 성능 QA는 -careReviewPerformanceSmokeTest 실행 인자로 1280x720 저사양 모드 주요 화면 프레임 시간 JSON 결과를 생성할 수 있습니다.\n" +
-            "- 환경 진단 export는 설정 화면의 환경 진단 버튼 또는 -careReviewSystemDiagnosticSmokeTest 실행 인자로 CPU/GPU/RAM, 화면 설정, FPS 샘플 JSON/Markdown을 생성하고 로컬 절대경로 미포함을 검증할 수 있습니다.\n" +
-            "- 런타임 이슈 로그는 Warning/Error/Exception을 경로 비식별 JSON/Markdown으로 저장하고 -careReviewRuntimeIssueSmokeTest 실행 인자로 지원 번들 포함과 로컬 절대경로 미포함을 검증할 수 있습니다.\n" +
-            "- 컨트롤러 단축 입력은 설정 화면 안내와 심사 화면 A/B/X/Y/LB/RB/View/Menu 매핑을 제공하며 -careReviewControllerShortcutSmokeTest 실행 인자로 안내 문구와 기본 판단 경로를 자동 검증할 수 있습니다.\n" +
-            "- 컨트롤러 포커스 하이라이트는 화면 전환 시 조작 가능한 첫 버튼을 기본 선택하고 선택 외곽선을 표시하며 -careReviewFocusNavigationSmokeTest 실행 인자로 메뉴/설정/심사/오버레이 선택 흐름을 자동 검증할 수 있습니다.\n" +
-            "- 지원 번들 export는 설정 화면의 지원 번들 버튼 또는 -careReviewSupportBundleSmokeTest 실행 인자로 최신 로그, 세션 원본, 설문, 환경 진단, 런타임 이슈 로그, 저장 파일, manifest를 support_bundles/<bundleId> 폴더로 모으고 로컬 절대경로 미포함을 검증할 수 있습니다.\n" +
-            "- 상용 콘텐츠 감사는 -careReviewContentAuditSmokeTest 실행 인자로 40개 사례의 일차 분포, 권장 판단, 비용/위험/서류 범위, 후속 메모와 엔딩 태그 완비 여부를 CSV/JSON/Markdown으로 검증할 수 있습니다.\n" +
-            "- 데이터 소스 무결성 감사는 -careReviewDataSourceSmokeTest 실행 인자로 Resources/Data의 cases_day1~5 JSON, 런타임 로딩 사례 수, agent_personas JSON, 임베디드 fallback 미사용 여부를 검증할 수 있습니다.\n" +
-            "- 플레이테스트 패킷은 로그 저장 버튼 또는 -careReviewPlaytestPacketSmokeTest 실행 인자로 생성/검증할 수 있습니다. CSV/JSON, 설문 Markdown, 세션 요약 JSON, HTML 분석 대시보드에 익명 세션 ID, 플레이 시간, 결정 감사 일차표, 고압력 대표 사례, 보정 전/후 그래프, 결정 감사 다음 회차 코칭, 다음 캠페인 목표 추천을 함께 기록하고, playtest_sessions/<sessionId> 폴더에 회차별 원본을 보관합니다. 공유용 패킷에는 로컬 사용자 절대경로 대신 상대경로만 기록합니다.\n" +
-            "- 최종 리포트의 인게임 구조화 설문은 -careReviewPlaytestSurveySmokeTest 실행 인자로 5점 척도, 빠른 체크, JSON/Markdown 저장, 로컬 절대경로 미포함을 자동 검증할 수 있습니다.\n" +
-            "- 인게임 플레이테스트 회수 준비 체크는 -careReviewPlaytestReadinessSmokeTest 실행 인자로 판단 35건 이상, 설문, 로그 패킷, 환경 진단, 로컬 절대경로 미포함 상태를 자동 검증할 수 있습니다.\n" +
-            "- 플레이테스트 회수 감사는 Unity 메뉴 Care Review Office/Audit Playtest Collection에서 실행합니다. Builds/Playtest/CollectedSessions 아래에 모은 playtest_sessions/<sessionId> 폴더 또는 support_bundles/<bundleId> 폴더를 필수 파일, 35건 이상 판단 로그, 설문, 환경 진단, 지원 번들 manifest/런타임 이슈 로그, 로컬 절대경로 미포함 기준으로 점검하고 10달러 상용화 트리아지 리포트를 생성합니다.\n" +
-            "- 여러 플레이테스트 회차 집계는 -careReviewPlaytestAggregateSmokeTest 실행 인자로 CSV/JSON/Markdown 요약을 생성/검증할 수 있습니다. 집계 산출물은 캠페인 챌린지, 다음 캠페인 목표, 판단 근거, 이의제기/보정 그래프 유형 triage, 10달러 가치감/재플레이 설문 컬럼, 상점 후보 우선순위 배지 회수 컬럼과 로컬 사용자 절대경로 미포함 검사를 통과해야 합니다.\n" +
-            "- 추천 운영 기준 즉시 재시작은 -careReviewRecommendedReplaySmokeTest 실행 인자로 최종 리포트 버튼 문구, 운영 기준 적용, 예산 초기화, 튜토리얼 복귀 흐름을 자동 검증할 수 있습니다.\n" +
-            "- 심사 기준표 오버레이는 -careReviewPolicyHandbookSmokeTest 실행 인자로 현재 사례 근거, 권장 판단, 다섯 선택지 예상 변화를 자동 검증할 수 있습니다.\n" +
-            "- 심사 화면 선택지 미리보기는 -careReviewDecisionPreviewSmokeTest 실행 인자로 다섯 판단의 즉시 예산/위험 변화와 권장 판단 하이라이트를 자동 검증할 수 있습니다.\n" +
-            "- 최종 리포트 운영 등급/점수는 -careReviewCampaignGradeSmokeTest 실행 인자로 등급 카드, 점수 범위, 요약 반영을 자동 검증할 수 있습니다.\n" +
-            "- 사례 자료실은 -careReviewCaseArchiveSmokeTest 실행 인자로 전체 사례 수, 쪽 이동, 이의제기 필터 큐, 사례 상세 판단 비교표, 사례 상세 판단 비교 연습, 사례 상세 보정 조치 표시, 이의제기 보정 목표 심사 적용, 플레이테스트 보정 그래프 triage 추천 목표, 사례 상세 보정 이력, 보정 심사 시작 버튼 라벨, 보정 목표 브리핑/HUD, 보정 목표 성공/미달 판정, 보정 결과 기반 다음 목표, 최종 리포트 보정 재도전 CTA, 메인 메뉴 보정 후속 버튼, 메인 메뉴 보정 목표 누적 요약, 보정 재도전 브리핑/HUD, 캠페인 기록 보정 다음 목표 시작, 캠페인 기록 보정 목표 성공률 요약, 캠페인 기록 보정 액션 플랜, 최종 리포트 보정 사례 바로가기, 캠페인 기록 보정 목표 완료 배지, 성과 기록 보정 목표 누적 요약, 이의제기 보정 성과 해금, 성과 기록 보정 기록 바로가기, 메인 메뉴 복귀를 자동 검증할 수 있습니다. -careReviewDecisionPracticeSmokeTest 실행 인자는 판단 비교 연습 회차가 최종 리포트, 캠페인 기록, 성과 반복 보상, 2/4/6회 비교 연습 보상, Steam 업적 후보에 남는지 검증합니다.\n" +
-            "- 에이전트 논쟁 사례 재검토는 -careReviewAgentCaseReviewSmokeTest 실행 인자로 논쟁 사례 큐에서 자료실 포커스 사례로 이동하고 상세 패널에 판단 분포/판단 이유가 표시되는 흐름을 자동 검증할 수 있습니다.\n" +
-            "- 에이전트 성향 캠페인 기록은 -careReviewAgentCareerProfileSmokeTest 실행 인자로 에이전트 분석 결과가 최근 캠페인 기록의 플레이어 성향 메모로 저장/표시되는지 자동 검증할 수 있습니다.\n" +
-            "- 에이전트 성향 기반 추천 심사는 -careReviewAgentReplayObjectiveSmokeTest 실행 인자로 성향 목표 생성, 추천 심사 버튼 반영, 새 회차 운영 기준 적용을 자동 검증할 수 있습니다.\n" +
-            "- 사례 기반 반복 목표 심사는 -careReviewCaseReplayObjectiveSmokeTest 실행 인자로 논쟁 사례 상세의 반복 목표 제안, 목표 적용, 해당 운영 기준 새 회차 시작을 자동 검증할 수 있습니다.\n" +
-            "- 메인 메뉴 목표 사례 연결은 -careReviewMainMenuCaseObjectiveSmokeTest 실행 인자로 추천 사례 ID/기준 표시와 사례 자료실 포커스 진입을 자동 검증할 수 있습니다.\n" +
-            "- 추가조사 자료 해금은 -careReviewInvestigationDossierSmokeTest 실행 인자로 조사 메모 생성, 후속 연락함 표시, 사례 자료실 표시, CSV export 컬럼을 자동 검증할 수 있습니다.\n" +
-            "- 추가조사 후속 반영은 -careReviewInvestigationFollowUpSmokeTest 실행 인자로 해금된 조사 메모가 다음 날 브리핑과 누락/민원 완화 지표에 반영되는지 자동 검증할 수 있습니다.\n" +
-            "- 조사 후속 엔딩 에필로그는 -careReviewInvestigationEpilogueSmokeTest 실행 인자로 최종 엔딩 카드의 후속 에필로그가 조사 후속 누적 회차를 언급하는지 자동 검증할 수 있습니다.\n" +
-            "- 조사 후속 엔딩 필터는 -careReviewEndingInvestigationFilterSmokeTest 실행 인자로 엔딩 기록의 후속 배지와 필터가 커리어 기록의 조사 후속 많은 회차를 찾는지 자동 검증할 수 있습니다.\n" +
-            "- 메인 메뉴 운영 기준 선택 카드는 -careReviewMainMenuMandateSmokeTest 실행 인자로 현재 기준 표시, 시작 예산 안내, 추천 회차 브리핑 카드, 직전 캠페인 약점, D 키 안내, 기준 변경/저장을 자동 검증할 수 있습니다.\n" +
-            "- 운영 기준 시작 브리핑은 -careReviewCampaignMandateBriefingSmokeTest 실행 인자로 긴축 감사 고난도 안내, 시작 예산, 튜토리얼 연결을 자동 검증할 수 있습니다.\n" +
-            "- 다음 날 운영 브리핑은 -careReviewDayBriefingForecastSmokeTest 실행 인자로 일차 전환 화면의 다음 접수 구성, 위험 예보, 운영 초점을 자동 검증할 수 있습니다.\n" +
-            "- 심사 화면 운영 초점은 -careReviewOperationalFocusSmokeTest 실행 인자로 오늘 접수/평균 압박/사례 플래그가 심사 화면에 유지되는지 자동 검증할 수 있습니다.\n" +
-            "- 심사 화면 일일 진행 추적은 -careReviewDailyProgressSmokeTest 실행 인자로 오늘 진행 0/8, 판단 직후 1/8 갱신, 다음 날 0/8 초기화를 자동 검증할 수 있습니다.\n" +
-            "- 심사 중 결정 기록 오버레이는 -careReviewDecisionHistorySmokeTest 실행 인자로 빈 상태, 판단 후 상태, 닫기 흐름을 자동 검증할 수 있습니다.\n" +
-            "- 판단 직후 권장 판단 비교 피드백은 -careReviewDecisionComparisonSmokeTest 실행 인자로 선택/권장 판단의 예산·안정·위험 차이를 자동 검증할 수 있습니다.\n" +
-            "- 결정 감사 대시보드는 -careReviewDecisionAuditSmokeTest 실행 인자로 5일차 행, 지출/위험/일치 막대, 이의제기 우선순위가 반영된 고압력 대표 사례 큐, 보정 전/후 그래프, 다음 회차 코칭의 핵심 패턴/추천 운영/실행 규칙/검증 질문을 자동 검증할 수 있습니다. -careReviewDecisionAuditCoachingHudSmokeTest 실행 인자는 코칭 목표로 시작한 회차의 시작 브리핑, 심사 중 결정 감사 코칭 진행 HUD, 판단 후 처리 카운트 갱신을 검증합니다.\n" +
-            "- 초상/증빙 반복감 QA는 -careReviewVisualVarietySmokeTest 실행 인자로 8종 초상과 12종 증빙 카드 사용 범위를 검증할 수 있습니다.\n" +
-            "- 선택 슬롯 삭제 흐름은 -careReviewSaveSlotDeleteSmokeTest 실행 인자로 백업/복구 포함 자동 검증할 수 있습니다.\n" +
-            "- 저장 복구 흐름은 -careReviewSaveRecoverySmokeTest 실행 인자로 손상된 기본 저장을 .bak 백업에서 복구하고 로컬 절대경로 없는 결과를 생성하는지 자동 검증할 수 있습니다.\n" +
-            "- 로컬 데이터 삭제 흐름은 -careReviewLocalDataDeleteSmokeTest 실행 인자로 2단계 확인, 게임 생성 파일/폴더 삭제, 무관 파일 보존, 로컬 절대경로 미포함을 자동 검증할 수 있습니다.\n" +
-            "- 릴리즈 후보 감사는 Unity 메뉴 Care Review Office/Audit Release Candidate 또는 CareReviewProjectBuilder.AuditReleaseCandidate 실행 인자로 패키지 해시, 상점 사본, QA 증거, 프리플라이트 로컬 미해결 항목을 점검합니다.\n" +
-            "- Steamworks 업로드용 depot 초안은 Unity 메뉴 Care Review Office/Prepare Steamworks Depot에서 생성합니다.\n" +
-            "- 최종 상점 제출 전에는 실제 사람 플레이테스트 회수, SteamCMD preview, Steam 클라이언트 설치 QA, 저사양 PC 검증이 추가로 필요합니다.\n";
+            "2. CareReviewOffice_Data, MonoBleedingEdge, D3D12, UnityPlayer.dll, dstorage.dll, dstoragecore.dll 파일/폴더를 삭제하거나 이동하지 마세요.\n" +
+            "3. 저장 파일은 Windows 사용자 LocalLow 폴더에 생성됩니다. 게임 안에서는 설정의 데이터 삭제로 진행 기록을 지울 수 있습니다.\n\n" +
+            "기본 조작\n" +
+            "- 숫자 1-5: 판단 선택\n" +
+            "- Q: 판단 근거 변경\n" +
+            "- N/Enter: 다음 진행\n" +
+            "- P: 기준표\n" +
+            "- L: 심사 기록\n" +
+            "- F: 후속 연락함\n" +
+            "- H: 도움말\n" +
+            "- S: 저장\n" +
+            "- A: 성과 기록\n" +
+            "- V: 사례 자료\n" +
+            "- R: 캠페인 기록/추천 심사\n" +
+            "- D: 운영 기준 변경\n" +
+            "- X: 선택 슬롯 삭제\n" +
+            "- T: 큰 글자\n" +
+            "- C: 고대비\n" +
+            "- O: 로컬 데이터 삭제\n\n" +
+            "컨트롤러는 A 확인/승인, B 뒤로/거절, X 조건부/저장, Y 보류/설정, LB 추가조사/이전, RB 근거/다음, View 기록, Menu 저장을 기본으로 사용합니다.\n\n" +
+            "데이터 안내\n" +
+            "- 게임 속 가족, 기관, 지역, 예산, 사건은 모두 허구입니다.\n" +
+            "- 실제 개인정보, 연락처, 주소, 식별번호, 상담 원문은 포함하지 않습니다.\n" +
+            "- 게임은 데이터를 서버로 자동 업로드하지 않습니다.\n" +
+            "- 저장 파일과 플레이 기록은 이 PC의 로컬 저장소에만 남습니다.\n";
     }
 
     private static string BuildManifestText()
@@ -1503,8 +1697,26 @@ public static class CareReviewProjectBuilder
             "Build target: StandaloneWindows64\n" +
             "Executable: CareReviewOffice.exe\n" +
             "Required Unity runtime folders: CareReviewOffice_Data, MonoBleedingEdge\n" +
-            "UI font: Paperlogy-6SemiBold; asset=Assets/Resources/Fonts/Paperlogy-6SemiBold.ttf; runtime_qa=paperlogyFontApplied=true,paperlogyTextFontCoverageApplied=true,paperlogyTextMismatchCount=0; license=Docs/THIRD_PARTY_FONTS.md\n" +
-            "Included systems: campaign day 1-5, external JSON case databases, external agent persona JSON, three campaign mandates, campaign challenge contracts, keyart-backed main menu background, main menu mandate selector, main menu recommended campaign briefing with prior-run weakness line, campaign mandate start briefing, expanded 8-card family portrait sheet, dynamic 12-card evidence sheet, case archive browser with filter queues, case archive decision audit coaching case button, case archive appeal remedy history, case archive appeal-remedy graph triage objective, case pressure snapshot panel, policy handbook overlay, in-run decision history overlay, follow-up inbox overlay, decision rationale selector, decision rationale analytics dashboard, decision option preview strip, recommended decision comparison feedback, next campaign objective recommendation, recommended mandate replay button, final report campaign grade score, final report campaign challenge result, final report growth objective result, final report growth follow-up objective, final report appeal remedy objective result, final report appeal remedy result next objective, final report appeal remedy retry CTA, final report gauge dashboard, player decision map, final report appeal remedy case link, final report appeal remedy case focus navigation, playtest review queue guidance, playtest decision audit before-after graph export, playtest decision audit coaching export, playtest decision audit coaching aggregate distribution, playtest appeal-remedy graph triage, decision audit dashboard, decision audit appeal before-after graph, decision audit next-run coaching, decision audit coaching in-run progress HUD, decision audit coaching HUD smoke, decision audit coaching smoke, decision audit JSON export, decision audit HTML analytics section, agent comparison dashboard, HTML analytics dashboard export, in-game structured playtest survey, in-game playtest collection readiness checklist, first-run data and ethics notice, runtime issue log export, support bundle export, local data deletion, commercial content audit export, data source integrity audit, local achievement records, achievement unlock toast, achievement next goal roadmap, achievement next goal action button, achievement appeal-remedy triage next goal, achievement appeal-remedy triage result progress, achievement appeal-remedy triage record link, achievement next goal focus navigation, achievement growth progress panel, achievement growth progress cards, achievement growth record links, achievement growth record focus navigation, appeal remedy achievement record link, appeal remedy achievement record focus navigation, decision practice achievement record link, decision practice tier record links, decision practice Steam achievement candidate, decision practice reward tiers, decision practice reward detail lines, appeal remedy recommended button label, appeal remedy objective briefing, appeal remedy briefing case archive quick link, appeal remedy briefing case archive quick link focus navigation, appeal remedy objective review HUD, appeal remedy objective result verdict, appeal remedy result next objective, appeal remedy retry briefing and HUD, appeal remedy menu follow-up button, main menu appeal remedy objective summary, main menu appeal-remedy graph triage recommendation, appeal-remedy graph triage shared summary, appeal-remedy graph triage shared candidate state, career record appeal remedy triage candidate result, career record appeal remedy triage candidate filter, career record appeal remedy triage queue return link, career record decision audit coaching summary, career record case archive coaching round-trip hint, persistent campaign career records, main menu growth objective summary, career record filter count badges, career record growth objective summary, career record appeal remedy objective summary, career record decision practice objective summary, career record representative retrospective panel, career record detail aggressive line wrap, career record store candidate detail line wrap visual check, career record appeal remedy action plan, career record growth filter, career record growth follow-up filter, career record appeal remedy filter, career record decision practice filter, career record appeal remedy filter focus navigation, career record appeal remedy case link, career record appeal remedy case focus navigation, career record appeal remedy next objective restart, career record growth comparison, career growth objective replay, career growth objective result record, career growth follow-up objective record, career growth follow-up briefing, career growth follow-up review HUD, career growth follow-up completion record, Steam achievement candidate IDs, Steam achievement candidate metadata, six-card visual incident sheet, animated decision stamp impact, tutorial, first-case guide, help overlay, metric delta feedback, procedural audio, incident warning audio, incident text variants, save slots, save backup recovery, appeal-remedy triage candidate save restore, selected save-slot deletion with confirmation, settings, large text mode, high contrast mode, low-spec mode, frame-rate limit, system diagnostic export, keyboard shortcuts, controller shortcuts, controller focus highlight, support bundle settings focus navigation, playtest survey focus navigation, achievement replay tier record focus navigation, achievement decision practice tier record focus navigation, follow-up inbox action focus navigation, case archive filter queue focus navigation, ending gallery record focus navigation, career record mandate filter focus navigation, career record growth filter focus navigation, career record growth follow-up filter focus navigation, career record appeal remedy filter focus navigation, career record appeal remedy case focus navigation, log folder guidance, credits and disclosure screen, in-game data handling notice, consequences, visual incident cards, incident severity presentation, four ending cards, ending epilogues, ending gallery, mandate-specific ending records, final report, playtest feedback packet, playtest session metadata, playtest session archive folders, path-sanitized playtest exports, support bundle manifest, support bundle external handoff reference, runtime issue support bundle files, content audit report, playtest collection audit, playtest commercial triage report, playtest commercial triage action CSV, external validation triage action handoff, trailer remaster work order, trailer remaster ffmpeg script, trailer remaster promotion gate, trailer remaster upload encode, release candidate audit, playtest aggregate export, playtest review queue columns, playtest campaign grade columns, playtest campaign challenge columns, playtest next-campaign columns, playtest decision-rationale columns, playtest decision audit coaching aggregate columns, playtest appeal-remedy graph triage columns, playtest survey price-value columns, playtest replay-intent columns, playtest replay-reward-value triage priority, balance tuning recommendation report, agent simulation, smoke test, decision history smoke test, follow-up inbox smoke test, decision rationale smoke test, campaign challenge smoke test, decision comparison smoke test, decision preview smoke test, policy handbook smoke test, campaign grade smoke test, case archive smoke test, main menu mandate smoke test, campaign mandate briefing smoke test, playtest survey smoke test, playtest readiness smoke test, recommended replay smoke test, audio smoke test, accessibility smoke test, ending gallery smoke test, achievement smoke test, career record smoke test, credits smoke test, first-run notice smoke test, save recovery smoke test, runtime issue smoke test, controller shortcut smoke test, focus navigation smoke test, data source integrity smoke test, low-resolution UI smoke test, performance smoke test, system diagnostic smoke test, support bundle smoke test, local data delete smoke test, content audit smoke test, playtest packet smoke test, playtest aggregate smoke test, balance tuning smoke test, playtest commercial triage smoke test, decision audit smoke test, decision audit coaching smoke, visual variety smoke test, save-slot delete smoke test, mandate balance QA, guide screenshot capture, decision feedback screenshot capture, store screenshot capture, store candidate screenshot graphics sync command, trailer frame capture, Steamworks depot template\n";
+            "UI font: Paperlogy-6SemiBold; license=Docs/THIRD_PARTY_FONTS.md\n" +
+            "\n" +
+            "Included player systems:\n" +
+            "- 5-day campaign with 40 fictional care-review cases\n" +
+            "- Three campaign operating mandates and day-by-day briefings\n" +
+            "- Application review desk with family profile, request summary, risk signal, and document slots\n" +
+            "- Evidence cards for application form, income proof, work schedule, and supplementary records\n" +
+            "- Policy handbook, decision history, follow-up inbox, rationale selection, and decision preview\n" +
+            "- Final report, campaign challenge result, player decision map, review queue, and case archive\n" +
+            "- Decision comparison, decision review, ending gallery, achievements, and campaign records\n" +
+            "- Save slots, backup recovery, selected save-slot deletion, and local data deletion\n" +
+            "- Volume, resolution, window mode, large text, high contrast, low-spec mode, and frame-rate limit settings\n" +
+            "- Keyboard and controller controls with focus highlight\n" +
+            "- BGM, SFX, office ambience, tutorial, help overlay, first-case guide, and data notice\n" +
+            "\n" +
+            "Data notice:\n" +
+            "- All families, institutions, regions, budgets, and incidents are fictional.\n" +
+            "- The game does not contain real personal data, contact details, addresses, ID numbers, or case notes.\n" +
+            "- The game does not automatically upload play data to a server.\n" +
+            "- Save files and play records stay in the local Windows user profile unless the player deletes them.\n";
     }
 
     private static string BuildAchievementCandidateMarkdown()
@@ -1549,8 +1761,8 @@ public static class CareReviewProjectBuilder
             new AchievementCandidate("CARE_RISK_SHIELD", "누락 위험 방어", "최종 누락 위험을 25 이하로 유지했습니다.", "finalMissedRisk <= 25"),
             new AchievementCandidate("CARE_EQUITY_GUARDIAN", "형평성 우선", "최종 형평성 지표를 90 이상으로 끌어올렸습니다.", "finalEquity >= 90"),
             new AchievementCandidate("CARE_BUDGET_EXPLAINED", "예산 설명 완료", "캠페인 종료 시 예산 초과를 1,000만 원 미만으로 관리했습니다.", "finalBudget >= -1000"),
-            new AchievementCandidate("CARE_ANALYTICS_EXPORT", "로그 분석 패킷 생성", "CSV/JSON 로그와 HTML 분석 대시보드를 내보냈습니다.", "ExportLog 실행"),
-            new AchievementCandidate("CARE_AGENT_LAB", "가상 심사 실험실", "가상 플레이어 에이전트 분석을 실행했습니다.", "RunAgentSimulation 실행"),
+            new AchievementCandidate("CARE_ANALYTICS_EXPORT", "판단 복기 확인", "최종 리포트 이후 판단 복기 화면을 확인했습니다.", "판단 복기 화면 열기"),
+            new AchievementCandidate("CARE_AGENT_LAB", "판단 비교 확인", "최종 리포트 이후 판단 비교 화면을 확인했습니다.", "판단 비교 화면 열기"),
             new AchievementCandidate("CARE_MANDATE_REPLAY", "운영 기준 실험", "서로 다른 운영 기준 2종 이상에서 캠페인을 완료했습니다.", "completedMandates >= 2"),
             new AchievementCandidate("CARE_CASE_OBJECTIVE_REPLAY", "사례 재심사 목표", "목표 심사 캠페인을 완료하고 2/4/6회 반복 목표 누적으로 동색 인장, 은색 카드, 금색 엔딩 장식을 해금합니다.", "startedFromCaseObjective == true 또는 startedFromAchievementObjective == true; replayObjectiveCompletionCount 2/4/6회에서 장식 단계 갱신"),
             new AchievementCandidate("CARE_APPEAL_REMEDY_OBJECTIVE", "이의제기 보정 설계자", "이의제기 필터 큐에서 보정 목표 심사를 시작해 완료했습니다.", "appealRemedyObjectiveCompleted == true"),
@@ -1675,13 +1887,13 @@ public static class CareReviewProjectBuilder
             "Store Presence 증거 묶음 상태\n" +
             "- 증거 묶음: `allPassed`; `checkCount=11`; `passedCheckCount=11`; `STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY`\n" +
             "- 실제 입력 증거: `pending_external`; `Evidence/STORE_PRESENCE.md`; `status: draft_not_evidence`\n" +
-            "- 작성 완료 전 자체점검 TODO: `Evidence/STORE_PRESENCE.md`; `작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`; `[ ] Steamworks URL/화면 캡처`; `[ ] SHA 확인`; `[ ] 14번 코칭 후보`; `[ ] 브리핑 회고 후보`; `[ ] A/B 응답 회수`\n" +
-            "- 제출 전 TODO 첫 확인: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`; `STEAM_SUBMISSION_PREFLIGHT_KO.md`; `최상단 판정 요약`; `Store Presence 자체점검 TODO 요약`\n" +
+            "- 작성 완료 전 자체점검 TODO: `Evidence/STORE_PRESENCE.md`; `작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`; `[ ] Steamworks URL/화면 캡처`; `[ ] SHA 확인`; `[ ] 14번 복기 후보`; `[ ] 브리핑 회고 후보`; `[ ] A/B 응답 회수`\n" +
+            "- 제출 전 TODO 첫 확인: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`; `STEAM_SUBMISSION_PREFLIGHT_KO.md`; `최상단 판정 요약`; `Store Presence 자체점검 TODO 요약`\n" +
             "- 감사 노트 템플릿 TODO 역참조: `STEAM_SUBMISSION_PREFLIGHT_KO.md`; `외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조`; `RELEASE_CANDIDATE_AUDIT_NOTE_KO.md`; `자체점검 TODO 요약 템플릿`\n" +
             "- handoff 첫 확인 대조: `README_KO.txt`; `첫 확인 항목`; `Store Presence 증거 초안`; `status: draft_not_evidence`\n" +
             "- handoff 최상단 요약 대조: `EXTERNAL_RELEASE_HANDOFF_KO.md`; `Store Presence 증거 초안 상태`; `pending_external`\n" +
             "- A/B 응답 회수 보류: `screenshot_ab_loop_response_count=0`; `screenshot_ab_loop_not_collected_count=221`; `screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses`; `screenshot_ab_loop_understanding_comment_count=0`\n" +
-            "- 결정 감사 코칭 보조 후보: `14_case_archive_decision_audit_coaching_focus.png`; `코칭 W-207`; `decision_audit_coaching_candidate_evidence`; `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`; `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`; `" + DecisionAuditCoachingHudStoreCandidateSummary + "`\n" +
+            "- 판단 복기 보조 후보: `14_case_archive_decision_audit_coaching_focus.png`; `복기 W-207`; `decision_audit_coaching_candidate_evidence`; `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`; `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`; `" + DecisionAuditCoachingHudStoreCandidateSummary + "`\n" +
             "- 브리핑 회고 후보 입력란: `" + StorePresenceBriefingRetrospectiveCandidateSummary + "`\n" +
             "- upload manifest memberSummary 대조: `STEAMWORKS_UPLOAD_MANIFEST.txt`; `Store Presence evidence bundle`; `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`\n" +
             "- Paperlogy 폰트 evidence: `ready`; `Paperlogy font evidence`; `STEAMWORKS_UPLOAD_MANIFEST.txt`; `content_windows/RELEASE_MANIFEST.txt`; `content_windows/README_KR.txt`; `Docs/THIRD_PARTY_FONTS.md`; `care_review_ui_cleanup_smoke_result.json`; `paperlogyTextMismatchCount=0`\n" +
@@ -1702,13 +1914,13 @@ public static class CareReviewProjectBuilder
             "1. `STORE_PRESENCE_QA_CARD_KO.md`에서 A/B 추천 후보 일치와 보정 후보 결과 / 자체점검 일치를 먼저 확인합니다.\n" +
             "2. `STEAM_SUBMISSION_PREFLIGHT_KO.md`의 `상점 보정 후보 결과 수동 확인 단계`가 체크된 뒤 Store Presence 입력을 진행합니다.\n" +
             "3. `store_page/STORE_PRESENCE_SELECTION_KO.md`의 `store_presence_ready_for_manual_input: yes`, `screenshot_ab_recommended_candidate`, `appeal_triage_qa_evidence`를 대조합니다.\n" +
-            "4. `store_page/STORE_PRESENCE_SELECTION_KO.md`의 `decision_audit_coaching_candidate_evidence: 14_case_archive_decision_audit_coaching_focus.png`, `코칭 W-207`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`, `" + DecisionAuditCoachingHudStoreCandidateSummary + "`를 14번 보조 후보 추적 근거로 확인합니다.\n" +
+            "4. `store_page/STORE_PRESENCE_SELECTION_KO.md`의 `decision_audit_coaching_candidate_evidence: 14_case_archive_decision_audit_coaching_focus.png`, `복기 W-207`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`, `" + DecisionAuditCoachingHudStoreCandidateSummary + "`를 14번 보조 후보 추적 근거로 확인합니다.\n" +
             "5. `Evidence/STORE_PRESENCE.md`의 `briefing_retrospective_candidate_evidence`, `briefing_retrospective_candidate_file`, `briefing_retrospective_candidate_terms`, `briefing_retrospective_candidate_smoke`가 12번 후보와 `care_review_career_record_smoke_result.json`의 `storeCandidateMentionsBriefingRetrospective=true`를 가리키는지 확인합니다.\n" +
             "6. `README_KO.txt`의 Store Presence/A-B/보정 후보 증거 작성 순서를 따라 외부 handoff 증거를 기록합니다.\n" +
             "7. `Evidence/STORE_PRESENCE_EXAMPLE.md`의 `status: example_not_evidence` 예시와 `Evidence/STORE_PRESENCE.md`의 `status: draft_not_evidence` 초안을 대조합니다.\n" +
             "8. `Evidence/STORE_PRESENCE.md`의 `release candidate JSON memberSummary 확인`, `care_review_release_candidate_audit.json`, `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`를 확인합니다.\n" +
             "9. `Evidence/STORE_PRESENCE.md`의 `screenshot_ab_loop_response_count`, `screenshot_ab_loop_not_collected_count`, `screenshot_ab_loop_collection_status`, `screenshot_ab_loop_understanding_comment_count` 입력란을 확인합니다.\n" +
-            "10. `Evidence/STORE_PRESENCE.md`의 `작성 완료 전 자체점검 TODO`, `[ ] Steamworks URL/화면 캡처`, `[ ] SHA 확인`, `[ ] 14번 코칭 후보`, `[ ] 브리핑 회고 후보`, `[ ] A/B 응답 회수`를 모두 채운 뒤 누락 행을 지웁니다.\n" +
+            "10. `Evidence/STORE_PRESENCE.md`의 `작성 완료 전 자체점검 TODO`, `[ ] Steamworks URL/화면 캡처`, `[ ] SHA 확인`, `[ ] 14번 복기 후보`, `[ ] 브리핑 회고 후보`, `[ ] A/B 응답 회수`를 모두 채운 뒤 누락 행을 지웁니다.\n" +
             "11. 실제 Steamworks URL/화면 캡처를 `Evidence/STORE_PRESENCE.md`에 채운 뒤 마지막에만 status 값을 passed로 바꿉니다.\n\n" +
             "실제 업로드 전 필수 수정\n" +
             "1. scripts/configure_steamworks_ids.ps1 -AppId <실제 App ID> -DepotId <Windows Depot ID> -SteamUsername <계정>를 실행합니다.\n" +
@@ -1737,12 +1949,12 @@ public static class CareReviewProjectBuilder
             "Depot VDF: scripts/depot_build_" + PlaceholderSteamDepotId + ".vdf\n" +
             "Configure IDs script: scripts/configure_steamworks_ids.ps1\n" +
             "Achievement candidates: store_page/ACHIEVEMENT_CANDIDATES.csv, store_page/ACHIEVEMENT_CANDIDATES_KO.md\n" +
-            "Screenshot candidates: store_page/SCREENSHOT_CANDIDATES_KO.md, store_page/SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md, store_page/SCREENSHOT_CANDIDATE_AB_TEST_KO.md, store_page/screenshot_candidates/09_playtest_survey.png, store_page/screenshot_candidates/10_achievement_next_goal.png, store_page/screenshot_candidates/11_growth_follow_up_menu.png, store_page/screenshot_candidates/12_career_record_next_objective.png, store_page/screenshot_candidates/13_case_archive_appeal_remedy_history.png, store_page/screenshot_candidates/14_case_archive_decision_audit_coaching_focus.png\n" +
+            "Screenshot candidates: store_page/SCREENSHOT_CANDIDATES_KO.md, store_page/SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md, store_page/SCREENSHOT_CANDIDATE_AB_TEST_KO.md, store_page/screenshot_candidates/10_achievement_next_goal.png, store_page/screenshot_candidates/11_growth_follow_up_menu.png, store_page/screenshot_candidates/12_career_record_next_objective.png, store_page/screenshot_candidates/13_case_archive_appeal_remedy_history.png, store_page/screenshot_candidates/14_case_archive_decision_audit_coaching_focus.png\n" +
             "Screenshot upload selection: store_page/SCREENSHOT_UPLOAD_SELECTION_KO.md, store_page/SCREENSHOT_UPLOAD_APPLICATION_KO.md\n" +
             "Trailer upload selection: store_page/TRAILER_UPLOAD_SELECTION_KO.md\n" +
             "Store Presence selection: store_page/STORE_PRESENCE_SELECTION_KO.md\n" +
             "Store Presence evidence bundle: STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY; checkCount=11; passedCheckCount=11; allPassed=true; release_candidate_json=care_review_release_candidate_audit.json; memberSummary=storePresenceEvidenceBundle.checks.memberSummary; " + StorePresencePriorityBadgeMemberSummary + "; " + DecisionAuditCoachingHudStoreCandidateSummary + "; " + StorePresenceBriefingRetrospectiveCandidateSummary + "; abLoopInputFields=screenshot_ab_loop_response_count,screenshot_ab_loop_not_collected_count,screenshot_ab_loop_collection_status,screenshot_ab_loop_understanding_comment_count\n" +
-            "Store Presence evidence draft: Evidence/STORE_PRESENCE.md; status: draft_not_evidence; pending_external; example=Evidence/STORE_PRESENCE_EXAMPLE.md; completion_todo=작성 완료 전 자체점검 TODO; completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수; README_STEAMWORKS_KR.txt upload manifest memberSummary 대조; README_STEAMWORKS_KR.txt 감사 노트 템플릿 TODO 역참조; STEAM_SUBMISSION_PREFLIGHT_KO.md 외부 검증 Store Presence 증거 묶음 요약; STEAM_SUBMISSION_PREFLIGHT_KO.md 외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조; RELEASE_CANDIDATE_AUDIT_NOTE_KO.md; 자체점검 TODO 요약 템플릿; memberSummary=storePresenceEvidenceBundle.checks.memberSummary; " + DecisionAuditCoachingHudStoreCandidateSummary + "; " + StorePresenceBriefingRetrospectiveCandidateSummary + "; screenshot_ab_loop_response_count=0; screenshot_ab_loop_not_collected_count=221; screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses; screenshot_ab_loop_understanding_comment_count=0\n" +
+            "Store Presence evidence draft: Evidence/STORE_PRESENCE.md; status: draft_not_evidence; pending_external; example=Evidence/STORE_PRESENCE_EXAMPLE.md; completion_todo=작성 완료 전 자체점검 TODO; completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수; README_STEAMWORKS_KR.txt upload manifest memberSummary 대조; README_STEAMWORKS_KR.txt 감사 노트 템플릿 TODO 역참조; STEAM_SUBMISSION_PREFLIGHT_KO.md 외부 검증 Store Presence 증거 묶음 요약; STEAM_SUBMISSION_PREFLIGHT_KO.md 외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조; RELEASE_CANDIDATE_AUDIT_NOTE_KO.md; 자체점검 TODO 요약 템플릿; memberSummary=storePresenceEvidenceBundle.checks.memberSummary; " + DecisionAuditCoachingHudStoreCandidateSummary + "; " + StorePresenceBriefingRetrospectiveCandidateSummary + "; screenshot_ab_loop_response_count=0; screenshot_ab_loop_not_collected_count=221; screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses; screenshot_ab_loop_understanding_comment_count=0\n" +
             "Store Presence upload doc cross-check: Docs/Steamworks_업로드_준비.md; Store Presence Draft 독립 체크; upload manifest memberSummary 상호참조; memberSummary=storePresenceEvidenceBundle.checks.memberSummary; actual_status=pending_external; screenshot_ab_loop_response_count=0; screenshot_ab_loop_not_collected_count=221; screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses; screenshot_ab_loop_understanding_comment_count=0\n" +
             "Store Presence preflight cross-check: STEAM_SUBMISSION_PREFLIGHT_KO.md; 외부 검증 Store Presence 증거 초안 상태; 외부 검증 Store Presence 증거 초안/upload manifest 상호참조; README_STEAMWORKS_KR.txt upload manifest memberSummary 대조; memberSummary=storePresenceEvidenceBundle.checks.memberSummary\n" +
             "Store Presence release candidate JSON cross-check: care_review_release_candidate_audit.json; storePresenceEvidenceBundle; uploadManifestCrossReference; memberSummary=storePresenceEvidenceBundle.checks.memberSummary\n" +
@@ -1938,17 +2150,16 @@ public static class CareReviewProjectBuilder
             "## 후보 파일\n\n" +
             "| 파일 | 용도 | 판정 기준 |\n" +
             "| --- | --- | --- |\n" +
-            "| `screenshot_candidates/09_playtest_survey.png` | 플레이테스트 설문/가격 가치감 후보 | 설문 루프가 상점 첫인상에 도움이 되는지 실제 피드백으로 판정 |\n" +
             "| `screenshot_candidates/10_achievement_next_goal.png` | 성과 다음 목표 로드맵/실행 버튼 후보 | 성과-캠페인 루프의 목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적 흐름이 한 화면에서 읽히는지 판정 |\n" +
             "| `screenshot_candidates/11_growth_follow_up_menu.png` | 성장 후속 목표 메인 메뉴 후보 | 후속 심사 버튼과 H 단축키가 상점 첫 장면에서도 반복 목표를 설명하는지 판정 |\n" +
             "| `screenshot_candidates/12_career_record_next_objective.png` | 캠페인 기록 목표 재시작/동일 사례 회고 후보 | 상세 줄바꿈 상태에서 캠페인 기록의 목표 재시작 -> 성과 기록 보상 누적 왕복 루프, 동일 사례 판단 변화, 브리핑 회고의 예고 위험/보상 대비 실제 결과가 선명한지 판정 |\n" +
             "| `screenshot_candidates/13_case_archive_appeal_remedy_history.png` | 사례 자료실 보정 이력 후보 | 원 사례에서 보정 완료 횟수, 성공률, 다음 재도전 목표가 한 화면에 읽히는지 판정 |\n" +
-            "| `screenshot_candidates/14_case_archive_decision_audit_coaching_focus.png` | 사례 자료실 결정 감사 코칭 사례 버튼/기록 복귀/HUD 후보 | `코칭 W-207`, `기록 복귀`, `결정 감사 코칭 진행 HUD`, `코칭 왕복 힌트`, `reviewHudUpdatesAfterDecision=true`가 한 화면에서 읽히는지 판정 |\n\n" +
+            "| `screenshot_candidates/14_case_archive_decision_audit_coaching_focus.png` | 사례 자료실 판단 복기 사례 버튼/기록 복귀/HUD 후보 | `복기 W-207`, `기록 복귀`, `판단 복기 진행 HUD`, `복기 왕복 힌트`, `reviewHudUpdatesAfterDecision=true`가 한 화면에서 읽히는지 판정 |\n\n" +
             "## 사용 규칙\n\n" +
             "- 공식 8장 업로드 세트는 `Builds/Marketing/v0.3.0/screenshots/01`-`08` 흐름을 기본으로 유지한다.\n" +
-            "- `09_playtest_survey.png`, `10_achievement_next_goal.png`, `11_growth_follow_up_menu.png`, `12_career_record_next_objective.png`, `13_case_archive_appeal_remedy_history.png`, `14_case_archive_decision_audit_coaching_focus.png`는 후보 스크린샷 6장으로 보관한다.\n" +
+            "- `10_achievement_next_goal.png`, `11_growth_follow_up_menu.png`, `12_career_record_next_objective.png`, `13_case_archive_appeal_remedy_history.png`, `14_case_archive_decision_audit_coaching_focus.png`는 후보 스크린샷 5장으로 보관한다.\n" +
             "- `10_achievement_next_goal.png`와 `12_career_record_next_objective.png`는 성과 기록의 목표 실행과 캠페인 기록의 목표 재시작이 같은 성과-캠페인 루프인지 함께 판정한다.\n" +
-            "- `14_case_archive_decision_audit_coaching_focus.png`는 코칭 사례 버튼, 기록 복귀 왕복, 결정 감사 코칭 진행 HUD를 확인하는 보조 후보로, 상점 첫 장면보다 반복 목표/자료실 깊이를 보여 줄 때만 공식 8장 교체 후보로 판정한다.\n" +
+            "- `14_case_archive_decision_audit_coaching_focus.png`는 복기 사례 버튼, 기록 복귀 왕복, 판단 복기 진행 HUD를 확인하는 보조 후보로, 상점 첫 장면보다 반복 목표/자료실 깊이를 보여 줄 때만 공식 8장 교체 후보로 판정한다.\n" +
             "- 후보 승격은 실제 플레이테스터 설문, 상점 캡처 가독성, Steam 캡슐/트레일러와의 중복 여부를 확인한 뒤 결정한다.\n" +
             "- 원본 캡처 manifest 사본은 `screenshot_candidates/STORE_SCREENSHOTS_SOURCE_MANIFEST.txt`에 둔다.\n";
     }
@@ -2320,18 +2531,18 @@ public static class CareReviewProjectBuilder
             "| --- | --- | --- | --- | --- | --- |\n" +
             "| `triage_priority_badge_reward_loop_candidate` | `" + loopCandidatePriorityBadge + "` | `반복 가치 세부: 상점 후보 루프 이해`; `reward_loop_understanding`; `post_external_collection_promotion_summary` | `12_career_record_next_objective.png`, `10_achievement_next_goal.png` | `screenshot_ab_loop_response_count=" + screenshotAbLoopResponseCount + "`, `screenshot_ab_loop_understanding_comment_count=" + screenshotAbLoopUnderstandingCommentCount + "` | 외부 " + recommendedHumanMinimum + "명/A-B " + recommendedHumanMinimum + "건 전까지 후보 유지, 충족 후 승격 검토 |\n" +
             "| `triage_priority_badge_main_menu_baseline` | `" + mainMenuPriorityBadge + "` | `main_menu_loop_entry`; `menu_campaign_briefing_weakness`; 메인 메뉴 기준 화면 이해/추천 회차 브리핑 직전 약점 보정 초점 | `01_main_menu.png` | `menuMentionsAchievementBadge=true`, `mainMenuAchievementBadgeReadable=true`, `mainMenuBriefingWeaknessFocusReadable=true`, `briefingMentionsPreviousWeakness=true`, `briefingUsesCoachingWeaknessTerms=true`, `briefingWeaknessFocusCaptionReadable=true`, `briefingContrastEffectApplied=true`, `changedBriefingKeepsPreviousWeakness=true`, `changedBriefingKeepsCoachingWeaknessTerms=true`, `changedBriefingKeepsWeaknessFocusCaption=true` | 기준 화면 유지/교체 판단과 직전 약점 보정 초점 브리핑 이해도를 A/B 응답과 대조 |\n" +
-            "| `triage_priority_badge_copy_alignment` | `" + copyAlignmentPriorityBadge + "` | `반복 가치 세부: 캠페인 기록 다음 목표`; `achievement_career_copy_alignment`; `브리핑 회고 상점 후보 근거` | `12_career_record_next_objective.png`, `10_achievement_next_goal.png` | `lowResolutionStoreCandidateCopyAlignmentReadable=true`, `careerRecordActionHintReadable=true`, `storeCandidateMentionsBriefingRetrospective=true` | 성과 목표 힌트와 캠페인 기록 다음 목표/브리핑 회고 문구가 같은 반복 행동으로 읽히는지 확인 |\n" +
+            "| `triage_priority_badge_copy_alignment` | `" + copyAlignmentPriorityBadge + "` | `반복 가치 세부: 캠페인 기록 다음 목표`; `achievement_career_copy_alignment`; `브리핑 회고 상점 후보 근거` | `12_career_record_next_objective.png`, `10_achievement_next_goal.png` | `lowResolutionReleaseCopyAlignmentReadable=true`, `careerRecordActionHintReadable=true`, `storeCandidateMentionsBriefingRetrospective=true` | 성과 목표 힌트와 캠페인 기록 다음 목표/브리핑 회고 문구가 같은 반복 행동으로 읽히는지 확인 |\n" +
             "| `triage_priority_badge_career_reward_record` | `P2_REWARD_RECORD_COPY` | `반복 가치 세부: 성과 기록 보상` | `10_achievement_next_goal.png` | `achievementReplayRewardPanelMentionsRecordLinkHint=true`, `achievementStatusMentionsRewardLoop` | 성과 기록 보상 누적 설명을 보강한 뒤 보조 후보로 유지 |\n" +
             "| `triage_priority_badge_appeal_remedy` | `P2_APPEAL_REMEDY_LOOP` | 보정 이력/이의제기 루프 | `13_case_archive_appeal_remedy_history.png` | `appealTriageQueueButtonLabel`, `achievementCardMentionsAppealTriageResult=true` | 반복 가치보다 보정 이력 선호 코멘트가 많을 때 보조 후보 승격 |\n" +
-            "| `triage_priority_badge_decision_coaching` | `P3_DECISION_COACHING_DEPTH` | 결정 감사 코칭 왕복/진행 HUD | `14_case_archive_decision_audit_coaching_focus.png` | `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`, `coachingStateApplied=true`, `reviewHudMentionsCoachingObjective=true`, `reviewHudUpdatesAfterDecision=true` | 상점 첫 화면보다 장기 자료실 깊이와 심사 중 목표 추적을 강조할 때 후보 비교 |\n\n" +
+            "| `triage_priority_badge_decision_coaching` | `P3_DECISION_COACHING_DEPTH` | 판단 복기 왕복/진행 HUD | `14_case_archive_decision_audit_coaching_focus.png` | `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`, `coachingStateApplied=true`, `reviewHudMentionsCoachingObjective=true`, `reviewHudUpdatesAfterDecision=true` | 상점 첫 화면보다 장기 자료실 깊이와 심사 중 목표 추적을 강조할 때 후보 비교 |\n\n" +
             "## 후보 결과 QA 증거\n\n" +
             "- 캠페인 기록 후보 필터: `care_review_career_record_smoke_result.json`의 `bodyMentionsAppealTriageFilter`, `appealTriageFilterAppliesToRecord`, `appealTriageQueueButtonLabel`\n" +
             "- 성과 기록 후보 진행도: `care_review_achievement_smoke_result.json`의 `achievementCardMentionsAppealTriageResult`, `achievementStatusMentionsAppealTriageResult`, `achievementReplayRewardPanelMentionsAppealTriageResult`\n" +
-            "- 성과-캠페인 루프 증거: `care_review_achievement_smoke_result.json`의 `achievementStatusMentionsRewardLoop`, `achievementRecordLinkHintReadable`, `care_review_focus_navigation_smoke_result.json`의 `achievementTopActionNavigationMatchesRewardLoop`, `achievementRecordButtonFocusOrderMatchesRewardLoop`, `care_review_career_record_smoke_result.json`의 `storeCandidateMentionsBriefingRetrospective=true`, `low_resolution_ui/care_review_low_resolution_ui_smoke_result.json`의 `careerRecordActionHintReadable`, `lowResolutionStoreCandidateCopyAlignmentReadable`\n" +
+            "- 성과-캠페인 루프 증거: `care_review_achievement_smoke_result.json`의 `achievementStatusMentionsRewardLoop`, `achievementRecordLinkHintReadable`, `care_review_focus_navigation_smoke_result.json`의 `achievementTopActionNavigationMatchesRewardLoop`, `achievementRecordButtonFocusOrderMatchesRewardLoop`, `care_review_career_record_smoke_result.json`의 `storeCandidateMentionsBriefingRetrospective=true`, `low_resolution_ui/care_review_low_resolution_ui_smoke_result.json`의 `careerRecordActionHintReadable`, `lowResolutionReleaseCopyAlignmentReadable`\n" +
             "- 메인 메뉴 성과 배지/직전 약점 보정 초점 증거: `care_review_main_menu_case_objective_smoke_result.json`의 `menuMentionsAchievementBadge=true`, `menuAchievementBadgeMentionsReplayProgress=true`, `care_review_main_menu_mandate_smoke_result.json`의 `briefingMentionsPreviousWeakness=true`, `briefingUsesCoachingWeaknessTerms=true`, `briefingWeaknessFocusCaptionReadable=true`, `briefingContrastEffectApplied=true`, `changedBriefingKeepsPreviousWeakness=true`, `changedBriefingKeepsCoachingWeaknessTerms=true`, `changedBriefingKeepsWeaknessFocusCaption=true`, `low_resolution_ui/care_review_low_resolution_ui_smoke_result.json`의 `mainMenuAchievementBadgeReadable=true`, `mainMenuBriefingWeaknessFocusReadable=true`\n" +
-            "- 결정 감사 코칭 후보 증거: `care_review_focus_navigation_smoke_result.json`의 `achievementRecordLinkHintMentionsCoachingFirstUse`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord`, `care_review_decision_audit_coaching_hud_smoke_result.json`의 `coachingStateApplied=true`, `reviewHudMentionsCoachingObjective=true`, `reviewHudUpdatesAfterDecision=true`\n" +
+            "- 판단 복기 후보 증거: `care_review_focus_navigation_smoke_result.json`의 `achievementRecordLinkHintMentionsCoachingFirstUse`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord`, `care_review_decision_audit_coaching_hud_smoke_result.json`의 `coachingStateApplied=true`, `reviewHudMentionsCoachingObjective=true`, `reviewHudUpdatesAfterDecision=true`\n" +
             "- 상점 후보 캡처 무결성: `STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256`\n" +
-            "- 판정 연결: `01_main_menu.png`는 메인 메뉴 성과 배지와 성과 보기 진입이 첫 화면에서 읽히는지 기준 화면으로 유지하고, `08_career_record_filter.png`는 보정 후보 필터/후보별 회차 결과를, `10_achievement_next_goal.png`와 `12_career_record_next_objective.png`는 목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적 왕복 루프를, `13_case_archive_appeal_remedy_history.png`는 보정 이력 루프를, `14_case_archive_decision_audit_coaching_focus.png`는 `코칭 W-207` 첫 사용 왕복과 결정 감사 코칭 진행 HUD를 보조 증거로 비교한다.\n\n" +
+            "- 판정 연결: `01_main_menu.png`는 메인 메뉴 성과 배지와 성과 보기 진입이 첫 화면에서 읽히는지 기준 화면으로 유지하고, `08_career_record_filter.png`는 보정 후보 필터/후보별 회차 결과를, `10_achievement_next_goal.png`와 `12_career_record_next_objective.png`는 목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적 왕복 루프를, `13_case_archive_appeal_remedy_history.png`는 보정 이력 루프를, `14_case_archive_decision_audit_coaching_focus.png`는 `복기 W-207` 첫 사용 왕복과 판단 복기 진행 HUD를 보조 증거로 비교한다.\n\n" +
             "## 승격 우선순위\n\n" +
             "| Rank | 후보 파일 | 반복 플레이 전달력 | UI 가독성 | 기존 8장과 중복 | 권장 판정 |\n" +
             "| --- | --- | --- | --- | --- | --- |\n" +
@@ -2340,14 +2551,13 @@ public static class CareReviewProjectBuilder
             "| 3 | `10_achievement_next_goal.png` | 5 | 4 | 중간 | 보조 후보: 성과 기록에서 목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적 연결을 보여준다. 피드백 연동 판정: " + secondaryDecision + " / 신뢰도: " + confidenceLabel + " |\n" +
             "| 4 | `01_main_menu.png` | 4 | 4 | 기준 화면 | 공식 기준 화면: 메인 메뉴 성과 배지, 다음 성과 목표, `A/성과 보기`가 첫 화면에서 읽히면 유지한다. 반복 루프 전달이 약하면 `12_career_record_next_objective.png`와 교체 비교 |\n" +
             "| 5 | `11_growth_follow_up_menu.png` | 4 | 4 | 중간 | 보조 후보: 메인 메뉴에서 성장 후속 진입점을 보여준다. UI 신호 " + (uiSignalStrong ? "양호" : "추가 검증") + " |\n" +
-            "| 6 | `14_case_archive_decision_audit_coaching_focus.png` | 4 | 4 | 낮음 | 보조 후보: 사례 자료실 `코칭 W-207` 버튼, 첫 사용 안내, 기록 복귀 왕복, 결정 감사 코칭 진행 HUD가 한 화면에서 읽히는지 확인한다. 상점 첫 장면보다 반복 자료실 깊이 강조용 |\n" +
-            "| 7 | `09_playtest_survey.png` | 3 | 4 | 낮음 | 보류 후보: 회수/가치감 검증용으로 유지하되 공식 업로드는 피드백 확인 후 결정 |\n\n" +
+            "| 6 | `14_case_archive_decision_audit_coaching_focus.png` | 4 | 4 | 낮음 | 보조 후보: 사례 자료실 `복기 W-207` 버튼, 첫 사용 안내, 기록 복귀 왕복, 판단 복기 진행 HUD가 한 화면에서 읽히는지 확인한다. 상점 첫 장면보다 반복 자료실 깊이 강조용 |\n" +
             "## 적용 규칙\n\n" +
             "- 공식 업로드 8장 중 교체가 필요하면 먼저 `01_main_menu.png` 또는 중복이 큰 정적 화면과 비교한다.\n" +
             "- `01_main_menu.png`는 `menuMentionsAchievementBadge=true`와 `mainMenuAchievementBadgeReadable=true`가 유지되는 동안 공식 기준 화면으로 남긴다.\n" +
             "- 실제 플레이테스터가 반복 목표를 이해했다는 코멘트가 " + recommendedHumanMinimum + "명 회수 증거에 포함되면 `12_career_record_next_objective.png`를 1차 승격 후보로 둔다.\n" +
             "- 이의제기 보정 루프가 상점 첫인상에서 더 선명하다는 피드백이 나오면 `13_case_archive_appeal_remedy_history.png`를 보조 후보로 비교한다.\n" +
-            "- 결정 감사 코칭/기록 복귀 왕복/진행 HUD가 장기 플레이 가치를 더 잘 설명한다는 피드백이 나오면 `14_case_archive_decision_audit_coaching_focus.png`를 보조 후보로 비교한다.\n" +
+            "- 판단 복기/기록 복귀 왕복/진행 HUD가 장기 플레이 가치를 더 잘 설명한다는 피드백이 나오면 `14_case_archive_decision_audit_coaching_focus.png`를 보조 후보로 비교한다.\n" +
             "- 성과/보상 구조 이해도가 낮다는 피드백이 나오면 `10_achievement_next_goal.png`를 `12_career_record_next_objective.png`와 함께 A/B 비교한다.\n" +
             "- 설문 화면은 제품 기능보다 QA 회수 성격이 강하므로 공식 업로드가 아니라 내부 비교 자료로 유지한다.\n";
     }
@@ -2696,7 +2906,7 @@ public static class CareReviewProjectBuilder
         builder.AppendLine("store_candidate_hash_manifest: STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256");
         builder.AppendLine("store_candidate_hash_ready: " + (storeCandidateHashReady ? "yes" : "no"));
         builder.AppendLine("appeal_triage_qa_evidence: appealTriageQueueReturnOpensCareerRecord=true; achievementCardMentionsAppealTriageResult=true; 보정 후보 결과");
-        builder.AppendLine("decision_audit_coaching_candidate_evidence: 14_case_archive_decision_audit_coaching_focus.png; 코칭 W-207; caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true; caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true; " + DecisionAuditCoachingHudStoreCandidateSummary);
+        builder.AppendLine("decision_audit_coaching_candidate_evidence: 14_case_archive_decision_audit_coaching_focus.png; 복기 W-207; caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true; caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true; " + DecisionAuditCoachingHudStoreCandidateSummary);
         builder.AppendLine("store_presence_needs_submission_update: " + (storePresenceNeedsSubmissionUpdate ? "yes" : "no"));
         builder.AppendLine("store_presence_manual_blocker_count: " + blockerCount);
         builder.AppendLine("store_presence_ready_for_manual_input: " + (readyForManualInput ? "yes" : "no"));
@@ -2941,8 +3151,8 @@ public static class CareReviewProjectBuilder
         AppendPreflightCheck(builder, "UnityPlayer.dll 포함", File.Exists(Path.Combine(SteamworksContentPath, "UnityPlayer.dll")), "content_windows/UnityPlayer.dll");
         AppendPreflightCheck(builder, "릴리즈 README", File.Exists(Path.Combine(SteamworksContentPath, "README_KR.txt")), "content_windows/README_KR.txt");
         AppendPreflightCheck(builder, "릴리즈 manifest", File.Exists(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt")), "content_windows/RELEASE_MANIFEST.txt");
-        AppendPreflightCheck(builder, "Steamworks upload manifest Paperlogy 폰트 evidence 역참조", SteamworksUploadManifestPaperlogyFontEvidenceReady() && FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "UI font: Paperlogy-6SemiBold", "Assets/Resources/Fonts/Paperlogy-6SemiBold.ttf", "paperlogyFontApplied=true", "paperlogyTextFontCoverageApplied=true", "paperlogyTextMismatchCount=0", "Docs/THIRD_PARTY_FONTS.md") && FileContainsAll(Path.Combine(SteamworksContentPath, "README_KR.txt"), "Paperlogy 폰트 적용", "-careReviewUiCleanupSmokeTest") && FileContainsAll("Docs/THIRD_PARTY_FONTS.md", "Paperlogy", "Paperlogy-6SemiBold.ttf", "SIL Open Font License") && FileContainsAll("Builds/QA/v0.3.0/care_review_ui_cleanup_smoke_result.json", "\"paperlogyFontApplied\": true", "\"paperlogyTextFontCoverageApplied\": true", "\"paperlogyTextMismatchCount\": 0", "\"activeFontName\": \"Paperlogy-6SemiBold\""), "Paperlogy font evidence; STEAMWORKS_UPLOAD_MANIFEST.txt; content_windows/RELEASE_MANIFEST.txt; content_windows/README_KR.txt; Docs/THIRD_PARTY_FONTS.md; care_review_ui_cleanup_smoke_result.json; paperlogyTextMismatchCount=0");
-        AppendPreflightCheck(builder, "content 파일 수 기록", contentFileCount >= 140, contentFileCount + " files");
+        AppendPreflightCheck(builder, "Steamworks upload manifest Paperlogy 폰트 evidence 역참조", SteamworksUploadManifestPaperlogyFontEvidenceReady() && FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "UI font: Paperlogy-6SemiBold", "Docs/THIRD_PARTY_FONTS.md") && FileContainsAll("Docs/THIRD_PARTY_FONTS.md", "Paperlogy", "Paperlogy-6SemiBold.ttf", "SIL Open Font License") && FileContainsAll("Builds/QA/v0.3.0/care_review_ui_cleanup_smoke_result.json", "\"paperlogyFontApplied\": true", "\"paperlogyTextFontCoverageApplied\": true", "\"paperlogyTextMismatchCount\": 0", "\"activeFontName\": \"Paperlogy-6SemiBold\""), "Paperlogy font evidence; STEAMWORKS_UPLOAD_MANIFEST.txt; content_windows/RELEASE_MANIFEST.txt; Docs/THIRD_PARTY_FONTS.md; care_review_ui_cleanup_smoke_result.json; paperlogyTextMismatchCount=0");
+        AppendPreflightCheck(builder, "content 파일 수 기록", contentFileCount >= 52, contentFileCount + " files");
         AppendPreflightCheck(builder, "content 용량 기록", contentBytes > 100_000_000L, contentBytes + " bytes");
         AppendPreflightCheck(builder, "릴리즈 zip hash 기록", !string.IsNullOrEmpty(releaseZipHash) && !releaseZipHash.Contains("not generated"), releaseZipHash);
 
@@ -2986,14 +3196,14 @@ public static class CareReviewProjectBuilder
         string storePresenceSelectionPath = Path.Combine(SteamworksStorePagePath, "STORE_PRESENCE_SELECTION_KO.md");
         string storeValuePositioningPath = Path.Combine(SteamworksStorePagePath, "STORE_VALUE_POSITIONING_KO.md");
         string storeValuePositioningRegressionPath = WriteStoreValuePositioningRegressionSmoke();
-        AppendPreflightCheck(builder, "상점 후보 스크린샷 사본 6장", StorePageCandidateScreenshotsReady(), "store_page/screenshot_candidates");
-        AppendPreflightCheck(builder, "상점 후보 스크린샷 manifest", FileContainsAll(screenshotCandidateManifestPath, "09_playtest_survey.png", "10_achievement_next_goal.png", "11_growth_follow_up_menu.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png", "플레이테스트 설문", "성과 다음 목표", "성장 후속 목표", "캠페인 기록 목표 재시작", "동일 사례 회고", "상세 줄바꿈", "사례 자료실 보정 이력", "결정 감사 코칭 사례 버튼", "결정 감사 코칭 진행 HUD", "코칭 W-207", "기록 복귀", "코칭 왕복 힌트", "후보 스크린샷 6장", "성과-캠페인 루프", "목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적"), "store_page/SCREENSHOT_CANDIDATES_KO.md");
-        AppendPreflightCheck(builder, "상점 후보 스크린샷 승격 기준표", FileContainsAll(screenshotCandidateDecisionMatrixPath, "플레이테스트 피드백 신호", "설문 회수 세션", "평균 반복 보상/장기 기록 가치감", "재플레이 의향", "자동 판정", "외부 회수 신뢰도", "판정 범위", "QA 샘플 기반 임시 판정", "실제 사람 완전 회수 세션", "트리아지 evidenceScope", "공식 승격 확정은 외부 완전 회수 기준 충족 후 결정", "외부 5명 이후 승격 판정 요약", "post_external_collection_promotion_summary", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "reward_loop_understanding", "screenshot_ab_loop_response_count", "screenshot_ab_loop_understanding_comment_count", "후보 결과 QA 증거", "성과-캠페인 루프 증거", "결정 감사 코칭 후보 증거", "achievementStatusMentionsRewardLoop", "achievementRecordLinkHintReadable", "achievementTopActionNavigationMatchesRewardLoop", "achievementRecordButtonFocusOrderMatchesRewardLoop", "achievementRecordLinkHintMentionsCoachingFirstUse", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord", "coachingStateApplied=true", "reviewHudMentionsCoachingObjective=true", "reviewHudUpdatesAfterDecision=true", "careerRecordActionHintReadable", "lowResolutionStoreCandidateCopyAlignmentReadable", "storeCandidateMentionsBriefingRetrospective=true", "브리핑 회고", "예고 위험", "실제 결과", "직전 약점 보정 초점", "mainMenuBriefingWeaknessFocusReadable=true", "briefingMentionsPreviousWeakness=true", "briefingUsesCoachingWeaknessTerms=true", "briefingWeaknessFocusCaptionReadable=true", "briefingContrastEffectApplied=true", "changedBriefingKeepsPreviousWeakness=true", "changedBriefingKeepsCoachingWeaknessTerms=true", "changedBriefingKeepsWeaknessFocusCaption=true", "appealTriageQueueButtonLabel", "achievementCardMentionsAppealTriageResult", "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "승격 우선순위", "권장 후보", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "10_achievement_next_goal.png", "14_case_archive_decision_audit_coaching_focus.png", "09_playtest_survey.png", "공식 8장 업로드 세트는 유지"), "store_page/SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md");
+        AppendPreflightCheck(builder, "상점 후보 스크린샷 사본 5장", StorePageCandidateScreenshotsReady(), "store_page/screenshot_candidates");
+        AppendPreflightCheck(builder, "상점 후보 스크린샷 manifest", FileContainsAll(screenshotCandidateManifestPath, "10_achievement_next_goal.png", "11_growth_follow_up_menu.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png", "성과 다음 목표", "성장 후속 목표", "캠페인 기록 목표 재시작", "동일 사례 회고", "상세 줄바꿈", "사례 자료실 보정 이력", "판단 복기 사례 버튼", "판단 복기 진행 HUD", "복기 W-207", "기록 복귀", "복기 왕복 힌트", "후보 스크린샷 5장", "성과-캠페인 루프", "목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적"), "store_page/SCREENSHOT_CANDIDATES_KO.md");
+        AppendPreflightCheck(builder, "상점 후보 스크린샷 승격 기준표", FileContainsAll(screenshotCandidateDecisionMatrixPath, "플레이테스트 피드백 신호", "설문 회수 세션", "평균 반복 보상/장기 기록 가치감", "재플레이 의향", "자동 판정", "외부 회수 신뢰도", "판정 범위", "QA 샘플 기반 임시 판정", "실제 사람 완전 회수 세션", "트리아지 evidenceScope", "공식 승격 확정은 외부 완전 회수 기준 충족 후 결정", "외부 5명 이후 승격 판정 요약", "post_external_collection_promotion_summary", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "reward_loop_understanding", "screenshot_ab_loop_response_count", "screenshot_ab_loop_understanding_comment_count", "후보 결과 QA 증거", "성과-캠페인 루프 증거", "판단 복기 후보 증거", "achievementStatusMentionsRewardLoop", "achievementRecordLinkHintReadable", "achievementTopActionNavigationMatchesRewardLoop", "achievementRecordButtonFocusOrderMatchesRewardLoop", "achievementRecordLinkHintMentionsCoachingFirstUse", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord", "coachingStateApplied=true", "reviewHudMentionsCoachingObjective=true", "reviewHudUpdatesAfterDecision=true", "careerRecordActionHintReadable", "lowResolutionReleaseCopyAlignmentReadable", "storeCandidateMentionsBriefingRetrospective=true", "브리핑 회고", "예고 위험", "실제 결과", "직전 약점 보정 초점", "mainMenuBriefingWeaknessFocusReadable=true", "briefingMentionsPreviousWeakness=true", "briefingUsesCoachingWeaknessTerms=true", "briefingWeaknessFocusCaptionReadable=true", "briefingContrastEffectApplied=true", "changedBriefingKeepsPreviousWeakness=true", "changedBriefingKeepsCoachingWeaknessTerms=true", "changedBriefingKeepsWeaknessFocusCaption=true", "appealTriageQueueButtonLabel", "achievementCardMentionsAppealTriageResult", "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "승격 우선순위", "권장 후보", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "10_achievement_next_goal.png", "14_case_archive_decision_audit_coaching_focus.png", "공식 8장 업로드 세트는 유지"), "store_page/SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md");
         AppendPreflightCheck(builder, "상점 후보 스크린샷 트리아지 우선순위 배지", FileContainsAll(screenshotCandidateDecisionMatrixPath, "트리아지 세부 행별 우선순위 배지", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "triage_priority_badge_main_menu_baseline", "P1_BASELINE_GUARD", "triage_priority_badge_copy_alignment", "반복 가치 세부: 성과 기록 보상", "반복 가치 세부: 캠페인 기록 다음 목표", "반복 가치 세부: 상점 후보 루프 이해", "reward_loop_understanding", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "12_career_record_next_objective.png", "01_main_menu.png", "추천 회차 브리핑 직전 약점 보정 초점"), "store_page/SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md triage priority badge");
         AppendPreflightCheck(builder, "상점 후보 스크린샷 A/B 판정", FileContainsAll(screenshotCandidateAbTestPath, "default_candidate: 12_career_record_next_objective.png", "comparison_candidate: 13_case_archive_appeal_remedy_history.png", "main_menu_baseline_candidate: 01_main_menu.png", "main_menu_baseline_question_id: main_menu_loop_entry", "copy_alignment_question_id: achievement_career_copy_alignment", "menu_briefing_weakness_candidate: 01_main_menu.png", "menu_briefing_weakness_question_id: menu_campaign_briefing_weakness", "ab_test_ready: no_requires_external_feedback", "recommended_candidate: 12_career_record_next_objective.png", "보정 이력", "공식 8장 교체", "성과-캠페인 루프 이해도 질문", "목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적", "메인 메뉴 기준 화면 이해도 질문", "메인 메뉴 성과 보기", "메인 메뉴 추천 회차 브리핑/직전 약점 보정 초점 질문", "추천 회차 브리핑", "직전 약점", "보정 초점", "csvHasMenuBriefingWeaknessQuestion=true", "성과 목표 힌트/기록 다음 목표 문구 일치", "성과 보기 목표", "캠페인 기록 `다음 목표`", "둘 다 불명확", "루프 이해 코멘트", "성과-캠페인 루프 A/B 회수 집계", "screenshot_ab_loop_response_count", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses"), "store_page/SCREENSHOT_CANDIDATE_AB_TEST_KO.md");
         AppendPreflightCheck(builder, "상점 후보 스크린샷 A/B 회귀", FileContainsAll(screenshotCandidateAbTestRegressionPath, "\"completed\": true", "\"scenarioCount\": 3", "\"noFeedbackKeepsDefault\": true", "\"careerPreferenceKeepsDefault\": true", "\"appealPreferencePromotesHistory\": true", "\"filesHaveNoLocalAbsolutePath\": true"), "care_review_screenshot_candidate_ab_test_regression.json");
-        AppendPreflightCheck(builder, "상점 후보 캡처 동기화 명령", FileContainsAll(storeCandidateCaptureSyncScriptPath, "-careReviewCaptureStoreScreenshots", "1920", "CARE_REVIEW_STORE_SCREENSHOTS_DONE", "Get-FileHash", "screenshot_candidates", "08_career_record_filter.png", "09_playtest_survey.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png") && FileContainsAll(storeCandidateCaptureSyncManifestPath, "Store Candidate Capture Sync", "graphics/windowed 1920x1080", "Official refresh: `08_career_record_filter.png`", "Candidate count: 6", "Hash manifest", "12_career_record_next_objective.png", "14_case_archive_decision_audit_coaching_focus.png", "achievement reward loop summary", "achievement record link hint visual check", "career record action hint visual check"), "Builds/Marketing/v0.3.0/scripts/capture_store_candidate_screenshots_graphics_sync.ps1");
-        AppendPreflightCheck(builder, "상점 후보 캡처 해시 manifest", FileContainsAll(storeCandidateCaptureHashManifestPath, "08_career_record_filter.png", "09_playtest_survey.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png"), "store_page/screenshot_candidates/STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256");
+        AppendPreflightCheck(builder, "상점 후보 캡처 동기화 명령", FileContainsAll(storeCandidateCaptureSyncScriptPath, "-careReviewCaptureStoreScreenshots", "1920", "CARE_REVIEW_STORE_SCREENSHOTS_DONE", "Get-FileHash", "screenshot_candidates", "08_career_record_filter.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png") && FileContainsAll(storeCandidateCaptureSyncManifestPath, "Store Candidate Capture Sync", "graphics/windowed 1920x1080", "Official refresh: `08_career_record_filter.png`", "Candidate count: 5", "Hash manifest", "12_career_record_next_objective.png", "14_case_archive_decision_audit_coaching_focus.png", "achievement reward loop summary", "achievement record link hint visual check", "career record action hint visual check"), "Builds/Marketing/v0.3.0/scripts/capture_store_candidate_screenshots_graphics_sync.ps1");
+        AppendPreflightCheck(builder, "상점 후보 캡처 해시 manifest", FileContainsAll(storeCandidateCaptureHashManifestPath, "08_career_record_filter.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png"), "store_page/screenshot_candidates/STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256");
         AppendPreflightCheck(builder, "상점 스크린샷 업로드 선택 manifest", FileContainsAll(screenshotUploadSelectionPath, "selection_source: SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md", "promotion_status: not_promoted", "selected_upload_set: current_official_8", "promoted_candidate:", "replacement_target:", "submission_update_required: no", "ready_for_store_presence_upload: yes_current_official_8", "12_career_record_next_objective.png", "01_main_menu.png"), "store_page/SCREENSHOT_UPLOAD_SELECTION_KO.md");
         AppendPreflightCheck(builder, "상점 스크린샷 업로드 적용 manifest", FileContainsAll(screenshotUploadApplicationPath, "application_source: STORE_PAGE_SUBMISSION_DRAFT_KO.md", "selected_upload_set: current_official_8", "current_official_order_matches: yes", "submission_matches_selected_set: yes", "rollback_matches_current_set: yes", "ready_for_store_presence_upload: yes"), "store_page/SCREENSHOT_UPLOAD_APPLICATION_KO.md");
         AppendPreflightCheck(builder, "상점 가치 포지셔닝 manifest", FileContainsAll(storeValuePositioningPath, "actual_price_assumption_usd: 9.99", "quality_benchmark_usd: 20.00", "no_twenty_dollar_price_claim: yes", "playtest_value_signal_ready: yes", "value_pillar_count:", "twenty_dollar_quality_benchmark_ready: yes", "actual_price_change_ready: no_requires_external_validation"), "store_page/STORE_VALUE_POSITIONING_KO.md");
@@ -3056,32 +3266,32 @@ public static class CareReviewProjectBuilder
 
         builder.AppendLine();
         builder.AppendLine("## 외부 검증 핸드오프");
-        AppendPreflightCheck(builder, "외부 검증 핸드오프 README 증거 순서", FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "Store Presence/A-B/보정 후보 증거 작성 순서", "STORE_PRESENCE_QA_CARD_KO.md", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md", "STORE_PRESENCE_SELECTION_KO.md", "보정 후보 결과 / 자체점검 일치", "결정 감사 코칭 보조 후보", "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_hud_evidence", "14_case_archive_decision_audit_coaching_focus.png", "코칭 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true", "reviewHudUpdatesAfterDecision=true", "결정 감사 코칭 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status"), "README_KO.txt + decision_audit_coaching_candidate_evidence + decision_audit_coaching_hud_evidence + screenshot_ab_loop_response_count + screenshot_ab_loop_not_collected_count + screenshot_ab_loop_collection_status + decisionAuditCoachingPatternCounts");
+        AppendPreflightCheck(builder, "외부 검증 핸드오프 README 증거 순서", FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "Store Presence/A-B/보정 후보 증거 작성 순서", "STORE_PRESENCE_QA_CARD_KO.md", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md", "STORE_PRESENCE_SELECTION_KO.md", "보정 후보 결과 / 자체점검 일치", "판단 복기 보조 후보", "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_hud_evidence", "14_case_archive_decision_audit_coaching_focus.png", "복기 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true", "reviewHudUpdatesAfterDecision=true", "판단 복기 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status"), "README_KO.txt + decision_audit_coaching_candidate_evidence + decision_audit_coaching_hud_evidence + screenshot_ab_loop_response_count + screenshot_ab_loop_not_collected_count + screenshot_ab_loop_collection_status + decisionAuditCoachingPatternCounts");
         AppendPreflightCheck(builder, "외부 검증 Store Presence 증거 묶음 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md"), "보정 후보 / Store Presence 증거 묶음", "storePresenceEvidenceBundle", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "Store Presence/A-B/보정 후보 증거 작성 순서") && FileContainsAll(Path.Combine(ReleaseCandidateAuditPath, "care_review_release_candidate_audit.csv"), "store_presence_bundle_member", "store_presence_bundle_summary", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "checkCount=11; passedCheckCount=11; allPassed=true") && SteamworksUploadManifestStorePresencePriorityBadgeSummaryReady(), "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md + care_review_release_candidate_audit.csv + STEAMWORKS_UPLOAD_MANIFEST.txt memberSummary=storePresenceEvidenceBundle.checks.memberSummary + priority_badges");
         AppendPreflightCheck(builder, "외부 검증 Store Presence release_candidate CSV 상호참조", FileContainsAll(Path.Combine(ReleaseCandidateAuditPath, "care_review_release_candidate_audit.csv"), "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "preflight=STEAM_SUBMISSION_PREFLIGHT_KO.md", "preflight_check=외부 검증 Store Presence 증거 묶음 요약"), "care_review_release_candidate_audit.csv + STEAM_SUBMISSION_PREFLIGHT_KO.md");
         AppendPreflightCheck(builder, "외부 검증 Store Presence 증거 초안 상태", FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "첫 확인 항목", "Store Presence 증거 초안", "pending_external", "Evidence/STORE_PRESENCE.md", "status: draft_not_evidence", "Store Presence A/B 응답 회수 입력란", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "Evidence/STORE_PRESENCE_EXAMPLE.md", "status: example_not_evidence", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "evidence_hint", "draft=Evidence/STORE_PRESENCE.md", "draft_status=status: draft_not_evidence", "example=Evidence/STORE_PRESENCE_EXAMPLE.md", "bundle=STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "actual_status=pending_external") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 증거 묶음 상태", "pending_external", "Evidence/STORE_PRESENCE.md", "status: draft_not_evidence", "A/B 응답 회수 보류", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "screenshot_ab_loop_understanding_comment_count=0") && FileContainsAll(Path.Combine(ReleaseCandidateAuditPath, "care_review_release_candidate_audit.md"), "Store Presence 실제 증거 초안 상태", "upload manifest memberSummary 대조", "STEAMWORKS_UPLOAD_MANIFEST.txt", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "README_KO.txt + EXTERNAL_RELEASE_GATE_TRACKER.csv + README_STEAMWORKS_KR.txt + care_review_release_candidate_audit.md upload manifest memberSummary 대조 + screenshot_ab_loop_response_count=0 + screenshot_ab_loop_not_collected_count=221 + screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses + screenshot_ab_loop_understanding_comment_count=0");
-        AppendPreflightCheck(builder, "외부 검증 Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "[ ] Steamworks URL/화면 캡처", "[ ] A/B 응답 회수") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "작성 완료 전 자체점검 TODO", "- [ ] Steamworks URL/화면 캡처", "- [ ] SHA 확인", "- [ ] 14번 코칭 후보", "- [ ] A/B 응답 회수"), "README_STEAMWORKS_KR.txt + EXTERNAL_RELEASE_GATE_TRACKER.csv + Evidence/STORE_PRESENCE.md completion_todo=작성 완료 전 자체점검 TODO");
+        AppendPreflightCheck(builder, "외부 검증 Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "[ ] Steamworks URL/화면 캡처", "[ ] A/B 응답 회수") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "작성 완료 전 자체점검 TODO", "- [ ] Steamworks URL/화면 캡처", "- [ ] SHA 확인", "- [ ] 14번 복기 후보", "- [ ] A/B 응답 회수"), "README_STEAMWORKS_KR.txt + EXTERNAL_RELEASE_GATE_TRACKER.csv + Evidence/STORE_PRESENCE.md completion_todo=작성 완료 전 자체점검 TODO");
         AppendPreflightCheck(builder, "외부 검증 Store Presence 증거 초안/upload manifest 상호참조", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence preflight cross-check", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "외부 검증 Store Presence 증거 초안 상태", "외부 검증 Store Presence 증거 초안/upload manifest 상호참조", "README_STEAMWORKS_KR.txt upload manifest memberSummary 대조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "upload manifest memberSummary 대조", "STEAMWORKS_UPLOAD_MANIFEST.txt", "Store Presence evidence bundle", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "STEAMWORKS_UPLOAD_MANIFEST.txt + STEAM_SUBMISSION_PREFLIGHT_KO.md + README_STEAMWORKS_KR.txt memberSummary 대조");
         AppendPreflightCheck(builder, "외부 검증 핸드오프 문서", FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "실제 사람 플레이테스트", "SteamCMD preview", "저사양 PC 검증", "PLAYTEST_COMMERCIAL_TRIAGE_ACTIONS.csv"), "EXTERNAL_RELEASE_HANDOFF_KO.md");
-        AppendPreflightCheck(builder, "외부 검증 Store/QA handoff 결정 감사 코칭 패턴 분포", DecisionAuditCoachingAggregateHandoffReady() && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "결정 감사 코칭 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "결정 감사 코칭 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "care_review_playtest_aggregate.md", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "결정 감사 코칭 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사"), "README_KO.txt + EXTERNAL_RELEASE_HANDOFF_KO.md + STORE_PRESENCE_QA_CARD_KO.md + care_review_playtest_aggregate.*");
+        AppendPreflightCheck(builder, "외부 검증 Store/QA handoff 판단 복기 패턴 분포", DecisionAuditCoachingAggregateHandoffReady() && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "판단 복기 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "판단 복기 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "care_review_playtest_aggregate.md", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "판단 복기 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사"), "README_KO.txt + EXTERNAL_RELEASE_HANDOFF_KO.md + STORE_PRESENCE_QA_CARD_KO.md + care_review_playtest_aggregate.*");
         AppendPreflightCheck(builder, "외부 검증 게이트 트래커", FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "HUMAN_5_PLAYTEST", "HUMAN_10_COMMERCIAL", "PLAYTEST_COMMERCIAL_TRIAGE_ACTIONS.csv", "STEAMCMD_PREVIEW", "LOW_SPEC_PC", "evidence_hint", "draft_status=status: draft_not_evidence", "screenshot_ab_loop_response_count=0", "waiting_for_screenshot_ab_loop_responses", "action_csv_priority_badge_owner_screen", "triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB", "triage_priority_badge_main_menu_baseline/P1_BASELINE_GUARD", "triage_priority_badge_copy_alignment/P1_COPY_ALIGNMENT_COLLECT", "after_collection_inputs=store_presence_priority_badge_after_collection_input", "after_collection_status_reward_loop_candidate", "completion_gate_main_menu_baseline", "completion_gate_copy_alignment"), "EXTERNAL_RELEASE_GATE_TRACKER.csv");
         AppendPreflightCheck(builder, "외부 검증 트리아지 작업표", FileContainsAll(Path.Combine(SteamworksRootPath, "PLAYTEST_COMMERCIAL_TRIAGE_ACTIONS.csv"), "owner_screen", "owner_screen_evidence", "commercialChecklistMentionsSurfaceActions=true", "commercialChecklistReadable=true", "menuMentionsAchievementBadge=true", "mainMenuAchievementBadgeReadable=true", "appealTriageQueueReturnOpensCareerRecord=true", "achievementCardMentionsAppealTriageResult=true", "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "반복 보상/장기 기록 가치감", "성과 기록 / 캠페인 기록 / 상점 페이지", "반복 가치 세부: 성과 기록 보상", "반복 가치 세부: 캠페인 기록 다음 목표", "반복 가치 세부: 상점 후보 루프 이해"), "PLAYTEST_COMMERCIAL_TRIAGE_ACTIONS.csv");
-        AppendPreflightCheck(builder, "외부 검증 Store Presence QA 카드", FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "ACHIEVEMENT_TOAST_UI_CAPTURE.md", "ready: true", "readable: true", "성과 기록에서 다음 목표와 기록 보상 확인", "STORE_PRESENCE_SELECTION_KO.md", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md", "SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md", "SCREENSHOT_UPLOAD_SELECTION_KO.md", "STORE_PAGE_SUBMISSION_DRAFT_KO.md", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "08_career_record_filter.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png", "selected_upload_set", "promoted_candidate", "recommended_candidate", "screenshot_ab_recommended_candidate", "appeal_triage_qa_evidence", "상점 보정 후보 결과 수동 확인 단계", "12_career_record_next_objective.png", "보정 후보 결과 / 자체점검 일치", "A/B 추천 후보 일치", "결정 감사 코칭 보조 후보", "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_hud_evidence", "decision_audit_coaching_hud_terms", "care_review_decision_audit_coaching_hud_smoke_result.json", "결정 감사 코칭 진행 HUD", "reviewHudUpdatesAfterDecision=true", "코칭 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true", "성과-캠페인 루프 A/B 질문 회수 체크", "menu_campaign_briefing_weakness", "추천 회차 브리핑", "직전 약점", "csvHasMenuBriefingWeaknessQuestion=true", "achievement_career_copy_alignment", "csvHasAchievementCareerCopyAlignmentQuestion=true", "triage_priority_badge_id", "triage_priority_badge_reward_loop_candidate", "csvHasTriagePriorityBadgeColumns=true", "A/B 응답 회수 수치", "브리핑 회고 상점 후보 근거", "storeCandidateMentionsBriefingRetrospective=true", "예고 위험", "실제 결과", "결정 감사 코칭 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사", "screenshot_ab_loop_question_id", "screenshot_ab_loop_response_count: 0", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses", "release candidate JSON memberSummary 확인", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "csvHasScreenshotAbLoopQuestionColumns=true", "A/B 판정", "SHA"), "STORE_PRESENCE_QA_CARD_KO.md");
+        AppendPreflightCheck(builder, "외부 검증 Store Presence QA 카드", FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "ACHIEVEMENT_TOAST_UI_CAPTURE.md", "ready: true", "readable: true", "성과 기록에서 다음 목표와 기록 보상 확인", "STORE_PRESENCE_SELECTION_KO.md", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md", "SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md", "SCREENSHOT_UPLOAD_SELECTION_KO.md", "STORE_PAGE_SUBMISSION_DRAFT_KO.md", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "08_career_record_filter.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png", "selected_upload_set", "promoted_candidate", "recommended_candidate", "screenshot_ab_recommended_candidate", "appeal_triage_qa_evidence", "상점 보정 후보 결과 수동 확인 단계", "12_career_record_next_objective.png", "보정 후보 결과 / 자체점검 일치", "A/B 추천 후보 일치", "판단 복기 보조 후보", "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_hud_evidence", "decision_audit_coaching_hud_terms", "care_review_decision_audit_coaching_hud_smoke_result.json", "판단 복기 진행 HUD", "reviewHudUpdatesAfterDecision=true", "복기 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true", "성과-캠페인 루프 A/B 질문 회수 체크", "menu_campaign_briefing_weakness", "추천 회차 브리핑", "직전 약점", "csvHasMenuBriefingWeaknessQuestion=true", "achievement_career_copy_alignment", "csvHasAchievementCareerCopyAlignmentQuestion=true", "triage_priority_badge_id", "triage_priority_badge_reward_loop_candidate", "csvHasTriagePriorityBadgeColumns=true", "A/B 응답 회수 수치", "브리핑 회고 상점 후보 근거", "storeCandidateMentionsBriefingRetrospective=true", "예고 위험", "실제 결과", "판단 복기 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사", "screenshot_ab_loop_question_id", "screenshot_ab_loop_response_count: 0", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses", "release candidate JSON memberSummary 확인", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "csvHasScreenshotAbLoopQuestionColumns=true", "A/B 판정", "SHA"), "STORE_PRESENCE_QA_CARD_KO.md");
         AppendPreflightCheck(builder, "외부 검증 Store Presence 승격 요약 대조", FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "외부 5명 이후 승격 요약 대조", "post_external_collection_promotion_summary", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "waiting_for_external_5_and_ab_loop_responses", "selected_upload_set", "promoted_candidate", "screenshot_ab_loop_response_count", "screenshot_ab_loop_understanding_comment_count", "screenshot_ab_loop_collection_status", "응답 5건 이상이면 승격 후보 검토로 전환"), "STORE_PRESENCE_QA_CARD_KO.md post_external_collection_promotion_summary cross-check");
         AppendPreflightCheck(builder, "외부 검증 Store Presence 우선순위 배지 회수 후 처리 상태", FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "우선순위 배지 외부 회수 후 처리 상태", "after_collection_status", "manual_update_target", "completion_gate", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "external_5_and_ab_loop_5_and_understanding_5", "triage_priority_badge_main_menu_baseline", "P1_BASELINE_GUARD", "main_menu_loop_entry_response_collected", "triage_priority_badge_copy_alignment", "P1_COPY_ALIGNMENT_COLLECT", "copy_alignment_comment_collected"), "STORE_PRESENCE_QA_CARD_KO.md priority badge after_collection_status");
         AppendPreflightCheck(builder, "외부 검증 Store Presence 증거 초안 우선순위 배지 회수 후 입력란", StorePresenceEvidenceDraftAfterCollectionStatusReady(), "Evidence/STORE_PRESENCE.md + Evidence/README_KO.md + Evidence/STORE_PRESENCE_EXAMPLE.md after_collection_status input fields");
-        AppendPreflightCheck(builder, "외부 검증 Store Presence 14번 결정 감사 코칭 HUD 근거", StorePresenceDecisionAuditCoachingHudFieldsReady(), "Evidence/STORE_PRESENCE*.md + STORE_PRESENCE_QA_CARD_KO.md decision_audit_coaching_hud_*");
+        AppendPreflightCheck(builder, "외부 검증 Store Presence 14번 판단 복기 HUD 근거", StorePresenceDecisionAuditCoachingHudFieldsReady(), "Evidence/STORE_PRESENCE*.md + STORE_PRESENCE_QA_CARD_KO.md decision_audit_coaching_hud_*");
         AppendPreflightCheck(builder, "외부 검증 Store Presence A/B TODO 직접 매핑", FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "Store Presence A/B TODO 매핑", "store_presence_ab_todo_mapping", "post_external_collection_promotion_summary", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "reward_loop_understanding", "screenshot_ab_loop_understanding_comment_count") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "Store Presence A/B TODO 매핑", "store_presence_ab_todo_mapping", "post_external_collection_promotion_summary", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "reward_loop_understanding", "screenshot_ab_loop_understanding_comment_count") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "A/B TODO 직접 매핑", "store_presence_ab_todo_mapping", "post_external_collection_promotion_summary", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "reward_loop_understanding"), "STORE_PRESENCE_QA_CARD_KO.md + Evidence/STORE_PRESENCE.md + Evidence/README_KO.md");
         AppendPreflightCheck(builder, "외부 검증 Store Presence 우선순위 배지 역참조", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "Store Presence 후보 우선순위 배지 역참조", "store_presence_priority_badge_backreference", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "selected_upload_set", "promoted_candidate") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "Store Presence 후보 우선순위 배지 역참조", "store_presence_priority_badge_backreference", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "waiting_for_external_5_and_ab_loop_responses") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "store_presence_priority_badge_backreference", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB"), "Evidence README + STORE_PRESENCE.md + STORE_PRESENCE_EXAMPLE.md priority badge backreference");
         AppendPreflightCheck(builder, "Steamworks README/manifest A/B 이해 코멘트 수 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 증거 묶음 상태", "A/B 응답 회수 보류", "screenshot_ab_loop_understanding_comment_count=0", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_understanding_comment_count") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "abLoopInputFields=screenshot_ab_loop_response_count,screenshot_ab_loop_not_collected_count,screenshot_ab_loop_collection_status,screenshot_ab_loop_understanding_comment_count", "screenshot_ab_loop_understanding_comment_count=0", "Store Presence upload doc cross-check"), "README_STEAMWORKS_KR.txt + STEAMWORKS_UPLOAD_MANIFEST.txt screenshot_ab_loop_understanding_comment_count");
-        AppendPreflightCheck(builder, "외부 검증 Store Presence QA 카드 작성 완료 전 자체점검", FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_PRESENCE.md 작성 완료 전 자체점검", "Steamworks URL/화면 캡처", "SHA 확인", "공식/승격 후보", "14번 코칭 후보", "토스트 UI 캡처", "A/B 응답 회수"), "STORE_PRESENCE_QA_CARD_KO.md completion checklist");
-        AppendPreflightCheck(builder, "외부 검증 Store Presence QA 카드 자체점검 TODO 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "## 준비", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "EXTERNAL_RELEASE_HANDOFF_KO.md", "handoff TODO 첫 확인"), "STORE_PRESENCE_QA_CARD_KO.md completion TODO summary");
-        AppendPreflightCheck(builder, "외부 검증 Evidence README Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "Store Presence 증거 작성", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "STORE_PRESENCE_QA_CARD_KO.md", "작성 완료 전 자체점검 TODO"), "Builds/Handoff/v0.3.0/Evidence/README_KO.md completion TODO summary");
-        AppendPreflightCheck(builder, "외부 검증 Store Presence 초안 통과 전 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "통과 전 확인", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/README_KO.md", "STORE_PRESENCE_QA_CARD_KO.md"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md pre-pass completion TODO summary");
-        AppendPreflightCheck(builder, "외부 검증 Store Presence 예시 통과 전 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "작성 순서", "자체점검 TODO 요약 예시", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "STORE_PRESENCE.md", "통과 전 확인", "Evidence/README_KO.md"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md completion TODO example summary");
-        AppendPreflightCheck(builder, "외부 검증 Store Presence 템플릿 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "_templates", "STORE_PRESENCE.md"), "후보 스크린샷 A/B 판정", "자체점검 TODO 요약 템플릿", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/STORE_PRESENCE.md", "통과 전 확인", "Evidence/STORE_PRESENCE_EXAMPLE.md", "자체점검 TODO 요약 예시"), "Builds/Handoff/v0.3.0/Evidence/_templates/STORE_PRESENCE.md completion TODO template summary");
+        AppendPreflightCheck(builder, "외부 검증 Store Presence QA 카드 작성 완료 전 자체점검", FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_PRESENCE.md 작성 완료 전 자체점검", "Steamworks URL/화면 캡처", "SHA 확인", "공식/승격 후보", "14번 복기 후보", "토스트 UI 캡처", "A/B 응답 회수"), "STORE_PRESENCE_QA_CARD_KO.md completion checklist");
+        AppendPreflightCheck(builder, "외부 검증 Store Presence QA 카드 자체점검 TODO 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "## 준비", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "EXTERNAL_RELEASE_HANDOFF_KO.md", "handoff TODO 첫 확인"), "STORE_PRESENCE_QA_CARD_KO.md completion TODO summary");
+        AppendPreflightCheck(builder, "외부 검증 Evidence README Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "Store Presence 증거 작성", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "STORE_PRESENCE_QA_CARD_KO.md", "작성 완료 전 자체점검 TODO"), "Builds/Handoff/v0.3.0/Evidence/README_KO.md completion TODO summary");
+        AppendPreflightCheck(builder, "외부 검증 Store Presence 초안 통과 전 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "통과 전 확인", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/README_KO.md", "STORE_PRESENCE_QA_CARD_KO.md"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md pre-pass completion TODO summary");
+        AppendPreflightCheck(builder, "외부 검증 Store Presence 예시 통과 전 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "작성 순서", "자체점검 TODO 요약 예시", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "STORE_PRESENCE.md", "통과 전 확인", "Evidence/README_KO.md"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md completion TODO example summary");
+        AppendPreflightCheck(builder, "외부 검증 Store Presence 템플릿 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "_templates", "STORE_PRESENCE.md"), "후보 스크린샷 A/B 판정", "자체점검 TODO 요약 템플릿", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/STORE_PRESENCE.md", "통과 전 확인", "Evidence/STORE_PRESENCE_EXAMPLE.md", "자체점검 TODO 요약 예시"), "Builds/Handoff/v0.3.0/Evidence/_templates/STORE_PRESENCE.md completion TODO template summary");
         AppendPreflightCheck(builder, "외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조", FileContainsAll(Path.Combine(SteamworksRootPath, "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md"), "## Store Presence 실제 증거 초안 상태", "증거 템플릿", "Evidence/_templates/STORE_PRESENCE.md", "자체점검 TODO 요약 템플릿", "Evidence/STORE_PRESENCE_EXAMPLE.md", "Evidence/STORE_PRESENCE.md") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 템플릿 자체점검 TODO 요약"), "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md + STEAM_SUBMISSION_PREFLIGHT_KO.md template completion TODO back-reference");
-        AppendPreflightCheck(builder, "외부 검증 상점 후보 SHA manifest", FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256"), "08_career_record_filter.png", "09_playtest_survey.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png"), "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256");
+        AppendPreflightCheck(builder, "외부 검증 상점 후보 SHA manifest", FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256"), "08_career_record_filter.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png"), "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256");
 
         builder.AppendLine();
         builder.AppendLine("## QA 증거");
@@ -3343,7 +3553,7 @@ public static class CareReviewProjectBuilder
         AppendPreflightCheck(builder, "추천 심사 재시작 스모크 로그", File.Exists("Logs/runtime_recommended_replay_steamworks_v030.log"), "Logs/runtime_recommended_replay_steamworks_v030.log");
         AppendPreflightCheck(builder, "결정 감사 대시보드 스모크 로그", File.Exists("Logs/runtime_decision_audit_steamworks_exports_v030.log"), "Logs/runtime_decision_audit_steamworks_exports_v030.log");
         AppendPreflightCheck(builder, "결정 감사 이의제기 우선순위 스모크 로그", File.Exists("Logs/runtime_decision_audit_appeal_priority.log"), "Logs/runtime_decision_audit_appeal_priority.log");
-        AppendPreflightCheck(builder, "결정 감사 다음 회차 코칭 스모크 로그", File.Exists("Logs/runtime_decision_audit_coaching.log"), "Logs/runtime_decision_audit_coaching.log");
+        AppendPreflightCheck(builder, "판단 복기 다음 회차 스모크 로그", File.Exists("Logs/runtime_decision_audit_coaching.log"), "Logs/runtime_decision_audit_coaching.log");
         string decisionAuditQaPath = "Builds/QA/v0.3.0/care_review_decision_audit_smoke_result.json";
         bool decisionAuditChecked = FileContainsAll(
             decisionAuditQaPath,
@@ -3355,11 +3565,11 @@ public static class CareReviewProjectBuilder
             "\"coachingMentionsPatternSpecificNextObjective\": true",
             "\"appealCaseId\": \"C-031\"",
             "\"coachingPreview\":",
-            "다음 회차 코칭",
+            "다음 회차 복기",
             "추천 운영",
             "실행 규칙",
             "다음 목표",
-            "코칭 목표",
+            "복기 목표",
             "버튼 라벨",
             "검증 질문");
         AppendPreflightCheck(builder, "결정 감사 QA 결과", decisionAuditChecked, "Builds/QA/v0.3.0/care_review_decision_audit_smoke_result.json");
@@ -3373,9 +3583,9 @@ public static class CareReviewProjectBuilder
             "\"recommendationUsesDecisionAuditCoachingLabel\": true",
             "\"nextObjectiveChallenge\":",
             "\"nextObjectiveReason\":",
-            "코칭 목표",
-            "결정 감사 코칭",
-            "코칭");
+            "복기 목표",
+            "판단 복기",
+            "복기");
         AppendPreflightCheck(builder, "추천 심사 재시작 QA 결과", recommendedReplayChecked, "Builds/QA/v0.3.0/care_review_recommended_replay_smoke_result.json");
         string decisionAuditCoachingHudQaPath = "Builds/QA/v0.3.0/care_review_decision_audit_coaching_hud_smoke_result.json";
         bool decisionAuditCoachingHudChecked = FileContainsAll(
@@ -3385,11 +3595,11 @@ public static class CareReviewProjectBuilder
             "\"briefingMentionsCoachingObjective\": true",
             "\"reviewHudMentionsCoachingObjective\": true",
             "\"reviewHudUpdatesAfterDecision\": true",
-            "결정 감사 코칭 진행",
-            "코칭 목표",
+            "판단 복기 진행",
+            "복기 목표",
             "처리 0/40",
             "처리 1/40");
-        AppendPreflightCheck(builder, "결정 감사 코칭 진행 HUD QA 결과", decisionAuditCoachingHudChecked, "Builds/QA/v0.3.0/care_review_decision_audit_coaching_hud_smoke_result.json");
+        AppendPreflightCheck(builder, "판단 복기 진행 HUD QA 결과", decisionAuditCoachingHudChecked, "Builds/QA/v0.3.0/care_review_decision_audit_coaching_hud_smoke_result.json");
         string playtestPacketQaPath = "Builds/QA/v0.3.0/playtest_packet/care_review_playtest_packet_smoke_result.json";
         bool playtestPacketNextObjectiveChecked = FileContainsAll(
             playtestPacketQaPath,
@@ -3764,8 +3974,7 @@ public static class CareReviewProjectBuilder
             focusNavigationQaPath,
             "\"completed\": true",
             "\"settingsHasSelection\": true",
-            "\"settingsSupportBundleButtonFocusable\": true",
-            "\"settingsSupportBundleSelectionIsButton\": true",
+            "\"settingsReleaseHiddenToolsNotFocusable\": true",
             "\"menuHasSelection\": true",
             "\"menuGrowthFollowUpButtonFocusable\": true",
             "\"menuGrowthFollowUpSelectionIsActionButton\": true",
@@ -3970,20 +4179,16 @@ public static class CareReviewProjectBuilder
         string lowResolutionResultPath = "Builds/QA/v0.3.0/low_resolution_ui/care_review_low_resolution_ui_smoke_result.json";
         bool lowResolutionDecisionAuditChecked = File.Exists(lowResolutionResultPath) &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"completed\": true") &&
-            File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"screenshotCount\": 42") &&
+            File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"screenshotCount\": 39") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"invalidScreenshotCount\": 0") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"buttonTextOverflowCount\": 0") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"offscreenButtonCount\": 0") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"screen\": \"first_run_notice\"") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"screen\": \"first_case_guide\"") &&
-            File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"screen\": \"playtest_survey\"") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"screen\": \"decision_history\"") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"screen\": \"decision_audit\"") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"screen\": \"career_record\"") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"screen\": \"achievements\"") &&
-            File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"playtestSurveyGuideMentionsKeyboard\": true") &&
-            File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"playtestSurveyGuideMentionsController\": true") &&
-            File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"playtestSurveyCommercialChecklistReadable\": true") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"mainMenuAchievementBadgeReadable\": true") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"mainMenuAchievementHintReadable\": true") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"mainMenuBriefingWeaknessFocusReadable\": true") &&
@@ -3991,8 +4196,8 @@ public static class CareReviewProjectBuilder
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"achievementRecordLinkHintReadable\": true") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"achievementRecordLinkHintMentionsMenuEntry\": true") &&
             File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"achievementRecordLinkHintMentionsCoachingFirstUse\": true") &&
-            File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"lowResolutionStoreCandidateCopyAlignmentReadable\": true");
-        AppendPreflightCheck(builder, "저해상도 UI QA 산출물", lowResolutionDecisionAuditChecked, "Builds/QA/v0.3.0/low_resolution_ui, 42 screenshots including first-run notice, first-case guide, playtest_survey, decision_history, decision_audit, career_record, achievements");
+            File.ReadAllText(lowResolutionResultPath, Encoding.UTF8).Contains("\"lowResolutionReleaseCopyAlignmentReadable\": true");
+        AppendPreflightCheck(builder, "저해상도 UI QA 산출물", lowResolutionDecisionAuditChecked, "Builds/QA/v0.3.0/low_resolution_ui, 39 screenshots including first-run notice, first-case guide, decision_history, decision_audit, career_record, achievements");
         AppendPreflightAction(builder, "실제 사람 플레이테스트", "외부 테스터 로그/설문 수집 필요");
         AppendPreflightAction(builder, "외부 저사양 PC 검증", "실제 내장 그래픽 노트북/저사양 PC에서 설치 실행 확인 필요");
         AppendPreflightAction(builder, "Steam 클라이언트 설치/재설치 QA", "비공개 브랜치에서 설치, 실행, 삭제, 재설치를 실제 Steam 클라이언트로 확인 필요");
@@ -4028,7 +4233,7 @@ public static class CareReviewProjectBuilder
         builder.AppendLine("- Store Presence 실제 입력 증거: `pending_external`; `Evidence/STORE_PRESENCE.md`; `status: draft_not_evidence`; 실제 Steamworks URL/화면 캡처 입력 후에만 통과 처리");
         builder.AppendLine("- Store Presence 외부 액션 연결: `STORE_PRESENCE`; `externalActionCount=" + externalActions + "`; `actual_status=pending_external`; `storePresenceDraftStatusSummary`; `store_presence_draft_status_summary`; `draft=Evidence/STORE_PRESENCE.md`; `draft_status=status: draft_not_evidence`; `release candidate JSON memberSummary 확인`; `care_review_release_candidate_audit.json`; `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`; `screenshot_ab_loop_response_count=0`; `screenshot_ab_loop_not_collected_count=221`; `screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses`");
         builder.AppendLine("- Store Presence after_collection 입력란: `storePresenceAfterCollectionInputSummary`; `store_presence_after_collection_input_summary`; `after_collection_inputs=store_presence_priority_badge_after_collection_input`; `after_collection_status_reward_loop_candidate`; `completion_gate_main_menu_baseline`; `completion_gate_copy_alignment`");
-        builder.AppendLine("- Store Presence 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`; `Evidence/STORE_PRESENCE.md`; `외부 검증 Store Presence 자체점검 TODO 요약`");
+        builder.AppendLine("- Store Presence 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`; `Evidence/STORE_PRESENCE.md`; `외부 검증 Store Presence 자체점검 TODO 요약`");
         builder.AppendLine("- 성과-캠페인 루프 A/B 응답 회수 보류: `screenshot_ab_loop_response_count=0`; `screenshot_ab_loop_not_collected_count=221`; `screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses`");
         builder.AppendLine("- Store Presence 외부 게이트 스모크 상호참조: `care_review_external_gate_audit_smoke_result.json`; `storePresencePreflightTopCrossReference`; `hasStorePresenceDraftStatusTrackerAuditCrossReference`; `hasScreenshotAbLoopResponseTrackerAuditCrossReference`");
         builder.AppendLine("- 외부 게이트 smoke zip SHA: `care_review_external_gate_audit_smoke_result.json`; `handoffZipSha256`; `handoffZipBytes`; `handoffZipHashFileMatches=true`; `steamworksZipSha256`; `steamworksZipBytes`; `steamworksZipHashFileMatches=true`");
@@ -4068,7 +4273,7 @@ public static class CareReviewProjectBuilder
             "- 예시 파일: `Evidence/STORE_PRESENCE_EXAMPLE.md`; `status: example_not_evidence`; 통과 증거가 아님\n" +
             "- 증거 템플릿: `Evidence/_templates/STORE_PRESENCE.md`; `자체점검 TODO 요약 템플릿`; `Evidence/STORE_PRESENCE_EXAMPLE.md`; `Evidence/STORE_PRESENCE.md`\n" +
             "- 외부 게이트 row: `storePresenceDraftStatusSummary`, `store_presence_draft_status_summary`, `actual_status=pending_external`\n" +
-            "- 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`; `Evidence/STORE_PRESENCE.md`\n" +
+            "- 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`; `Evidence/STORE_PRESENCE.md`\n" +
             "- A/B 응답 회수 입력란: `screenshot_ab_loop_response_count=0`; `screenshot_ab_loop_not_collected_count=221`; `screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses`; `screenshot_ab_loop_understanding_comment_count=0`\n" +
             "- A/B TODO 직접 매핑: `store_presence_ab_todo_mapping`; `post_external_collection_promotion_summary`; `main_menu_loop_entry`; `menu_campaign_briefing_weakness`; `achievement_career_copy_alignment`; `reward_loop_understanding`\n" +
             "- upload manifest memberSummary 대조: `STEAMWORKS_UPLOAD_MANIFEST.txt`; `Store Presence evidence draft`; `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`\n" +
@@ -4098,7 +4303,8 @@ public static class CareReviewProjectBuilder
             generatedAt = DateTime.Now.ToString("s"),
             version = ReleaseVersion,
             checks = new List<ReleaseCandidateCheck>(),
-            externalActions = new List<string>()
+            externalActions = new List<string>(),
+            optionalExternalValidations = new List<string>()
         };
 
         AddPackageAuditCheck(audit, "릴리즈 zip", Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip"), Path.Combine(ReleaseRootPath, ReleasePackageName + "_SHA256.txt"), 50_000_000L);
@@ -4106,32 +4312,59 @@ public static class CareReviewProjectBuilder
         AddPackageAuditCheck(audit, "플레이테스트 kit zip", "Builds/Playtest/CareReviewOffice_PlaytestKit_v0.3.0.zip", "Builds/Playtest/CareReviewOffice_PlaytestKit_v0.3.0_SHA256.txt", 50_000_000L);
 
         AddReleaseCandidateCheck(audit, "content_windows 실행 파일", File.Exists(Path.Combine(SteamworksContentPath, "CareReviewOffice.exe")), "Steamworks content root executable");
-        AddReleaseCandidateCheck(audit, "릴리즈 README 최신 기능 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "README_KR.txt"), "캠페인 챌린지", "재검토 큐", "튜닝 권고", "10달러 상용화 트리아지", "첫 실행", "데이터 소스 무결성", "런타임 이슈 로그", "컨트롤러 단축 입력", "컨트롤러 포커스 하이라이트", "지원 번들", "저장 복구", "로컬 데이터 삭제", "플레이테스트 패킷", "플레이테스트 회수 준비", "Steamworks 업로드용 depot"), "content_windows/README_KR.txt");
-        AddReleaseCandidateCheck(audit, "릴리즈 manifest 최신 기능 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "campaign challenge", "external JSON case databases", "external agent persona JSON", "playtest review queue guidance", "playtest decision audit before-after graph export", "playtest appeal-remedy graph triage", "case archive appeal-remedy graph triage objective", "in-game playtest collection readiness checklist", "balance tuning recommendation report", "first-run data and ethics notice", "runtime issue log export", "controller shortcuts", "controller focus highlight", "support bundle settings focus navigation", "playtest survey focus navigation", "achievement replay tier record focus navigation", "achievement decision practice tier record focus navigation", "follow-up inbox action focus navigation", "case archive filter queue focus navigation", "case archive triage candidate focus navigation", "appeal-remedy graph triage shared candidate state", "career record appeal remedy triage candidate result", "ending gallery record focus navigation", "career record mandate filter focus navigation", "career record growth filter focus navigation", "career record growth follow-up filter focus navigation", "career record appeal remedy filter focus navigation", "career record appeal remedy case focus navigation", "achievement next goal roadmap", "achievement next goal action button", "achievement next goal action smoke", "achievement appeal-remedy triage next goal", "achievement appeal-remedy triage result progress", "achievement appeal-remedy triage record link", "achievement next goal focus navigation", "achievement appeal-remedy triage focus label", "appeal-remedy graph triage shared candidate state", "career record appeal remedy triage candidate result", "achievement growth progress panel", "achievement growth progress cards", "achievement growth record links", "achievement growth record focus navigation", "appeal remedy achievement record link", "appeal remedy achievement record focus navigation", "decision practice achievement record link", "decision practice tier record links", "decision practice Steam achievement candidate", "decision practice reward tiers", "decision practice reward detail lines", "main menu appeal-remedy graph triage recommendation", "appeal-remedy graph triage shared summary", "appeal-remedy graph triage candidate list", "appeal-remedy graph triage candidate actions", "appeal-remedy graph triage shared candidate state", "career record appeal remedy triage candidate result", "appeal remedy briefing case archive quick link", "appeal remedy briefing case archive quick link focus navigation", "main menu growth objective summary", "growth follow-up menu action button", "growth follow-up menu shortcut smoke", "growth follow-up menu focus navigation", "career record next objective restart", "career record next objective focus navigation", "career record filter count badges", "career record growth objective summary", "career record appeal remedy objective summary", "career record decision practice objective summary", "career record representative retrospective panel", "career record detail aggressive line wrap", "career record store candidate detail line wrap visual check", "career record growth filter", "career record growth follow-up filter", "career record appeal remedy filter", "career record decision practice filter", "career record appeal remedy case link", "career record growth comparison", "career growth objective replay", "final report growth objective result", "career growth objective result record", "final report growth follow-up objective", "career growth follow-up objective record", "career growth follow-up briefing", "career growth follow-up review HUD", "career growth follow-up completion record", "support bundle export", "support bundle external handoff reference", "save backup recovery", "appeal-remedy triage candidate save restore", "local data deletion", "commercial content audit export", "data source integrity audit", "runtime issue smoke test", "controller shortcut smoke test", "focus navigation smoke test", "playtest readiness smoke test", "save recovery smoke test", "data source integrity smoke test", "first-run notice smoke test", "support bundle smoke test", "local data delete smoke test", "content audit smoke test", "playtest commercial triage report", "playtest commercial triage action CSV", "external validation triage action handoff", "trailer remaster work order", "trailer remaster ffmpeg script", "trailer remaster promotion gate", "trailer remaster upload encode", "playtest campaign challenge columns", "playtest appeal-remedy graph triage columns", "playtest survey price-value columns", "playtest replay-intent columns", "playtest survey price-value columns", "playtest replay-intent columns", "playtest replay-reward-value triage priority", "Steamworks depot template"), "content_windows/RELEASE_MANIFEST.txt");
-        AddReleaseCandidateCheck(audit, "릴리즈 manifest 보정 후보 큐 역방향 링크 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "career record appeal remedy triage queue return link"), "content_windows/RELEASE_MANIFEST.txt triage queue return link");
-        AddReleaseCandidateCheck(audit, "릴리즈 README 이의제기 검토 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "README_KR.txt"), "이의제기 검토", "보정 조치", "최종 리포트", "캠페인 기록", "-careReviewAppealReviewSmokeTest", "CSV export"), "content_windows/README_KR.txt appeal review");
-        AddReleaseCandidateCheck(audit, "릴리즈 manifest 이의제기 검토 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "appeal review queue", "appeal review remedy guidance", "appeal review CSV columns", "appeal review smoke test", "appeal review report summary", "appeal review career record summary", "appeal review queue smoke"), "content_windows/RELEASE_MANIFEST.txt appeal review");
-        AddReleaseCandidateCheck(audit, "릴리즈 README 결정 감사 이의제기 우선순위 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "README_KR.txt"), "결정 감사", "이의제기 우선순위", "고압력 대표 사례", "보정 전/후 그래프", "다음 회차 코칭", "추천 운영", "실행 규칙", "검증 질문", "-careReviewDecisionAuditSmokeTest"), "content_windows/README_KR.txt decision audit appeal priority");
-        AddReleaseCandidateCheck(audit, "릴리즈 manifest 결정 감사 이의제기 우선순위 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "decision audit appeal priority queue", "decision audit appeal before-after graph", "decision audit next-run coaching", "decision audit coaching smoke"), "content_windows/RELEASE_MANIFEST.txt decision audit appeal priority");
+        AddReleaseCandidateCheck(audit, "플레이어 메타데이터 출시명 적용", ReleasePlayerMetadataUsesReleaseNames(), "ProjectSettings + app.info use release company/product names and exclude SNU/Prototype/Final Project");
+        AddReleaseCandidateCheck(audit, "플레이어 자동 업로드/Analytics 설정 비활성", ReleasePlayerCloudUploadSettingsDisabled(), "ProjectSettings submitAnalytics/cloud disabled and UnityConnect analytics/diagnostics/ads/performance reporting disabled");
+        AddReleaseCandidateCheck(audit, "플레이어 멀티플레이어 센터 패키지 제외", ReleasePlayerExcludesMultiplayerCenterPackage(), "Packages and player builds exclude unused Unity Multiplayer Center package/assembly");
+        AddReleaseCandidateCheck(audit, "플레이어 Unity 패키지 최소 manifest", ReleaseManifestContainsOnlyNeededPlayerPackages(), "Packages manifest/lock keep only player runtime packages and required transitive UGUI modules");
+        AddReleaseCandidateCheck(audit, "플레이어 Resources 폐기 리소스 제외", ReleaseResourcesExcludeDeprecatedFallbackArt(), "Assets/Resources excludes deprecated fallback/source art sheets");
+        AddReleaseCandidateCheck(audit, "플레이어 Resources 런타임 자산 allowlist", ReleaseResourcesContainOnlyPlayerRuntimeAssets(), "Assets/Resources contains only current player art/audio/data/font assets");
+        AddReleaseCandidateCheck(audit, "플레이어 아트 텍스처 readable/무압축 제외", PlayerRuntimeArtTextureImportsAreReleaseOptimized(), "Runtime art textures are not CPU-readable and are not forced to uncompressed import settings");
+        AddReleaseCandidateCheck(audit, "플레이어 오디오 import 출시 최적화", PlayerRuntimeAudioImportsAreReleaseOptimized(), "BGM uses streaming Vorbis and SFX uses mono ADPCM without preload");
+        AddReleaseCandidateCheck(audit, "플레이어 폐기 리소스 보관 폴더 제외", ReleaseProjectExcludesDeprecatedResourceArchive(), "Assets/Archive/DeprecatedResourceArt is removed from the release project");
+        AddReleaseCandidateCheck(audit, "플레이어 릴리즈 이전 버전 산출물 제외", ReleaseRootContainsOnlyCurrentPlayerPackage(), "Builds/Release contains only current v0.3.0 player package artifacts");
+        AddReleaseCandidateCheck(audit, "플레이어 패키지 최상위 구성 allowlist", ReleasePlayerPackageTopLevelEntriesAreExpected(), "Builds/Windows, release zip/root, and Steamworks content_windows contain only expected Unity runtime, executable, README_KR.txt, RELEASE_MANIFEST.txt");
+        AddReleaseCandidateCheck(audit, "플레이어 패키지 Windows 빌드 페이로드 미러링", ReleasePlayerPackagesMirrorCurrentWindowsBuild(), "release folder/zip and Steamworks content_windows folder/zip match Builds/Windows payload hashes except README_KR.txt/RELEASE_MANIFEST.txt");
+        AddReleaseCandidateCheck(audit, "플레이어 패키지 README/manifest 문서 미러링", ReleasePlayerPackageDocsMirrorAcrossTargets(), "release folder/zip and Steamworks content_windows folder/zip README_KR.txt/RELEASE_MANIFEST.txt hashes match");
+        AddReleaseCandidateCheck(audit, "플레이어 패키지 CrashHandler 제외", ReleasePlayerPackagesExcludeCrashHandler(), "Builds/Windows, release folder/zip, and Steamworks folder/zip exclude UnityCrashHandler64.exe");
+        AddReleaseCandidateCheck(audit, "플레이어 비게임 Unity 모듈 제외", ReleasePlayerPackagesExcludeNonGameplayManagedModules(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip exclude individually smoke-tested non-gameplay managed modules");
+        AddReleaseCandidateCheck(audit, "플레이어 비게임 managed 라이브러리 제외", ReleasePlayerPackagesExcludeNonGameplayManagedLibraries(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip exclude smoke-tested unused managed libraries");
+        AddReleaseCandidateCheck(audit, "플레이어 Mono 웹 보조 파일 제외", ReleasePlayerPackagesExcludeNonGameplayMonoWebRuntimeFiles(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip exclude unused Mono web/browser helper files");
+        AddReleaseCandidateCheck(audit, "플레이어 Mono 런타임 보조 파일 제외", ReleasePlayerPackagesExcludeNonGameplayMonoRuntimeFiles(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip exclude smoke-tested unused Mono runtime helper files");
+        AddReleaseCandidateCheck(audit, "플레이어 필수 런타임 의존 파일 포함", ReleasePlayerPackagesIncludeRequiredRuntimeDependencyFiles(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip include UnityPlayer.dll, D3D12/D3D12Core.dll, dstorage.dll, and dstoragecore.dll beside CareReviewOffice.exe");
+        AddReleaseCandidateCheck(audit, "릴리즈 실행 의존성 스모크", ReleaseLaunchDependencySmokePassed(), "care_review_release_launch_dependency_smoke_result.json");
+        AddReleaseCandidateCheck(audit, "플레이어 패키지 QA/디버그 산출물 제외", ReleasePlayerPackageExcludesQaArtifacts(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip entries exclude pdb/mdb/log/tmp/qa/smoke/playtest/support_bundle/system_diagnostic artifacts");
+        AddReleaseCandidateCheck(audit, "플레이어 패키지 프로젝트/소스 파일 제외", ReleasePlayerPackageExcludesProjectSourceFiles(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip exclude Unity project/source/editor files");
+        AddReleaseCandidateCheck(audit, "플레이어 boot.config 릴리즈 설정", ReleasePlayerBootConfigUsesReleaseSettings(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip boot.config wait-for-native-debugger=0 and exclude development/debugger wait flags");
+        AddReleaseCandidateCheck(audit, "플레이어 어셈블리 내부/QA 문자열 제외", ReleasePlayerAssembliesExcludeInternalToolText(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip player assemblies exclude automation/export/playtest/survey/CSV/HTML/QA text");
+        AddReleaseCandidateCheck(audit, "플레이어 안내 텍스트 내부/QA 문구 제외", ReleasePlayerTextFilesExcludeInternalTerms(), "release folder/zip and Steamworks content_windows folder/zip README_KR.txt/RELEASE_MANIFEST.txt exclude internal QA terms");
+        AddReleaseCandidateCheck(audit, "릴리즈 README 최신 기능 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "README_KR.txt"), "캠페인 챌린지", "재검토 큐", "판단 비교", "판단 복기", "성과 기록", "캠페인 기록", "저장 백업/복구", "로컬 데이터 삭제", "큰 글자", "고대비", "저사양 모드", "키보드/컨트롤러 조작", "자동 업로드하지 않습니다"), "content_windows/README_KR.txt");
+        AddReleaseCandidateCheck(audit, "릴리즈 README 필수 런타임 파일 보존 안내", FileContainsAll(Path.Combine(SteamworksContentPath, "README_KR.txt"), "D3D12", "UnityPlayer.dll", "dstorage.dll", "dstoragecore.dll", "삭제하거나 이동하지 마세요"), "content_windows/README_KR.txt required runtime dependency files");
+        AddReleaseCandidateCheck(audit, "릴리즈 manifest 플레이어 기능 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "Included player systems", "5-day campaign with 40 fictional care-review cases", "Three campaign operating mandates", "Application review desk", "Evidence cards", "Policy handbook", "Final report", "Decision comparison", "decision review", "Save slots", "local data deletion", "large text", "high contrast", "low-spec mode", "Keyboard and controller controls", "BGM", "SFX", "Data notice"), "content_windows/RELEASE_MANIFEST.txt");
+        AddReleaseCandidateCheck(audit, "릴리즈 manifest 기록/재검토 기능 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "review queue", "case archive", "campaign records"), "content_windows/RELEASE_MANIFEST.txt records and review queue");
+        AddReleaseCandidateCheck(audit, "릴리즈 README 판단 복기/기록 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "README_KR.txt"), "판단 복기", "사례 자료실", "최종 리포트", "캠페인 기록", "재검토 큐"), "content_windows/README_KR.txt decision review and records");
+        AddReleaseCandidateCheck(audit, "릴리즈 manifest 판단 복기 기능 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "decision review", "case archive", "Final report"), "content_windows/RELEASE_MANIFEST.txt decision review");
+        AddReleaseCandidateCheck(audit, "릴리즈 README 판단 비교/복기 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "README_KR.txt"), "판단 비교", "판단 복기", "가족 유형 판단 지도", "재검토 큐"), "content_windows/README_KR.txt decision comparison and review");
+        AddReleaseCandidateCheck(audit, "릴리즈 manifest 판단 비교/복기 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "Decision comparison", "decision review", "player decision map"), "content_windows/RELEASE_MANIFEST.txt decision comparison and review");
+        AddReleaseCandidateCheck(audit, "설정 내부 도구 숨김 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_accessibility_smoke_result.json", "\"settingsOmitsReleaseHiddenTools\": true", "\"settingsHiddenToolButtonCount\": 0", "\"settingsHiddenTextCount\": 0", "\"creditsHiddenTextCount\": 0", "\"menuHiddenTextCount\": 0", "\"reviewHiddenTextCount\": 0", "\"decisionHistoryHiddenTextCount\": 0", "\"followUpHiddenTextCount\": 0", "\"policyHiddenTextCount\": 0", "\"caseArchiveHiddenTextCount\": 0", "\"achievementHiddenTextCount\": 0", "\"careerRecordHiddenTextCount\": 0", "\"endingGalleryHiddenTextCount\": 0", "\"reportHiddenTextCount\": 0", "\"visibleReleaseHiddenTextCount\": 0", "\"nonBatchCareReviewArgsIgnored\": true", "\"nonBatchQaExportArtifactsSkipped\": true", "\"reportOmitsLogExport\": true"), "Builds/QA/v0.3.0/care_review_accessibility_smoke_result.json settings hidden tools");
         AddReleaseCandidateCheck(audit, "결정 감사 이의제기 우선순위 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_decision_audit_smoke_result.json", "\"completed\": true", "\"queueMentionsPressure\": true", "\"queueMentionsAppealPriority\": true", "\"queueMentionsAppealBeforeAfterGraph\": true", "\"appealCaseId\": \"C-031\""), "Builds/QA/v0.3.0/care_review_decision_audit_smoke_result.json");
-        AddReleaseCandidateCheck(audit, "결정 감사 다음 회차 코칭 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_decision_audit_smoke_result.json", "\"completed\": true", "\"coachingMentionsNextRunStrategy\": true", "\"coachingMentionsPatternSpecificNextObjective\": true", "\"coachingPreview\":", "다음 회차 코칭", "핵심 패턴", "추천 운영", "실행 규칙", "다음 목표", "코칭 목표", "버튼 라벨", "권장 일치율", "검증 질문"), "Builds/QA/v0.3.0/care_review_decision_audit_smoke_result.json");
-        AddReleaseCandidateCheck(audit, "추천 재시작 결정 감사 코칭 라벨 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_recommended_replay_smoke_result.json", "\"completed\": true", "\"buttonMentionsExpectedMandate\": true", "\"recommendationUsesDecisionAuditCoachingLabel\": true", "\"mandateApplied\": true", "\"nextObjectiveChallenge\":", "\"nextObjectiveReason\":", "코칭 목표", "결정 감사 코칭", "코칭"), "Builds/QA/v0.3.0/care_review_recommended_replay_smoke_result.json");
-        AddReleaseCandidateCheck(audit, "결정 감사 코칭 진행 HUD QA", FileContainsAll("Builds/QA/v0.3.0/care_review_decision_audit_coaching_hud_smoke_result.json", "\"completed\": true", "\"coachingStateApplied\": true", "\"briefingMentionsCoachingObjective\": true", "\"reviewHudMentionsCoachingObjective\": true", "\"reviewHudUpdatesAfterDecision\": true", "결정 감사 코칭 진행", "코칭 목표", "처리 0/40", "처리 1/40"), "Builds/QA/v0.3.0/care_review_decision_audit_coaching_hud_smoke_result.json");
-        AddReleaseCandidateCheck(audit, "릴리즈 README 사례 자료실 이의제기 필터 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "README_KR.txt"), "사례 자료실", "이의제기 필터 큐", "사례 상세 판단 비교표", "사례 상세 판단 비교 연습", "최종 리포트와 캠페인 기록", "사례 상세 보정 조치", "이의제기 보정 목표 심사", "사례 상세 보정 이력", "보정 심사 시작 버튼 라벨", "보정 목표 브리핑/HUD", "보정 목표 성공/미달 판정", "보정 결과 기반 다음 목표", "최종 리포트 보정 재도전 CTA", "메인 메뉴 보정 후속 버튼", "메인 메뉴 보정 목표 누적 요약", "보정 재도전 브리핑/HUD", "캠페인 기록 보정 다음 목표 시작", "캠페인 기록 보정 목표 성공률 요약", "캠페인 기록 보정 액션 플랜", "최종 리포트 보정 사례 바로가기", "캠페인 기록 보정 목표 완료 배지", "성과 기록 보정 목표 누적 요약", "이의제기 보정 성과 해금", "성과 기록 보정 기록 바로가기", "-careReviewCaseArchiveSmokeTest", "-careReviewDecisionPracticeSmokeTest"), "content_windows/README_KR.txt case archive appeal filter");
-        AddReleaseCandidateCheck(audit, "릴리즈 manifest 사례 자료실 이의제기 필터 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "case archive appeal filter queue", "case archive decision comparison matrix", "case archive decision comparison practice objective", "case archive appeal-remedy graph triage objective", "case archive appeal objective remedy", "case archive appeal remedy history", "appeal remedy recommended button label", "appeal remedy objective briefing", "appeal remedy briefing case archive quick link", "appeal remedy objective review HUD", "appeal remedy objective result verdict", "appeal remedy result next objective", "final report appeal remedy retry CTA", "appeal remedy retry briefing and HUD", "appeal remedy menu follow-up button", "main menu appeal remedy objective summary", "main menu appeal-remedy graph triage recommendation", "appeal-remedy graph triage shared summary", "appeal-remedy graph triage shared candidate state", "career record appeal remedy triage candidate result", "appeal remedy menu follow-up focus navigation", "career record appeal remedy objective summary", "career record decision practice objective summary", "career record detail aggressive line wrap", "career record appeal remedy action plan", "career record appeal remedy next objective restart", "final report appeal remedy objective result", "final report appeal remedy result next objective", "final report appeal remedy case link", "final report appeal remedy case focus navigation", "appeal remedy career badge", "appeal remedy achievement summary", "appeal remedy Steam achievement candidate", "appeal remedy achievement record link", "decision practice achievement record link", "decision practice tier record links", "decision practice reward detail lines", "decision practice Steam achievement candidate"), "content_windows/RELEASE_MANIFEST.txt case archive appeal filter");
+        AddReleaseCandidateCheck(audit, "판단 복기 다음 회차 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_decision_audit_smoke_result.json", "\"completed\": true", "\"coachingMentionsNextRunStrategy\": true", "\"coachingMentionsPatternSpecificNextObjective\": true", "\"coachingPreview\":", "다음 회차 복기", "핵심 패턴", "추천 운영", "실행 규칙", "다음 목표", "복기 목표", "버튼 라벨", "권장 일치율", "검증 질문"), "Builds/QA/v0.3.0/care_review_decision_audit_smoke_result.json");
+        AddReleaseCandidateCheck(audit, "추천 재시작 판단 복기 라벨 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_recommended_replay_smoke_result.json", "\"completed\": true", "\"buttonMentionsExpectedMandate\": true", "\"recommendationUsesDecisionAuditCoachingLabel\": true", "\"mandateApplied\": true", "\"nextObjectiveChallenge\":", "\"nextObjectiveReason\":", "복기 목표", "판단 복기", "복기"), "Builds/QA/v0.3.0/care_review_recommended_replay_smoke_result.json");
+        AddReleaseCandidateCheck(audit, "판단 복기 진행 HUD QA", FileContainsAll("Builds/QA/v0.3.0/care_review_decision_audit_coaching_hud_smoke_result.json", "\"completed\": true", "\"coachingStateApplied\": true", "\"briefingMentionsCoachingObjective\": true", "\"reviewHudMentionsCoachingObjective\": true", "\"reviewHudUpdatesAfterDecision\": true", "판단 복기 진행", "복기 목표", "처리 0/40", "처리 1/40"), "Builds/QA/v0.3.0/care_review_decision_audit_coaching_hud_smoke_result.json");
+        AddReleaseCandidateCheck(audit, "릴리즈 README 사례 자료실 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "README_KR.txt"), "사례 자료실", "심사 기록", "후속 연락함", "캠페인 기록"), "content_windows/README_KR.txt case archive");
+        AddReleaseCandidateCheck(audit, "릴리즈 manifest 사례 자료실 반영", FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "case archive", "review queue", "campaign records"), "content_windows/RELEASE_MANIFEST.txt case archive");
         AddReleaseCandidateCheck(audit, "사례 자료실 이의제기 필터 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_case_archive_smoke_result.json", "\"completed\": true", "\"appealFilterCycled\": true", "\"appealFilterMentionsCase\": true", "\"appealFilterMentionsRemedy\": true", "\"appealObjectiveChallengeMentionsRemedy\": true", "\"appealObjectiveStatusMentionsRemedy\": true", "\"appealObjectiveRecommendedButtonMentionsRemedy\": true", "\"appealBriefingMentionsRemedyObjective\": true", "\"appealBriefingCaseArchiveQuickLinkActive\": true", "\"appealBriefingCaseArchiveQuickLinkOpensCase\": true", "\"appealReviewHudMentionsRemedyObjective\": true", "\"reportMentionsAppealRemedyObjectiveResult\": true", "\"appealRemedyNextObjectiveAdaptsToResult\": true", "\"reportMentionsAppealRemedyRetryCta\": true", "\"appealRemedyMenuFollowUpButtonReady\": true", "\"appealRemedyMenuStatusMentionsFollowUpButton\": true", "\"appealRemedyMenuMentionsObjectiveSummary\": true", "\"reportAppealRemedyCaseButtonActive\": true", "\"reportAppealRemedyArchiveFocused\": true", "\"reportAppealRemedyArchiveMentionsTimeline\": true", "\"appealObjectiveRecordStoresBadge\": true", "\"appealObjectiveRecordStoresResult\": true", "\"appealRemedyAchievementUnlocked\": true", "\"careerBodyMentionsAppealObjectiveBadge\": true", "\"careerBodyMentionsAppealObjectiveResult\": true", "\"careerBodyMentionsAppealRemedyNextObjective\": true", "\"careerTrendMentionsAppealObjective\": true", "\"caseArchiveMentionsAppealRemedyHistory\": true", "\"caseArchiveMentionsDecisionComparison\": true", "\"caseArchiveDecisionPracticeButtonReady\": true", "\"caseArchiveDecisionPracticeCreatesObjective\": true", "\"appealRemedyGraphTriageRecommendationAvailable\": true", "\"appealRemedyGraphTriageFocusesRecommendedCase\": true", "\"appealRemedyGraphTriageCreatesRemedyObjective\": true", "\"appealRemedyGraphTriageObjectiveStatusMentionsRemedy\": true", "\"appealRemedyGraphTriageMenuButtonReady\": true", "\"appealRemedyGraphTriageMenuStatusMentionsRecommendation\": true", "\"appealRemedyGraphTriageMenuCandidateCycleReady\": true", "\"appealRemedyGraphTriageMenuCandidateCycleSelectsNext\": true", "\"appealRemedyGraphTriageMenuCandidateStartsSelected\": true", "\"appealRemedyGraphTriageUsesUnifiedSummary\": true", "\"appealRemedyGraphTriageMentionsCandidateList\": true", "\"appealRemedyGraphTriageCandidateButtonsReady\": true", "\"appealRemedyGraphTriageCandidateButtonOpensNext\": true", "\"appealRemedyGraphTriageCandidateButtonStartsObjective\": true", "\"appealRemedyGraphTriageCandidateResultSaved\": true", "\"careerDetailMentionsAppealTriageCandidateResult\": true", "\"achievementStatusMentionsAppealObjective\": true", "\"achievementReplayRewardMentionsAppealObjective\": true", "\"achievementAppealRemedyRecordButtonActive\": true", "\"achievementAppealRemedyRecordOpensCareer\": true", "\"appealRemedyCareerNextObjectiveButtonMentionsRemedy\": true", "\"appealRemedyCareerNextObjectiveStartsRetryBriefing\": true", "\"appealRemedyCareerNextObjectiveHudMentionsRetry\": true", "\"appealCaseId\": \"C-031\""), "Builds/QA/v0.3.0/care_review_case_archive_smoke_result.json");
         AddReleaseCandidateCheck(audit, "사례 자료실 판단 비교 연습 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_decision_practice_smoke_result.json", "\"completed\": true", "\"buttonReady\": true", "\"objectiveReady\": true", "\"briefingMentionsPractice\": true", "\"reportMentionsPractice\": true", "\"careerRecordStoresPractice\": true", "\"careerMentionsPractice\": true", "\"careerDetailMentionsPracticeRewardLines\": true", "\"decisionPracticeAchievementUnlocked\": true", "\"achievementStatusMentionsPractice\": true", "\"achievementReplayRewardMentionsPractice\": true", "\"achievementDecisionPracticeRecordButtonActive\": true", "\"achievementDecisionPracticeRecordOpensCareer\": true", "판단 비교 연습"), "Builds/QA/v0.3.0/care_review_decision_practice_smoke_result.json");
         AddReleaseCandidateCheck(audit, "Steamworks README 첫 섹션 Store Presence 증거 묶음 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 증거 묶음 상태", "증거 묶음: `allPassed`", "checkCount=11", "passedCheckCount=11", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "실제 입력 증거: `pending_external`", "Evidence/STORE_PRESENCE.md", "status: draft_not_evidence", "최상단 판정 요약", "A/B 응답 회수 보류", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "screenshot_ab_loop_understanding_comment_count=0"), "README_STEAMWORKS_KR.txt");
         AddReleaseCandidateCheck(audit, "Steamworks README Store Presence 증거 묶음 upload manifest memberSummary 상호참조", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 증거 묶음 상태", "upload manifest memberSummary 대조", "STEAMWORKS_UPLOAD_MANIFEST.txt", "Store Presence evidence bundle", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && SteamworksUploadManifestStorePresencePriorityBadgeSummaryReady(), "README_STEAMWORKS_KR.txt + STEAMWORKS_UPLOAD_MANIFEST.txt priority_badges");
         AddReleaseCandidateCheck(audit, "Steamworks README 첫 섹션 Paperlogy manifest evidence 요약", SteamworksReadmeTopPaperlogyManifestEvidenceSummaryReady(), "README_STEAMWORKS_KR.txt top Paperlogy font evidence summary");
         AddReleaseCandidateCheck(audit, "Steamworks README 첫 섹션 외부 게이트 smoke zip SHA 요약", SteamworksReadmeTopExternalGateSmokeZipShaSummaryReady(), "README_STEAMWORKS_KR.txt top external gate smoke zip SHA summary");
-        AddReleaseCandidateCheck(audit, "Steamworks README 첫 섹션 Store Presence 자체점검 TODO 첫 확인", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 증거 묶음 상태", "제출 전 TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "최상단 판정 요약", "Store Presence 자체점검 TODO 요약") && PreflightTopStorePresenceCompletionTodoSummaryReady(), "README_STEAMWORKS_KR.txt + STEAM_SUBMISSION_PREFLIGHT_KO.md completion TODO top summary");
+        AddReleaseCandidateCheck(audit, "Steamworks README 첫 섹션 Store Presence 자체점검 TODO 첫 확인", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 증거 묶음 상태", "제출 전 TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "최상단 판정 요약", "Store Presence 자체점검 TODO 요약") && PreflightTopStorePresenceCompletionTodoSummaryReady(), "README_STEAMWORKS_KR.txt + STEAM_SUBMISSION_PREFLIGHT_KO.md completion TODO top summary");
         AddReleaseCandidateCheck(audit, "Steamworks README 첫 섹션 Store Presence 감사 노트 템플릿 TODO 역참조", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 증거 묶음 상태", "감사 노트 템플릿 TODO 역참조", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조", "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md", "자체점검 TODO 요약 템플릿") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조", "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md + STEAM_SUBMISSION_PREFLIGHT_KO.md template completion TODO back-reference"), "README_STEAMWORKS_KR.txt + STEAM_SUBMISSION_PREFLIGHT_KO.md release audit note template completion TODO back-reference");
         AddReleaseCandidateCheck(audit, "Steamworks README 첫 섹션 대조 순서 A/B 응답 회수 입력란", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "대조 순서", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md", "README_KO.txt", "STORE_PRESENCE_QA_CARD_KO.md", "store_page/SCREENSHOT_CANDIDATE_AB_TEST_KO.md", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status", "screenshot_ab_loop_understanding_comment_count"), "README_STEAMWORKS_KR.txt");
         AddReleaseCandidateCheck(audit, "Steamworks README 첫 섹션 대조 순서 external gate tracker memberSummary 확인", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "대조 순서", "EXTERNAL_RELEASE_GATE_TRACKER.csv", "evidence_hint", "release_candidate_json=care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "STORE_PRESENCE", "evidence_hint", "release_candidate_json=care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "README_STEAMWORKS_KR.txt + EXTERNAL_RELEASE_GATE_TRACKER.csv");
-        AddReleaseCandidateCheck(audit, "Steamworks README Store Presence 검수 순서", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 검수 순서", "STORE_PRESENCE_QA_CARD_KO.md", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "상점 보정 후보 결과 수동 확인 단계", "STORE_PRESENCE_SELECTION_KO.md", "store_presence_ready_for_manual_input: yes", "screenshot_ab_recommended_candidate", "appeal_triage_qa_evidence", "decision_audit_coaching_candidate_evidence: 14_case_archive_decision_audit_coaching_focus.png", "코칭 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true", "README_KO.txt", "release candidate JSON memberSummary 확인", "care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status", "screenshot_ab_loop_understanding_comment_count"), "README_STEAMWORKS_KR.txt");
-        AddReleaseCandidateCheck(audit, "Steamworks README Store Presence 검수 순서 자체점검 TODO 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "작성 완료 전 자체점검 TODO", "[ ] Steamworks URL/화면 캡처", "[ ] SHA 확인", "[ ] 14번 코칭 후보", "[ ] 브리핑 회고 후보", "[ ] A/B 응답 회수", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "작성 완료 전 자체점검 TODO", "- [ ] Steamworks URL/화면 캡처", "- [ ] 브리핑 회고 후보", "- [ ] A/B 응답 회수"), "README_STEAMWORKS_KR.txt + Evidence/STORE_PRESENCE.md");
-        AddReleaseCandidateCheck(audit, "Store Presence 14번 결정 감사 코칭 보조 후보 노출", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "결정 감사 코칭 보조 후보", "14_case_archive_decision_audit_coaching_focus.png", "decision_audit_coaching_candidate_evidence", "코칭 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "결정 감사 코칭 보조 후보", "14_case_archive_decision_audit_coaching_focus.png", "decision_audit_coaching_candidate_evidence", "코칭 W-207", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "결정 감사 코칭 보조 후보", "14_case_archive_decision_audit_coaching_focus.png", "decision_audit_coaching_candidate_evidence", "코칭 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true"), "README_STEAMWORKS_KR.txt + README_KO.txt + STORE_PRESENCE_QA_CARD_KO.md");
+        AddReleaseCandidateCheck(audit, "Steamworks README Store Presence 검수 순서", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 검수 순서", "STORE_PRESENCE_QA_CARD_KO.md", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "상점 보정 후보 결과 수동 확인 단계", "STORE_PRESENCE_SELECTION_KO.md", "store_presence_ready_for_manual_input: yes", "screenshot_ab_recommended_candidate", "appeal_triage_qa_evidence", "decision_audit_coaching_candidate_evidence: 14_case_archive_decision_audit_coaching_focus.png", "복기 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true", "README_KO.txt", "release candidate JSON memberSummary 확인", "care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status", "screenshot_ab_loop_understanding_comment_count"), "README_STEAMWORKS_KR.txt");
+        AddReleaseCandidateCheck(audit, "Steamworks README Store Presence 검수 순서 자체점검 TODO 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "작성 완료 전 자체점검 TODO", "[ ] Steamworks URL/화면 캡처", "[ ] SHA 확인", "[ ] 14번 복기 후보", "[ ] 브리핑 회고 후보", "[ ] A/B 응답 회수", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "작성 완료 전 자체점검 TODO", "- [ ] Steamworks URL/화면 캡처", "- [ ] 브리핑 회고 후보", "- [ ] A/B 응답 회수"), "README_STEAMWORKS_KR.txt + Evidence/STORE_PRESENCE.md");
+        AddReleaseCandidateCheck(audit, "Store Presence 14번 판단 복기 보조 후보 노출", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "판단 복기 보조 후보", "14_case_archive_decision_audit_coaching_focus.png", "decision_audit_coaching_candidate_evidence", "복기 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "판단 복기 보조 후보", "14_case_archive_decision_audit_coaching_focus.png", "decision_audit_coaching_candidate_evidence", "복기 W-207", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "판단 복기 보조 후보", "14_case_archive_decision_audit_coaching_focus.png", "decision_audit_coaching_candidate_evidence", "복기 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true"), "README_STEAMWORKS_KR.txt + README_KO.txt + STORE_PRESENCE_QA_CARD_KO.md");
         AddReleaseCandidateCheck(audit, "Steamworks README Store Presence 검수 순서 실제 증거 초안 memberSummary 확인", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 검수 순서", "Evidence/STORE_PRESENCE.md", "release candidate JSON memberSummary 확인", "care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "release candidate JSON memberSummary 확인", "care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "README_STEAMWORKS_KR.txt + Evidence/STORE_PRESENCE.md");
         AddReleaseCandidateCheck(audit, "Steamworks README Store Presence 검수 순서 A/B 응답 회수 입력란", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 검수 순서", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status", "screenshot_ab_loop_understanding_comment_count"), "README_STEAMWORKS_KR.txt");
         AddReleaseCandidateCheck(audit, "Steamworks README Store Presence 증거 초안/예시 검수 순서", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Evidence/STORE_PRESENCE_EXAMPLE.md", "status: example_not_evidence", "Evidence/STORE_PRESENCE.md", "status: draft_not_evidence", "실제 Steamworks URL/화면 캡처", "status 값을 passed"), "README_STEAMWORKS_KR.txt");
@@ -4140,7 +4373,7 @@ public static class CareReviewProjectBuilder
         AddReleaseCandidateCheck(audit, "Steamworks README 첫 확인 A/B 응답 회수 보류 상태", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 증거 묶음 상태", "A/B 응답 회수 보류", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "screenshot_ab_loop_understanding_comment_count=0") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "성과-캠페인 루프 A/B 응답 회수 보류", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "screenshot_ab_loop_understanding_comment_count=0"), "README_STEAMWORKS_KR.txt + STEAM_SUBMISSION_PREFLIGHT_KO.md");
         AddReleaseCandidateCheck(audit, "Steamworks manifest 존재", File.Exists(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt")), "STEAMWORKS_UPLOAD_MANIFEST.txt");
         AddReleaseCandidateCheck(audit, "Steamworks upload manifest Store Presence 증거 초안 상태", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence bundle", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "checkCount=11", "passedCheckCount=11", "allPassed=true", "Store Presence evidence draft", "Evidence/STORE_PRESENCE.md", "status: draft_not_evidence", "pending_external", "Evidence/STORE_PRESENCE_EXAMPLE.md", "README_STEAMWORKS_KR.txt upload manifest memberSummary 대조", "STEAM_SUBMISSION_PREFLIGHT_KO.md 외부 검증 Store Presence 증거 묶음 요약", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "briefing_retrospective_candidate_evidence=12_career_record_next_objective.png", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "screenshot_ab_loop_understanding_comment_count=0") && SteamworksUploadManifestStorePresencePriorityBadgeSummaryReady(), "STEAMWORKS_UPLOAD_MANIFEST.txt priority_badges");
-        AddReleaseCandidateCheck(audit, "Steamworks upload manifest Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence draft", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(SteamworksRootPath, "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md"), "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 자체점검 TODO 요약"), "STEAMWORKS_UPLOAD_MANIFEST.txt + RELEASE_CANDIDATE_AUDIT_NOTE_KO.md + STEAM_SUBMISSION_PREFLIGHT_KO.md");
+        AddReleaseCandidateCheck(audit, "Steamworks upload manifest Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence draft", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(SteamworksRootPath, "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md"), "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 자체점검 TODO 요약"), "STEAMWORKS_UPLOAD_MANIFEST.txt + RELEASE_CANDIDATE_AUDIT_NOTE_KO.md + STEAM_SUBMISSION_PREFLIGHT_KO.md");
         AddReleaseCandidateCheck(audit, "Steamworks upload manifest Store Presence 감사 노트 템플릿 TODO 역참조", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence draft", "README_STEAMWORKS_KR.txt 감사 노트 템플릿 TODO 역참조", "STEAM_SUBMISSION_PREFLIGHT_KO.md 외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조", "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md", "자체점검 TODO 요약 템플릿") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "감사 노트 템플릿 TODO 역참조", "외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조"), "STEAMWORKS_UPLOAD_MANIFEST.txt + README_STEAMWORKS_KR.txt + STEAM_SUBMISSION_PREFLIGHT_KO.md template completion TODO back-reference");
         AddReleaseCandidateCheck(audit, "Steamworks upload manifest Store Presence evidence draft README/preflight memberSummary 역참조", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence draft", "README_STEAMWORKS_KR.txt upload manifest memberSummary 대조", "STEAM_SUBMISSION_PREFLIGHT_KO.md 외부 검증 Store Presence 증거 묶음 요약", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "upload manifest memberSummary 대조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 증거 묶음 요약", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "STEAMWORKS_UPLOAD_MANIFEST.txt + README_STEAMWORKS_KR.txt + STEAM_SUBMISSION_PREFLIGHT_KO.md");
         AddReleaseCandidateCheck(audit, "Steamworks upload manifest Store Presence evidence bundle memberSummary 상호참조", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence bundle", "release_candidate_json=care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "abLoopInputFields=screenshot_ab_loop_response_count,screenshot_ab_loop_not_collected_count,screenshot_ab_loop_collection_status,screenshot_ab_loop_understanding_comment_count", "Store Presence release candidate JSON cross-check", "uploadManifestCrossReference") && SteamworksUploadManifestStorePresencePriorityBadgeSummaryReady(), "STEAMWORKS_UPLOAD_MANIFEST.txt priority_badges");
@@ -4172,19 +4405,19 @@ public static class CareReviewProjectBuilder
         string storePresenceSelectionPath = Path.Combine(SteamworksStorePagePath, "STORE_PRESENCE_SELECTION_KO.md");
         string storeValuePositioningPath = Path.Combine(SteamworksStorePagePath, "STORE_VALUE_POSITIONING_KO.md");
         string storeValuePositioningRegressionPath = WriteStoreValuePositioningRegressionSmoke();
-        AddReleaseCandidateCheck(audit, "상점 메타데이터 사본 동기화", HashesMatch(metadataSourcePath, metadataStorePath) && FileContainsAll(metadataStorePath, "08_career_record_filter.png", "09_playtest_survey.png", "10_achievement_next_goal.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "보정 후보 필터", "후보별 회차", "성장 비교", "성과 다음 목표", "목표 재시작", "보정 이력"), "Docs/Steam_상점페이지_자료.md == store_page/STORE_PAGE_METADATA_KO.md");
-        AddReleaseCandidateCheck(audit, "상점 제출안 사본 동기화", HashesMatch(submissionSourcePath, submissionStorePath) && FileContainsAll(submissionStorePath, "08_career_record_filter.png", "09_playtest_survey.png", "10_achievement_next_goal.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "보정 후보 필터", "후보별 회차", "성장 비교", "최종 리포트 직후", "성과 다음 목표", "목표 재시작", "성과-캠페인 루프", "목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적", "보정 이력", "후보", "보정 후보 결과 확인", "appeal_triage_qa_evidence", "appealTriageQueueReturnOpensCareerRecord=true", "achievementCardMentionsAppealTriageResult=true", "STORE_PRESENCE_QA_CARD_KO.md"), "Docs/Steam_상점페이지_제출안.md == store_page/STORE_PAGE_SUBMISSION_DRAFT_KO.md");
+        AddReleaseCandidateCheck(audit, "상점 메타데이터 사본 동기화", HashesMatch(metadataSourcePath, metadataStorePath) && FileContainsAll(metadataStorePath, "08_career_record_filter.png", "10_achievement_next_goal.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "보정 추천", "추천", "성장 비교", "성과 다음 목표", "목표 재시작", "보정 이력"), "Docs/Steam_상점페이지_자료.md == store_page/STORE_PAGE_METADATA_KO.md");
+        AddReleaseCandidateCheck(audit, "상점 제출안 사본 동기화", HashesMatch(submissionSourcePath, submissionStorePath) && FileContainsAll(submissionStorePath, "08_career_record_filter.png", "10_achievement_next_goal.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "보정 추천", "추천", "성장 비교", "최종 리포트 직후", "성과 다음 목표", "목표 재시작", "성과-캠페인 루프", "목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적", "보정 이력", "QA 비교", "보정 후보 결과 확인", "appeal_triage_qa_evidence", "appealTriageQueueReturnOpensCareerRecord=true", "achievementCardMentionsAppealTriageResult=true", "STORE_PRESENCE_QA_CARD_KO.md"), "Docs/Steam_상점페이지_제출안.md == store_page/STORE_PAGE_SUBMISSION_DRAFT_KO.md");
         AddReleaseCandidateCheck(audit, "개인정보/데이터 고지 사본 동기화", HashesMatch(privacySourcePath, privacyStorePath) && FileContainsAll(privacyStorePath, "실제 개인정보", "로컬에 생성되는 데이터", "로컬 데이터 삭제", "환경 진단", "지원 번들", "실제 판단 비대체"), "Docs/Steam_개인정보_데이터_처리_고지.md == store_page/PRIVACY_AND_DATA_NOTICE_KO.md");
         AddReleaseCandidateCheck(audit, "트레일러 리마스터 작업표 사본 동기화", HashesMatch(trailerRemasterSourcePath, trailerRemasterStorePath) && FileContainsAll(trailerRemasterStorePath, "45.000s", "49초", "trailer_013_career_record_filter.png", "41-45s", "보정 후보", "동일 사례 회고"), "Docs/트레일러_리마스터_작업표.md == store_page/TRAILER_REMASTER_WORK_ORDER_KO.md");
         AddReleaseCandidateCheck(audit, "상점 후보 스크린샷 Steamworks 사본", StorePageCandidateScreenshotsReady(), "store_page/screenshot_candidates 09/10/11/12/13/14 1920x1080");
-        AddReleaseCandidateCheck(audit, "상점 후보 스크린샷 manifest", FileContainsAll(screenshotCandidateManifestPath, "09_playtest_survey.png", "10_achievement_next_goal.png", "11_growth_follow_up_menu.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png", "플레이테스트 설문", "성과 다음 목표", "성장 후속 목표", "캠페인 기록 목표 재시작", "동일 사례 회고", "상세 줄바꿈", "사례 자료실 보정 이력", "결정 감사 코칭 사례 버튼", "결정 감사 코칭 진행 HUD", "코칭 W-207", "기록 복귀", "코칭 왕복 힌트", "후보 스크린샷 6장", "성과-캠페인 루프", "목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적") && StorePageCandidateSourceManifestReady(), "store_page/SCREENSHOT_CANDIDATES_KO.md");
-        AddReleaseCandidateCheck(audit, "상점 후보 스크린샷 승격 기준표", FileContainsAll(screenshotCandidateDecisionMatrixPath, "플레이테스트 피드백 신호", "설문 회수 세션", "평균 반복 보상/장기 기록 가치감", "재플레이 의향", "자동 판정", "외부 회수 신뢰도", "판정 범위", "QA 샘플 기반 임시 판정", "실제 사람 완전 회수 세션", "트리아지 evidenceScope", "공식 승격 확정은 외부 완전 회수 기준 충족 후 결정", "외부 5명 이후 승격 판정 요약", "post_external_collection_promotion_summary", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "reward_loop_understanding", "screenshot_ab_loop_response_count", "screenshot_ab_loop_understanding_comment_count", "후보 결과 QA 증거", "성과-캠페인 루프 증거", "메인 메뉴 성과 배지/직전 약점 보정 초점 증거", "menuMentionsAchievementBadge=true", "mainMenuAchievementBadgeReadable=true", "mainMenuBriefingWeaknessFocusReadable=true", "briefingMentionsPreviousWeakness=true", "briefingUsesCoachingWeaknessTerms=true", "briefingWeaknessFocusCaptionReadable=true", "briefingContrastEffectApplied=true", "changedBriefingKeepsPreviousWeakness=true", "changedBriefingKeepsCoachingWeaknessTerms=true", "changedBriefingKeepsWeaknessFocusCaption=true", "결정 감사 코칭 후보 증거", "achievementStatusMentionsRewardLoop", "achievementRecordLinkHintReadable", "achievementTopActionNavigationMatchesRewardLoop", "achievementRecordButtonFocusOrderMatchesRewardLoop", "achievementRecordLinkHintMentionsCoachingFirstUse", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord", "coachingStateApplied=true", "reviewHudMentionsCoachingObjective=true", "reviewHudUpdatesAfterDecision=true", "careerRecordActionHintReadable", "lowResolutionStoreCandidateCopyAlignmentReadable", "storeCandidateMentionsBriefingRetrospective=true", "브리핑 회고", "예고 위험", "실제 결과", "appealTriageQueueButtonLabel", "achievementCardMentionsAppealTriageResult", "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "승격 우선순위", "권장 후보", "01_main_menu.png", "추천 회차 브리핑 직전 약점 보정 초점", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "10_achievement_next_goal.png", "14_case_archive_decision_audit_coaching_focus.png", "09_playtest_survey.png", "공식 8장 업로드 세트는 유지"), "store_page/SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md");
+        AddReleaseCandidateCheck(audit, "상점 후보 스크린샷 manifest", FileContainsAll(screenshotCandidateManifestPath, "10_achievement_next_goal.png", "11_growth_follow_up_menu.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png", "성과 다음 목표", "성장 후속 목표", "캠페인 기록 목표 재시작", "동일 사례 회고", "상세 줄바꿈", "사례 자료실 보정 이력", "판단 복기 사례 버튼", "판단 복기 진행 HUD", "복기 W-207", "기록 복귀", "복기 왕복 힌트", "후보 스크린샷 5장", "성과-캠페인 루프", "목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적") && StorePageCandidateSourceManifestReady(), "store_page/SCREENSHOT_CANDIDATES_KO.md");
+        AddReleaseCandidateCheck(audit, "상점 후보 스크린샷 승격 기준표", FileContainsAll(screenshotCandidateDecisionMatrixPath, "플레이테스트 피드백 신호", "설문 회수 세션", "평균 반복 보상/장기 기록 가치감", "재플레이 의향", "자동 판정", "외부 회수 신뢰도", "판정 범위", "QA 샘플 기반 임시 판정", "실제 사람 완전 회수 세션", "트리아지 evidenceScope", "공식 승격 확정은 외부 완전 회수 기준 충족 후 결정", "외부 5명 이후 승격 판정 요약", "post_external_collection_promotion_summary", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "reward_loop_understanding", "screenshot_ab_loop_response_count", "screenshot_ab_loop_understanding_comment_count", "후보 결과 QA 증거", "성과-캠페인 루프 증거", "메인 메뉴 성과 배지/직전 약점 보정 초점 증거", "menuMentionsAchievementBadge=true", "mainMenuAchievementBadgeReadable=true", "mainMenuBriefingWeaknessFocusReadable=true", "briefingMentionsPreviousWeakness=true", "briefingUsesCoachingWeaknessTerms=true", "briefingWeaknessFocusCaptionReadable=true", "briefingContrastEffectApplied=true", "changedBriefingKeepsPreviousWeakness=true", "changedBriefingKeepsCoachingWeaknessTerms=true", "changedBriefingKeepsWeaknessFocusCaption=true", "판단 복기 후보 증거", "achievementStatusMentionsRewardLoop", "achievementRecordLinkHintReadable", "achievementTopActionNavigationMatchesRewardLoop", "achievementRecordButtonFocusOrderMatchesRewardLoop", "achievementRecordLinkHintMentionsCoachingFirstUse", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord", "coachingStateApplied=true", "reviewHudMentionsCoachingObjective=true", "reviewHudUpdatesAfterDecision=true", "careerRecordActionHintReadable", "lowResolutionReleaseCopyAlignmentReadable", "storeCandidateMentionsBriefingRetrospective=true", "브리핑 회고", "예고 위험", "실제 결과", "appealTriageQueueButtonLabel", "achievementCardMentionsAppealTriageResult", "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "승격 우선순위", "권장 후보", "01_main_menu.png", "추천 회차 브리핑 직전 약점 보정 초점", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "10_achievement_next_goal.png", "14_case_archive_decision_audit_coaching_focus.png", "공식 8장 업로드 세트는 유지"), "store_page/SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md");
         AddReleaseCandidateCheck(audit, "상점 후보 스크린샷 트리아지 우선순위 배지", FileContainsAll(screenshotCandidateDecisionMatrixPath, "트리아지 세부 행별 우선순위 배지", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "triage_priority_badge_main_menu_baseline", "P1_BASELINE_GUARD", "triage_priority_badge_copy_alignment", "반복 가치 세부: 성과 기록 보상", "반복 가치 세부: 캠페인 기록 다음 목표", "반복 가치 세부: 상점 후보 루프 이해", "reward_loop_understanding", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "12_career_record_next_objective.png", "01_main_menu.png", "추천 회차 브리핑 직전 약점 보정 초점"), "store_page/SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md triage priority badge");
         AddReleaseCandidateCheck(audit, "상점 후보 스크린샷 승격 기준표 회귀", FileContainsAll(screenshotCandidateDecisionMatrixRegressionPath, "\"completed\": true", "\"scenarioCount\": 3", "\"qaTemporaryDetected\": true", "\"balanceDetected\": true", "\"commercialDetected\": true", "\"currentScenarioRetainsCandidate\": true", "\"postExternalPromotionSummaryReady\": true", "\"triagePriorityBadgeReady\": true", "\"filesHaveNoLocalAbsolutePath\": true"), "care_review_screenshot_candidate_decision_matrix_regression.json");
         AddReleaseCandidateCheck(audit, "상점 후보 스크린샷 A/B 판정", FileContainsAll(screenshotCandidateAbTestPath, "default_candidate: 12_career_record_next_objective.png", "comparison_candidate: 13_case_archive_appeal_remedy_history.png", "copy_alignment_question_id: achievement_career_copy_alignment", "menu_briefing_weakness_candidate: 01_main_menu.png", "menu_briefing_weakness_question_id: menu_campaign_briefing_weakness", "ab_test_ready: no_requires_external_feedback", "recommended_candidate: 12_career_record_next_objective.png", "보정 이력", "공식 8장 교체", "성과-캠페인 루프 이해도 질문", "목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적", "메인 메뉴 추천 회차 브리핑/직전 약점 보정 초점 질문", "추천 회차 브리핑", "직전 약점", "보정 초점", "csvHasMenuBriefingWeaknessQuestion=true", "성과 목표 힌트/기록 다음 목표 문구 일치", "성과 보기 목표", "캠페인 기록 `다음 목표`", "둘 다 불명확", "루프 이해 코멘트", "성과-캠페인 루프 A/B 회수 집계", "screenshot_ab_loop_summary_ready: yes", "screenshot_ab_loop_response_count", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses"), "store_page/SCREENSHOT_CANDIDATE_AB_TEST_KO.md");
         AddReleaseCandidateCheck(audit, "상점 후보 스크린샷 A/B 회귀", FileContainsAll(screenshotCandidateAbTestRegressionPath, "\"completed\": true", "\"scenarioCount\": 3", "\"noFeedbackKeepsDefault\": true", "\"careerPreferenceKeepsDefault\": true", "\"appealPreferencePromotesHistory\": true", "\"filesHaveNoLocalAbsolutePath\": true"), "care_review_screenshot_candidate_ab_test_regression.json");
-        AddReleaseCandidateCheck(audit, "상점 후보 캡처 동기화 명령", FileContainsAll(storeCandidateCaptureSyncScriptPath, "-careReviewCaptureStoreScreenshots", "1920", "CARE_REVIEW_STORE_SCREENSHOTS_DONE", "Get-FileHash", "screenshot_candidates", "08_career_record_filter.png", "09_playtest_survey.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png") && FileContainsAll(storeCandidateCaptureSyncManifestPath, "Store Candidate Capture Sync", "graphics/windowed 1920x1080", "Official refresh: `08_career_record_filter.png`", "Candidate count: 6", "Hash manifest", "12_career_record_next_objective.png", "14_case_archive_decision_audit_coaching_focus.png", "achievement reward loop summary", "achievement record link hint visual check", "career record action hint visual check"), "store_page/capture_store_candidate_screenshots_graphics_sync.ps1");
-        AddReleaseCandidateCheck(audit, "상점 후보 캡처 해시 manifest", FileContainsAll(storeCandidateCaptureHashManifestPath, "08_career_record_filter.png", "09_playtest_survey.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png"), "store_page/screenshot_candidates/STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256");
+        AddReleaseCandidateCheck(audit, "상점 후보 캡처 동기화 명령", FileContainsAll(storeCandidateCaptureSyncScriptPath, "-careReviewCaptureStoreScreenshots", "1920", "CARE_REVIEW_STORE_SCREENSHOTS_DONE", "Get-FileHash", "screenshot_candidates", "08_career_record_filter.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png") && FileContainsAll(storeCandidateCaptureSyncManifestPath, "Store Candidate Capture Sync", "graphics/windowed 1920x1080", "Official refresh: `08_career_record_filter.png`", "Candidate count: 5", "Hash manifest", "12_career_record_next_objective.png", "14_case_archive_decision_audit_coaching_focus.png", "achievement reward loop summary", "achievement record link hint visual check", "career record action hint visual check"), "store_page/capture_store_candidate_screenshots_graphics_sync.ps1");
+        AddReleaseCandidateCheck(audit, "상점 후보 캡처 해시 manifest", FileContainsAll(storeCandidateCaptureHashManifestPath, "08_career_record_filter.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png"), "store_page/screenshot_candidates/STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256");
         AddReleaseCandidateCheck(audit, "상점 스크린샷 업로드 선택 manifest", FileContainsAll(screenshotUploadSelectionPath, "selection_source: SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md", "promotion_status: not_promoted", "selected_upload_set: current_official_8", "promoted_candidate:", "replacement_target:", "submission_update_required: no", "ready_for_store_presence_upload: yes_current_official_8", "12_career_record_next_objective.png", "01_main_menu.png"), "store_page/SCREENSHOT_UPLOAD_SELECTION_KO.md");
         AddReleaseCandidateCheck(audit, "상점 스크린샷 업로드 선택 회귀", FileContainsAll(screenshotUploadSelectionRegressionPath, "\"completed\": true", "\"scenarioCount\": 3", "\"currentSetKeptWhenExternalMissing\": true", "\"balancePromotionRequiresSubmissionUpdate\": true", "\"commercialPromotionReady\": true", "\"filesHaveNoLocalAbsolutePath\": true", "\"promotedCandidate\": \"12_career_record_next_objective.png\"", "\"replacementTarget\": \"01_main_menu.png\""), "care_review_screenshot_upload_selection_regression.json");
         AddReleaseCandidateCheck(audit, "상점 스크린샷 업로드 적용 manifest", FileContainsAll(screenshotUploadApplicationPath, "application_source: STORE_PAGE_SUBMISSION_DRAFT_KO.md", "selection_source: SCREENSHOT_UPLOAD_SELECTION_KO.md", "selected_upload_set: current_official_8", "current_official_order_matches: yes", "submission_matches_selected_set: yes", "rollback_matches_current_set: yes", "ready_for_store_presence_upload: yes"), "store_page/SCREENSHOT_UPLOAD_APPLICATION_KO.md");
@@ -4256,10 +4489,10 @@ public static class CareReviewProjectBuilder
         AddReleaseCandidateCheck(audit, "전체 실행 스모크", FileContainsAll("Builds/QA/v0.3.0/care_review_smoke_result.json", "\"completed\": true", "\"caseCount\": 40", "\"logCount\": 40", "\"highestDay\": 5"), "care_review_smoke_result.json");
         AddReleaseCandidateCheck(audit, "밸런스 튜닝 리포트 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_balance_tuning_smoke_result.json", "\"completed\": true", "\"runCount\": 21", "\"mandateRecommendationCount\": 3", "\"hasReadableExports\": true") && FileContainsAll("Builds/QA/v0.3.0/care_review_balance_tuning_report.md", "운영 기준별 권고", "조정 우선순위"), "care_review_balance_tuning_*");
         AddReleaseCandidateCheck(audit, "캠페인 챌린지 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_campaign_challenge_smoke_result.json", "\"completed\": true", "\"menuMentionsChallenge\": true", "\"reportMentionsChallenge\": true", "\"dashboardMentionsChallenge\": true"), "care_review_campaign_challenge_smoke_result.json");
-        AddReleaseCandidateCheck(audit, "메인 메뉴 운영 기준 반복 장식/추천 회차 브리핑/직전 약점 보정 초점 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_main_menu_mandate_smoke_result.json", "\"completed\": true", "\"cardMentionsAdvancedReplayDecoration\": true", "\"changedCardKeepsAdvancedReplayDecoration\": true", "\"briefingMentionsRecommendation\": true", "\"briefingMentionsStandardReward\": true", "\"briefingMentionsPreviousWeakness\": true", "\"briefingUsesCoachingWeaknessTerms\": true", "\"briefingWeaknessFocusCaptionReadable\": true", "\"briefingContrastEffectApplied\": true", "\"changedBriefingUpdated\": true", "\"changedBriefingKeepsPreviousWeakness\": true", "\"changedBriefingKeepsCoachingWeaknessTerms\": true", "\"changedBriefingKeepsWeaknessFocusCaption\": true", "추천 회차 브리핑", "위험:", "보상:", "직전 약점 · 보정 초점", "코칭 패턴", "고위험 지연", "추천 운영", "검증 질문", "근거:"), "care_review_main_menu_mandate_smoke_result.json");
+        AddReleaseCandidateCheck(audit, "메인 메뉴 운영 기준 반복 장식/추천 회차 브리핑/직전 약점 보정 초점 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_main_menu_mandate_smoke_result.json", "\"completed\": true", "\"cardMentionsAdvancedReplayDecoration\": true", "\"changedCardKeepsAdvancedReplayDecoration\": true", "\"briefingMentionsRecommendation\": true", "\"briefingMentionsStandardReward\": true", "\"briefingMentionsPreviousWeakness\": true", "\"briefingUsesCoachingWeaknessTerms\": true", "\"briefingWeaknessFocusCaptionReadable\": true", "\"briefingContrastEffectApplied\": true", "\"changedBriefingUpdated\": true", "\"changedBriefingKeepsPreviousWeakness\": true", "\"changedBriefingKeepsCoachingWeaknessTerms\": true", "\"changedBriefingKeepsWeaknessFocusCaption\": true", "추천 회차 브리핑", "위험:", "보상:", "직전 약점 · 보정 초점", "복기 패턴", "고위험 지연", "추천 운영", "검증 질문", "근거:"), "care_review_main_menu_mandate_smoke_result.json");
         AddReleaseCandidateCheck(audit, "선택지 미리보기 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_decision_preview_smoke_result.json", "\"completed\": true", "\"previewCount\": 5", "\"everyPreviewMentionsBudget\": true", "\"everyPreviewMentionsRisk\": true", "\"recommendedHighlighted\": true"), "care_review_decision_preview_smoke_result.json");
         AddReleaseCandidateCheck(audit, "버튼/튜토리얼 UI 정리 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_ui_cleanup_smoke_result.json", "\"completed\": true", "\"guideBlocksUnderlyingInput\": true", "\"firstGuideUsesSpotlightMask\": true", "\"primaryRecommendationCount\": 1", "\"buttonRoleHierarchyApplied\": true", "\"generatedUiChromeApplied\": true", "\"reportPrimaryCount\": 1", "\"utilityAccentCount\": 0", "\"generatedTextBoxChromeCount\"", "\"reportDenseTextReadable\": true", "\"paperlogyFontApplied\": true", "\"paperlogyTextFontCoverageApplied\": true", "\"paperlogyTextComponentCount\"", "\"paperlogyTextMismatchCount\": 0", "\"activeFontName\": \"Paperlogy-6SemiBold\""), "care_review_ui_cleanup_smoke_result.json");
-        AddReleaseCandidateCheck(audit, "Paperlogy 폰트 릴리즈 산출물 QA", File.Exists("Assets/Resources/Fonts/Paperlogy-6SemiBold.ttf") && FileContainsAll("Docs/THIRD_PARTY_FONTS.md", "Paperlogy", "Paperlogy-6SemiBold.ttf", "SIL Open Font License") && FileContainsAll(Path.Combine(SteamworksContentPath, "README_KR.txt"), "Paperlogy 폰트 적용", "-careReviewUiCleanupSmokeTest") && FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "UI font: Paperlogy-6SemiBold", "Assets/Resources/Fonts/Paperlogy-6SemiBold.ttf", "paperlogyFontApplied=true", "paperlogyTextFontCoverageApplied=true", "paperlogyTextMismatchCount=0", "Docs/THIRD_PARTY_FONTS.md") && FileContainsAll("Builds/QA/v0.3.0/care_review_ui_cleanup_smoke_result.json", "\"paperlogyFontApplied\": true", "\"paperlogyTextFontCoverageApplied\": true", "\"paperlogyTextMismatchCount\": 0", "\"activeFontName\": \"Paperlogy-6SemiBold\""), "Paperlogy font asset + README_KR.txt + RELEASE_MANIFEST.txt + THIRD_PARTY_FONTS.md + care_review_ui_cleanup_smoke_result.json");
+        AddReleaseCandidateCheck(audit, "Paperlogy 폰트 릴리즈 산출물 QA", File.Exists("Assets/Resources/Fonts/Paperlogy-6SemiBold.ttf") && FileContainsAll("Docs/THIRD_PARTY_FONTS.md", "Paperlogy", "Paperlogy-6SemiBold.ttf", "SIL Open Font License") && FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "UI font: Paperlogy-6SemiBold", "Docs/THIRD_PARTY_FONTS.md") && FileContainsAll("Builds/QA/v0.3.0/care_review_ui_cleanup_smoke_result.json", "\"paperlogyFontApplied\": true", "\"paperlogyTextFontCoverageApplied\": true", "\"paperlogyTextMismatchCount\": 0", "\"activeFontName\": \"Paperlogy-6SemiBold\""), "Paperlogy font asset + RELEASE_MANIFEST.txt + THIRD_PARTY_FONTS.md + care_review_ui_cleanup_smoke_result.json");
         AddReleaseCandidateCheck(audit, "Steamworks upload manifest Paperlogy 폰트/라이선스 증거", SteamworksUploadManifestPaperlogyFontEvidenceReady(), "STEAMWORKS_UPLOAD_MANIFEST.txt Paperlogy font evidence");
         AddReleaseCandidateCheck(audit, "Steamworks upload manifest README Paperlogy 최상단 요약 역참조", SteamworksUploadManifestReadmeTopPaperlogyBackReferenceReady(), "STEAMWORKS_UPLOAD_MANIFEST.txt README_STEAMWORKS_KR.txt Paperlogy top summary back-reference");
         AddReleaseCandidateCheck(audit, "Steamworks upload manifest README smoke zip SHA 최상단 요약 역참조", SteamworksUploadManifestReadmeTopSmokeZipShaBackReferenceReady(), "STEAMWORKS_UPLOAD_MANIFEST.txt README_STEAMWORKS_KR.txt smoke zip SHA top summary back-reference");
@@ -4286,18 +4519,18 @@ public static class CareReviewProjectBuilder
         AddReleaseCandidateCheck(audit, "심사 화면 운영 초점 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_operational_focus_smoke_result.json", "\"completed\": true", "\"regulationMentionsFocus\": true", "\"snapshotMentionsCaseFlag\": true", "\"nextDayFocusStillVisible\": true"), "care_review_operational_focus_smoke_result.json");
         AddReleaseCandidateCheck(audit, "심사 화면 일일 진행 추적 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_daily_progress_smoke_result.json", "\"completed\": true", "\"initialProgressVisible\": true", "\"afterDecisionProgressUpdated\": true", "\"nextCaseProgressPersists\": true", "\"nextDayProgressReset\": true"), "care_review_daily_progress_smoke_result.json");
         AddReleaseCandidateCheck(audit, "플레이테스트 패킷 QA", FileContainsAll("Builds/QA/v0.3.0/playtest_packet/care_review_playtest_packet_smoke_result.json", "\"completed\": true", "\"summaryHasCampaignChallenge\": true", "\"summaryHasCampaignGrade\": true", "\"summaryHasRationaleAnalytics\": true", "\"summaryHasDecisionAuditBeforeAfterGraph\": true", "\"summaryHasDecisionAuditBeforeAfterMetrics\": true", "\"summaryHasDecisionAuditCoaching\": true", "\"feedbackMentionsDecisionAuditBeforeAfterGraph\": true", "\"feedbackMentionsDecisionAuditCoaching\": true", "\"dashboardMentionsDecisionAuditBeforeAfterGraph\": true", "\"dashboardMentionsDecisionAuditCoaching\": true"), "playtest packet smoke result");
-        AddReleaseCandidateCheck(audit, "플레이테스트 패킷 결정 감사 코칭 export", FileContainsAll("Builds/QA/v0.3.0/playtest_packet/care_review_playtest_summary.json", "\"decisionAuditCoaching\"", "\"recommendedMandateName\"", "\"executionRule\"", "\"verificationQuestion\"") && FileContainsAll("Builds/QA/v0.3.0/playtest_packet/care_review_playtest_feedback.md", "결정 감사 다음 회차 코칭", "추천 운영", "실행 규칙", "검증 질문") && FileContainsAll("Builds/QA/v0.3.0/playtest_packet/care_review_analytics_dashboard.html", "다음 회차 코칭", "추천 운영", "실행 규칙", "검증 질문"), "playtest packet summary/feedback/dashboard decision audit coaching export");
+        AddReleaseCandidateCheck(audit, "플레이테스트 패킷 판단 복기 export", FileContainsAll("Builds/QA/v0.3.0/playtest_packet/care_review_playtest_summary.json", "\"decisionAuditCoaching\"", "\"recommendedMandateName\"", "\"executionRule\"", "\"verificationQuestion\"") && FileContainsAll("Builds/QA/v0.3.0/playtest_packet/care_review_playtest_feedback.md", "판단 복기 다음 회차", "추천 운영", "실행 규칙", "검증 질문") && FileContainsAll("Builds/QA/v0.3.0/playtest_packet/care_review_analytics_dashboard.html", "다음 회차 복기", "추천 운영", "실행 규칙", "검증 질문"), "playtest packet summary/feedback/dashboard decision audit coaching export");
         AddReleaseCandidateCheck(audit, "인게임 플레이테스트 설문 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_playtest_survey_smoke_result.json", "\"completed\": true", "\"jsonHasRatings\": true", "\"jsonHasReplayRewardValueRating\": true", "\"markdownMentionsReplayRewardValue\": true", "\"filesHaveNoLocalAbsolutePath\": true"), "care_review_playtest_survey_smoke_result.json");
         AddReleaseCandidateCheck(audit, "플레이테스트 집계 QA", FileContainsAll("Builds/QA/v0.3.0/playtest_packet/care_review_playtest_aggregate_smoke_result.json", "\"completed\": true", "\"csvHasChallengeColumns\": true", "\"csvHasRationaleColumns\": true", "\"csvHasSurveyColumns\": true", "\"csvHasScreenshotAbLoopQuestionColumns\": true", "\"csvHasTriagePriorityBadgeColumns\": true", "\"csvHasRewardLoopPriorityBadge\": true", "\"csvHasMainMenuPriorityBadge\": true", "\"csvHasCopyAlignmentPriorityBadge\": true", "\"jsonHasSurveyAverages\": true", "\"markdownMentionsSurvey\": true", "\"jsonHasCommercialChecklistAggregateSummary\": true", "\"markdownMentionsCommercialChecklistSummary\": true", "\"csvHasAppealRemedyGraphTriageColumns\": true", "\"jsonHasAppealRemedyGraphTriage\": true", "\"markdownMentionsAppealRemedyGraphTriage\": true", "\"csvHasDecisionAuditCoachingColumns\": true", "\"jsonHasDecisionAuditCoachingPatternDistribution\": true", "\"markdownMentionsDecisionAuditCoachingPatternDistribution\": true"), "playtest aggregate smoke result");
         AddReleaseCandidateCheck(audit, "플레이테스트 회수 준비 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_playtest_readiness_smoke_result.json", "\"completed\": true", "\"afterReadyForCollection\": true", "\"hasMinimumDecisionCount\": true", "\"hasSurveyFiles\": true", "\"hasPlaytestPacketFiles\": true", "\"hasDiagnosticFiles\": true", "\"filesHaveNoLocalAbsolutePath\": true", "\"commercialChecklistMentionsSurfaceActions\": true", "\"commercialChecklistReadable\": true"), "care_review_playtest_readiness_smoke_result.json");
         AddReleaseCandidateCheck(audit, "환경 진단 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_system_diagnostic_smoke_result.json", "\"completed\": true", "\"filesHaveNoLocalAbsolutePath\": true"), "care_review_system_diagnostic_smoke_result.json");
         AddReleaseCandidateCheck(audit, "런타임 이슈 로그 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_runtime_issue_smoke_result.json", "\"completed\": true", "\"hasJson\": true", "\"hasMarkdown\": true", "\"jsonHasIssue\": true", "\"messageSanitized\": true", "\"stackSanitized\": true", "\"supportBundleHasRuntimeIssues\": true", "\"filesHaveNoLocalAbsolutePath\": true"), "care_review_runtime_issue_smoke_result.json");
         AddReleaseCandidateCheck(audit, "컨트롤러 단축 입력 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_controller_shortcut_smoke_result.json", "\"completed\": true", "\"settingsMentionsController\": true", "\"guideMentionsDecisionSet\": true", "\"submitPathCreatesDecision\": true", "\"nextPathAvailable\": true", "\"filesHaveNoLocalAbsolutePath\": true"), "care_review_controller_shortcut_smoke_result.json");
-        AddReleaseCandidateCheck(audit, "컨트롤러 포커스 이동 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_focus_navigation_smoke_result.json", "\"completed\": true", "\"settingsHasSelection\": true", "\"settingsSupportBundleButtonFocusable\": true", "\"settingsSupportBundleSelectionIsButton\": true", "\"menuHasSelection\": true", "\"menuGrowthFollowUpButtonFocusable\": true", "\"menuGrowthFollowUpSelectionIsActionButton\": true", "\"menuAppealRemedyFollowUpButtonFocusable\": true", "\"menuAppealRemedyFollowUpSelectionIsActionButton\": true", "\"menuAppealRemedyTriageCandidateButtonFocusable\": true", "\"menuAppealRemedyTriageCandidateSelectionIsButton\": true", "\"menuAchievementButtonFocusable\": true", "\"menuAchievementSelectionIsButton\": true", "\"menuAchievementButtonOpensAchievements\": true", "\"tutorialHasSelection\": true", "\"tutorialHasFocusHighlight\": true", "\"tutorialCaseArchiveButtonFocusable\": true", "\"tutorialCaseArchiveSelectionIsButton\": true", "\"reviewHasSelection\": true", "\"overlayHasSelection\": true", "\"followUpInboxHasSelection\": true", "\"followUpInboxHasFocusHighlight\": true", "\"followUpInboxActionButtonsFocusable\": true", "\"followUpInboxSelectionIsActionButton\": true", "\"caseArchiveHasSelection\": true", "\"caseArchiveHasFocusHighlight\": true", "\"caseArchiveNavigationButtonsFocusable\": true", "\"caseArchiveSelectionIsNavigationButton\": true", "\"caseArchiveTriageCandidateButtonsFocusable\": true", "\"caseArchiveTriageCandidateSelectionIsButton\": true", "\"caseArchiveCareerRecordReturnButtonFocusable\": true", "\"caseArchiveCareerRecordReturnSelectionIsButton\": true", "\"caseArchiveCareerRecordReturnOpensCareerRecord\": true", "\"reportHasSelection\": true", "\"reportHasFocusHighlight\": true", "\"reportAppealRemedyCaseButtonFocusable\": true", "\"reportAppealRemedyCaseSelectionIsButton\": true", "\"playtestSurveyHasSelection\": true", "\"playtestSurveyHasFocusHighlight\": true", "\"playtestSurveyRatingButtonsFocusable\": true", "\"playtestSurveyFlagButtonsFocusable\": true", "\"playtestSurveyActionButtonsFocusable\": true", "\"playtestSurveySelectionIsActionButton\": true", "\"achievementHasSelection\": true", "\"achievementHasFocusHighlight\": true", "\"achievementTierRecordButtonsFocusable\": true", "\"achievementTierRecordSelectionIsTierButton\": true", "\"achievementGrowthRecordButtonsFocusable\": true", "\"achievementGrowthRecordSelectionIsGrowthButton\": true", "\"achievementAppealRemedyRecordButtonFocusable\": true", "\"achievementAppealRemedyRecordSelectionIsButton\": true", "\"achievementDecisionPracticeRecordButtonFocusable\": true", "\"achievementDecisionPracticeRecordSelectionIsButton\": true", "\"achievementDecisionPracticeTierRecordButtonsFocusable\": true", "\"achievementDecisionPracticeTierRecordSelectionIsButton\": true", "\"achievementNextGoalButtonFocusable\": true", "\"achievementNextGoalSelectionIsActionButton\": true", "\"achievementNextGoalButtonLabelIsAppealTriage\": true", "\"achievementAppealRemedyTriageCandidateButtonFocusable\": true", "\"achievementAppealRemedyTriageCandidateSelectionIsButton\": true", "\"achievementTopActionNavigationMatchesRewardLoop\": true", "\"achievementRecordButtonFocusOrderMatchesRewardLoop\": true", "\"achievementTierButtonFocusOrderMatchesRewardLoop\": true", "\"achievementRecordLinkHintMentionsCoachingFirstUse\": true", "\"achievementCoachingRecordButtonOpensCareerRecord\": true", "\"caseArchiveDecisionAuditCoachingButtonFocusable\": true", "\"caseArchiveDecisionAuditCoachingSelectionIsButton\": true", "\"caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase\": true", "\"caseArchiveDecisionAuditCoachingReturnButtonFocusable\": true", "\"caseArchiveDecisionAuditCoachingReturnSelectionIsButton\": true", "\"caseArchiveDecisionAuditCoachingReturnOpensCareerRecord\": true", "\"endingGalleryHasSelection\": true", "\"endingGalleryHasFocusHighlight\": true", "\"endingGalleryRecordButtonsFocusable\": true", "\"endingGalleryRecordSelectionIsRecordButton\": true", "\"careerRecordHasSelection\": true", "\"careerRecordHasFocusHighlight\": true", "\"careerRecordMandateFilterButtonsFocusable\": true", "\"careerRecordMandateFilterButtonFocusCount\": 9", "\"careerRecordMandateFilterSelectionIsFilterButton\": true", "\"careerRecordAppealRemedyCaseButtonFocusable\": true", "\"careerRecordAppealRemedyCaseSelectionIsButton\": true", "\"careerRecordNextObjectiveButtonFocusable\": true", "\"careerRecordNextObjectiveSelectionIsActionButton\": true", "\"selectionStaysInsideActiveRoot\": true", "\"filesHaveNoLocalAbsolutePath\": true"), "care_review_focus_navigation_smoke_result.json");
+        AddReleaseCandidateCheck(audit, "컨트롤러 포커스 이동 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_focus_navigation_smoke_result.json", "\"completed\": true", "\"settingsHasSelection\": true", "\"settingsReleaseHiddenToolsNotFocusable\": true", "\"menuHasSelection\": true", "\"menuGrowthFollowUpButtonFocusable\": true", "\"menuGrowthFollowUpSelectionIsActionButton\": true", "\"menuAppealRemedyFollowUpButtonFocusable\": true", "\"menuAppealRemedyFollowUpSelectionIsActionButton\": true", "\"menuAppealRemedyTriageCandidateButtonFocusable\": true", "\"menuAppealRemedyTriageCandidateSelectionIsButton\": true", "\"menuAchievementButtonFocusable\": true", "\"menuAchievementSelectionIsButton\": true", "\"menuAchievementButtonOpensAchievements\": true", "\"tutorialHasSelection\": true", "\"tutorialHasFocusHighlight\": true", "\"tutorialCaseArchiveButtonFocusable\": true", "\"tutorialCaseArchiveSelectionIsButton\": true", "\"reviewHasSelection\": true", "\"overlayHasSelection\": true", "\"followUpInboxHasSelection\": true", "\"followUpInboxHasFocusHighlight\": true", "\"followUpInboxActionButtonsFocusable\": true", "\"followUpInboxSelectionIsActionButton\": true", "\"caseArchiveHasSelection\": true", "\"caseArchiveHasFocusHighlight\": true", "\"caseArchiveNavigationButtonsFocusable\": true", "\"caseArchiveSelectionIsNavigationButton\": true", "\"caseArchiveTriageCandidateButtonsFocusable\": true", "\"caseArchiveTriageCandidateSelectionIsButton\": true", "\"caseArchiveCareerRecordReturnButtonFocusable\": true", "\"caseArchiveCareerRecordReturnSelectionIsButton\": true", "\"caseArchiveCareerRecordReturnOpensCareerRecord\": true", "\"reportHasSelection\": true", "\"reportHasFocusHighlight\": true", "\"reportAppealRemedyCaseButtonFocusable\": true", "\"reportAppealRemedyCaseSelectionIsButton\": true", "\"playtestSurveyHasSelection\": true", "\"playtestSurveyHasFocusHighlight\": true", "\"playtestSurveyRatingButtonsFocusable\": true", "\"playtestSurveyFlagButtonsFocusable\": true", "\"playtestSurveyActionButtonsFocusable\": true", "\"playtestSurveySelectionIsActionButton\": true", "\"achievementHasSelection\": true", "\"achievementHasFocusHighlight\": true", "\"achievementTierRecordButtonsFocusable\": true", "\"achievementTierRecordSelectionIsTierButton\": true", "\"achievementGrowthRecordButtonsFocusable\": true", "\"achievementGrowthRecordSelectionIsGrowthButton\": true", "\"achievementAppealRemedyRecordButtonFocusable\": true", "\"achievementAppealRemedyRecordSelectionIsButton\": true", "\"achievementDecisionPracticeRecordButtonFocusable\": true", "\"achievementDecisionPracticeRecordSelectionIsButton\": true", "\"achievementDecisionPracticeTierRecordButtonsFocusable\": true", "\"achievementDecisionPracticeTierRecordSelectionIsButton\": true", "\"achievementNextGoalButtonFocusable\": true", "\"achievementNextGoalSelectionIsActionButton\": true", "\"achievementNextGoalButtonLabelIsAppealTriage\": true", "\"achievementAppealRemedyTriageCandidateButtonFocusable\": true", "\"achievementAppealRemedyTriageCandidateSelectionIsButton\": true", "\"achievementTopActionNavigationMatchesRewardLoop\": true", "\"achievementRecordButtonFocusOrderMatchesRewardLoop\": true", "\"achievementTierButtonFocusOrderMatchesRewardLoop\": true", "\"achievementRecordLinkHintMentionsCoachingFirstUse\": true", "\"achievementCoachingRecordButtonOpensCareerRecord\": true", "\"caseArchiveDecisionAuditCoachingButtonFocusable\": true", "\"caseArchiveDecisionAuditCoachingSelectionIsButton\": true", "\"caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase\": true", "\"caseArchiveDecisionAuditCoachingReturnButtonFocusable\": true", "\"caseArchiveDecisionAuditCoachingReturnSelectionIsButton\": true", "\"caseArchiveDecisionAuditCoachingReturnOpensCareerRecord\": true", "\"endingGalleryHasSelection\": true", "\"endingGalleryHasFocusHighlight\": true", "\"endingGalleryRecordButtonsFocusable\": true", "\"endingGalleryRecordSelectionIsRecordButton\": true", "\"careerRecordHasSelection\": true", "\"careerRecordHasFocusHighlight\": true", "\"careerRecordMandateFilterButtonsFocusable\": true", "\"careerRecordMandateFilterButtonFocusCount\": 9", "\"careerRecordMandateFilterSelectionIsFilterButton\": true", "\"careerRecordAppealRemedyCaseButtonFocusable\": true", "\"careerRecordAppealRemedyCaseSelectionIsButton\": true", "\"careerRecordNextObjectiveButtonFocusable\": true", "\"careerRecordNextObjectiveSelectionIsActionButton\": true", "\"selectionStaysInsideActiveRoot\": true", "\"filesHaveNoLocalAbsolutePath\": true"), "care_review_focus_navigation_smoke_result.json");
         AddReleaseCandidateCheck(audit, "지원 번들 QA", FileContainsAll("Builds/QA/v0.3.0/support_bundle/care_review_support_bundle_smoke_result.json", "\"completed\": true", "\"hasPlayLog\": true", "\"hasSummary\": true", "\"hasDashboard\": true", "\"hasDiagnostic\": true", "\"hasSurvey\": true", "\"hasRuntimeIssues\": true", "\"manifestHasTriageActionsReference\": true", "\"manifestHasExternalHandoffHashReference\": true", "\"filesHaveNoLocalAbsolutePath\": true") && Directory.Exists("Builds/QA/v0.3.0/support_bundle"), "support bundle smoke result and copied bundle");
         AddReleaseCandidateCheck(audit, "상용 콘텐츠 감사 QA", FileContainsAll("Builds/QA/v0.3.0/content_audit/care_review_content_audit_smoke_result.json", "\"completed\": true", "\"caseCount\": 40", "\"highestDay\": 5", "\"daysWithEightCases\": 5", "\"familyTypeCount\": 40", "\"recommendedDecisionTypeCount\": 5", "\"passesCommercialContentGate\": true") && FileContainsAll("Builds/QA/v0.3.0/content_audit/care_review_content_audit.md", "상용 콘텐츠 감사", "일차별 구성", "권장 판단 분포"), "content audit smoke result and readable reports");
         AddReleaseCandidateCheck(audit, "데이터 소스 무결성 QA", FileContainsAll("Builds/QA/v0.3.0/care_review_data_source_smoke_result.json", "\"completed\": true", "\"caseFileCount\": 5", "\"expectedCaseFileCount\": 5", "\"externalCaseCount\": 40", "\"runtimeCaseCount\": 40", "\"dayCount\": 5", "\"daysWithEightCases\": 5", "\"personaCount\": 10", "\"casesLoadedFromExternalJson\": true", "\"embeddedFallbackUsed\": false", "\"passesDataSourceGate\": true", "\"filesHaveNoLocalAbsolutePath\": true") && FileContainsAll("Builds/QA/v0.3.0/care_review_data_source_audit.md", "데이터 소스 무결성 감사", "cases_day1", "agent_personas"), "care_review_data_source_*");
-        AddReleaseCandidateCheck(audit, "저해상도 UI QA", FileContainsAll("Builds/QA/v0.3.0/low_resolution_ui/care_review_low_resolution_ui_smoke_result.json", "\"completed\": true", "\"screenshotCount\": 42", "\"invalidScreenshotCount\": 0", "\"buttonTextOverflowCount\": 0", "\"offscreenButtonCount\": 0", "\"screen\": \"first_run_notice\"", "\"screen\": \"first_case_guide\"", "\"screen\": \"playtest_survey\"", "\"screen\": \"decision_audit\"", "\"screen\": \"career_record\"", "\"screen\": \"achievements\"", "\"playtestSurveyGuideMentionsKeyboard\": true", "\"playtestSurveyGuideMentionsController\": true", "\"playtestSurveyCommercialChecklistReadable\": true", "\"mainMenuAchievementBadgeReadable\": true", "\"mainMenuAchievementHintReadable\": true", "\"mainMenuBriefingWeaknessFocusReadable\": true", "\"careerRecordActionHintReadable\": true", "\"achievementRecordLinkHintReadable\": true", "\"achievementRecordLinkHintMentionsMenuEntry\": true", "\"achievementRecordLinkHintMentionsCoachingFirstUse\": true", "\"lowResolutionStoreCandidateCopyAlignmentReadable\": true"), "low_resolution_ui smoke result");
+        AddReleaseCandidateCheck(audit, "저해상도 UI QA", FileContainsAll("Builds/QA/v0.3.0/low_resolution_ui/care_review_low_resolution_ui_smoke_result.json", "\"completed\": true", "\"screenshotCount\": 39", "\"invalidScreenshotCount\": 0", "\"buttonTextOverflowCount\": 0", "\"offscreenButtonCount\": 0", "\"screen\": \"first_run_notice\"", "\"screen\": \"first_case_guide\"", "\"screen\": \"decision_audit\"", "\"screen\": \"career_record\"", "\"screen\": \"achievements\"", "\"mainMenuAchievementBadgeReadable\": true", "\"mainMenuAchievementHintReadable\": true", "\"mainMenuBriefingWeaknessFocusReadable\": true", "\"careerRecordActionHintReadable\": true", "\"achievementRecordLinkHintReadable\": true", "\"achievementRecordLinkHintMentionsMenuEntry\": true", "\"achievementRecordLinkHintMentionsCoachingFirstUse\": true", "\"lowResolutionReleaseCopyAlignmentReadable\": true"), "low_resolution_ui smoke result");
 
         string playtestAuditPath = Path.Combine(PlaytestCollectionAuditPath, "care_review_playtest_collection_audit_summary.json");
         string playtestAuditJson = SafeReadAllText(playtestAuditPath);
@@ -4307,12 +4540,12 @@ public static class CareReviewProjectBuilder
         AddReleaseCandidateCheck(audit, "10달러 상용화 트리아지 산출물", FileContainsAll(Path.Combine(PlaytestCollectionAuditPath, "care_review_playtest_commercial_triage_smoke_result.json"), "\"completed\": true", "\"hasTriageOutputs\": true", "\"hasReplayRewardValuePriority\": true", "\"hasReplayRewardQuestionBreakdown\": true", "\"hasPriorityBadgeOwnerScreenActions\": true", "\"hasSurfaceActionChecklist\": true", "\"hasSurfaceActionChecklistCsv\": true", "\"hasAppealTriageOwnerScreenEvidence\": true", "\"hasReadinessChecklistEvidence\": true", "\"markdownHasOwnerScreenEvidence\": true", "\"htmlHasOwnerScreenEvidence\": true", "\"hasHandoffShaColumn\": true", "\"hasHandoffShaInActionCsv\": true", "\"hasReadinessStatus\": true") && FileContainsAll(Path.Combine(PlaytestCollectionAuditPath, "care_review_playtest_commercial_triage.md"), "10달러 상용화 플레이테스트 트리아지", "조치 우선순위", "담당 화면별 체크리스트", "담당 화면 증거", "commercialChecklistMentionsSurfaceActions=true", "commercialChecklistReadable=true", "menuMentionsAchievementBadge=true", "mainMenuAchievementBadgeReadable=true", "appealTriageQueueReturnOpensCareerRecord=true", "achievementCardMentionsAppealTriageResult=true", "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "반복 보상/장기 기록 가치감", "반복 가치 세부: 성과 기록 보상", "반복 가치 세부: 캠페인 기록 다음 목표", "반복 가치 세부: 상점 후보 루프 이해", "우선순위 배지: 상점 후보 루프 이해", "triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB", "우선순위 배지: 메인 메뉴 기준 화면", "우선순위 배지: 성과-캠페인 문구 일치", "지원 번들 manifest handoff SHA256") && FileContainsAll(Path.Combine(PlaytestCollectionAuditPath, "care_review_playtest_commercial_triage.html"), "담당 화면 증거", "commercialChecklistMentionsSurfaceActions=true", "commercialChecklistReadable=true", "menuMentionsAchievementBadge=true", "mainMenuAchievementBadgeReadable=true", "appealTriageQueueReturnOpensCareerRecord=true", "achievementCardMentionsAppealTriageResult=true", "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "반복 가치 세부: 성과 기록 보상", "반복 가치 세부: 캠페인 기록 다음 목표", "반복 가치 세부: 상점 후보 루프 이해", "우선순위 배지: 상점 후보 루프 이해", "triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB", "우선순위 배지: 메인 메뉴 기준 화면", "우선순위 배지: 성과-캠페인 문구 일치") && FileContainsAll(Path.Combine(PlaytestCollectionAuditPath, "care_review_playtest_commercial_triage_actions.csv"), "owner_screen", "owner_screen_evidence", "support_bundle_manifest_handoff_zip_sha256", "commercialChecklistMentionsSurfaceActions=true", "commercialChecklistReadable=true", "menuMentionsAchievementBadge=true", "mainMenuAchievementBadgeReadable=true", "appealTriageQueueReturnOpensCareerRecord=true", "achievementCardMentionsAppealTriageResult=true", "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "반복 보상/장기 기록 가치감", "성과 기록 / 캠페인 기록 / 상점 페이지", "반복 가치 세부: 성과 기록 보상", "반복 가치 세부: 캠페인 기록 다음 목표", "반복 가치 세부: 상점 후보 루프 이해", "우선순위 배지: 상점 후보 루프 이해", "triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB", "우선순위 배지: 메인 메뉴 기준 화면", "triage_priority_badge_main_menu_baseline/P1_BASELINE_GUARD", "우선순위 배지: 성과-캠페인 문구 일치", "triage_priority_badge_copy_alignment/P1_COPY_ALIGNMENT_COLLECT"), "playtest commercial triage outputs");
         if (!playtestAuditJson.Contains("\"readyForBalanceTuning\": true"))
         {
-            AddExternalAction(audit, "실제 사람 플레이테스트 5명 이상 완전 회수 후 밸런스 조정");
+            AddOptionalExternalValidation(audit, "실제 사람 플레이테스트 5명 이상 완전 회수 후 밸런스 조정");
         }
 
         if (!playtestAuditJson.Contains("\"readyForCommercialTuning\": true"))
         {
-            AddExternalAction(audit, "실제 사람 플레이테스트 10명 이상 완전 회수 후 판매 후보 밸런스 판단");
+            AddOptionalExternalValidation(audit, "실제 사람 플레이테스트 10명 이상 완전 회수 후 판매 후보 밸런스 판단");
         }
 
         ExternalReleaseGateAudit externalGateAudit = BuildExternalReleaseGateAudit();
@@ -4346,7 +4579,7 @@ public static class CareReviewProjectBuilder
                 "\"hasScreenshotAbLoopResponseTrackerAuditCrossReference\": true",
                 "\"hasStorePresenceCompletionTodoEvidenceSummary\": true",
                 "\"hasStorePresenceTemplateCompletionTodoSummary\": true",
-                "\"storePresencePreflightTopCrossReference\": \"STEAM_SUBMISSION_PREFLIGHT_KO.md; Store Presence 외부 액션 연결; externalActionCount=10\"",
+                "\"storePresencePreflightTopCrossReference\": \"STEAM_SUBMISSION_PREFLIGHT_KO.md; Store Presence 외부 액션 연결; externalActionCount=8\"",
                 "\"storePresenceAuditNoteCrossReference\": \"RELEASE_CANDIDATE_AUDIT_NOTE_KO.md; Store Presence 실제 증거 초안 상태; storePresenceDraftStatusSummary; screenshot_ab_loop_response_count=0; screenshot_ab_loop_not_collected_count=221; screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses\"",
                 "\"hasTriageOwnerScreenEvidenceMarkdownSummary\": true",
                 "\"hasTriageOwnerScreenEvidenceCsvSummary\": true",
@@ -4359,7 +4592,7 @@ public static class CareReviewProjectBuilder
         AddReleaseCandidateCheck(audit, "외부 게이트 감사 CSV/JSON Store Presence Draft row 필드", ExternalGateAuditCsvMentionsStorePresenceDraftStatus() && ExternalGateAuditJsonMentionsStorePresenceDraftStatus(), "care_review_external_gate_audit.csv + care_review_external_gate_audit_summary.json");
         AddReleaseCandidateCheck(audit, "외부 게이트 tracker/감사 CSV JSON Store Presence Draft 상호참조", ExternalGateTrackerAndAuditStorePresenceDraftCrossReferenceReady(), "EXTERNAL_RELEASE_GATE_TRACKER.csv + care_review_external_gate_audit.csv/json");
         AddReleaseCandidateCheck(audit, "외부 게이트 tracker Store Presence evidence_hint release candidate JSON memberSummary 확인", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "STORE_PRESENCE", "evidence_hint", "release_candidate_json=care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "STORE_PRESENCE", "evidence_hint", "release_candidate_json=care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.csv"), "STORE_PRESENCE", "release_candidate_json=care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_summary.json"), "\"gateId\": \"STORE_PRESENCE\"", "release_candidate_json=care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "EXTERNAL_RELEASE_GATE_TRACKER.csv + care_review_external_gate_audit.csv/json");
-        AddReleaseCandidateCheck(audit, "외부 게이트 tracker Store Presence 자체점검 TODO evidence_hint", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "STORE_PRESENCE", "evidence_hint", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "STORE_PRESENCE", "evidence_hint", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_summary.json"), "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수"), "EXTERNAL_RELEASE_GATE_TRACKER.csv + care_review_external_gate_audit_summary.json");
+        AddReleaseCandidateCheck(audit, "외부 게이트 tracker Store Presence 자체점검 TODO evidence_hint", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "STORE_PRESENCE", "evidence_hint", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "STORE_PRESENCE", "evidence_hint", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_summary.json"), "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수"), "EXTERNAL_RELEASE_GATE_TRACKER.csv + care_review_external_gate_audit_summary.json");
         AddReleaseCandidateCheck(audit, "외부 게이트 tracker Store Presence 우선순위 배지 회수 후 입력란 evidence_hint", ExternalGateTrackerStorePresenceAfterCollectionInputHintReady(), "EXTERNAL_RELEASE_GATE_TRACKER.csv after_collection_inputs evidence_hint");
         AddReleaseCandidateCheck(audit, "외부 게이트 감사 Store Presence after_collection_inputs 별도 필드", ExternalGateAuditMarkdownMentionsStorePresenceAfterCollectionInputSummary() && ExternalGateAuditCsvMentionsStorePresenceAfterCollectionInputSummary() && ExternalGateAuditJsonMentionsStorePresenceAfterCollectionInputSummary(), "care_review_external_gate_audit csv/json/md store_presence_after_collection_input_summary");
         AddReleaseCandidateCheck(audit, "외부 게이트 감사 성과-캠페인 루프 A/B 응답 회수 힌트 상호참조", ExternalGateAuditScreenshotAbLoopResponseTrackerCrossReferenceReady(), "EXTERNAL_RELEASE_GATE_TRACKER.csv + care_review_external_gate_audit csv/json/md");
@@ -4377,30 +4610,30 @@ public static class CareReviewProjectBuilder
         AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 증거 예시 노트", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "status: example_not_evidence", "STORE_PRESENCE.md", "통과 증거가 아니다", "Store Presence/A-B/보정 후보 증거 작성 순서", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "selected_upload_set", "promoted_candidate", "screenshot_ab_loop_response_count: 0", "screenshot_ab_loop_not_collected_count: 221", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses", "Steamworks URL/화면 캡처"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md");
         AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 실제 증거 초안", ExternalGateStorePresenceDraftEvidenceNoteReady(), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md");
         AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 실제 증거 초안 우선순위 배지 회수 후 입력란", StorePresenceEvidenceDraftAfterCollectionStatusReady(), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md + README_KO.md + STORE_PRESENCE_EXAMPLE.md");
-        AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 실제 증거 초안 자체점검 TODO", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "작성 완료 전 자체점검 TODO", "- [ ] Steamworks URL/화면 캡처", "- [ ] SHA 확인", "- [ ] 공식/승격 후보", "- [ ] 14번 코칭 후보", "- [ ] 브리핑 회고 후보", "- [ ] 토스트 UI 캡처", "- [ ] A/B 응답 회수", "decision_audit_coaching_candidate_file", "briefing_retrospective_candidate_file", "screenshot_ab_loop_collection_status") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "작성 완료 전 자체점검 예시", "- [x] Steamworks URL/화면 캡처", "- [x] SHA 확인", "- [x] 공식/승격 후보", "- [x] 14번 코칭 후보", "- [x] 브리핑 회고 후보", "- [x] 토스트 UI 캡처", "- [x] A/B 응답 회수"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md + STORE_PRESENCE_EXAMPLE.md");
-        AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 초안 통과 전 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "통과 전 확인", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/README_KO.md", "STORE_PRESENCE_QA_CARD_KO.md") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md pre-pass completion TODO summary");
-        AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 예시 통과 전 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "작성 순서", "자체점검 TODO 요약 예시", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "STORE_PRESENCE.md", "통과 전 확인", "Evidence/README_KO.md") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "통과 전 확인", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md completion TODO example summary");
-        AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 템플릿 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "_templates", "STORE_PRESENCE.md"), "후보 스크린샷 A/B 판정", "자체점검 TODO 요약 템플릿", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/STORE_PRESENCE.md", "통과 전 확인", "Evidence/STORE_PRESENCE_EXAMPLE.md", "자체점검 TODO 요약 예시") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "자체점검 TODO 요약 예시", "completion_todo=작성 완료 전 자체점검 TODO"), "Builds/Handoff/v0.3.0/Evidence/_templates/STORE_PRESENCE.md completion TODO template summary");
+        AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 실제 증거 초안 자체점검 TODO", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "작성 완료 전 자체점검 TODO", "- [ ] Steamworks URL/화면 캡처", "- [ ] SHA 확인", "- [ ] 공식/승격 후보", "- [ ] 14번 복기 후보", "- [ ] 브리핑 회고 후보", "- [ ] 토스트 UI 캡처", "- [ ] A/B 응답 회수", "decision_audit_coaching_candidate_file", "briefing_retrospective_candidate_file", "screenshot_ab_loop_collection_status") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "작성 완료 전 자체점검 예시", "- [x] Steamworks URL/화면 캡처", "- [x] SHA 확인", "- [x] 공식/승격 후보", "- [x] 14번 복기 후보", "- [x] 브리핑 회고 후보", "- [x] 토스트 UI 캡처", "- [x] A/B 응답 회수"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md + STORE_PRESENCE_EXAMPLE.md");
+        AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 초안 통과 전 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "통과 전 확인", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/README_KO.md", "STORE_PRESENCE_QA_CARD_KO.md") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md pre-pass completion TODO summary");
+        AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 예시 통과 전 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "작성 순서", "자체점검 TODO 요약 예시", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "STORE_PRESENCE.md", "통과 전 확인", "Evidence/README_KO.md") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "통과 전 확인", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md completion TODO example summary");
+        AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 템플릿 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "_templates", "STORE_PRESENCE.md"), "후보 스크린샷 A/B 판정", "자체점검 TODO 요약 템플릿", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/STORE_PRESENCE.md", "통과 전 확인", "Evidence/STORE_PRESENCE_EXAMPLE.md", "자체점검 TODO 요약 예시") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "자체점검 TODO 요약 예시", "completion_todo=작성 완료 전 자체점검 TODO"), "Builds/Handoff/v0.3.0/Evidence/_templates/STORE_PRESENCE.md completion TODO template summary");
         AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 실제 증거 초안 release candidate JSON memberSummary 확인", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "통과 전 확인", "release candidate JSON memberSummary 확인", "care_review_release_candidate_audit.json", "storePresenceEvidenceBundle", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md");
         AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 증거 템플릿 A/B 응답 회수 입력란", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "_templates", "STORE_PRESENCE.md"), "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "screenshot_ab_loop_response_count: 0", "screenshot_ab_loop_not_collected_count: 221", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE*.md");
         AddReleaseCandidateCheck(audit, "Store Presence 브리핑 회고 후보 근거 입력란", StorePresenceBriefingRetrospectiveCandidateFieldsReady(), "Evidence/STORE_PRESENCE*.md + STORE_PRESENCE_QA_CARD_KO.md briefing_retrospective_candidate_*");
-        AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 14번 코칭 후보 입력란", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "_templates", "STORE_PRESENCE.md"), "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "14_case_archive_decision_audit_coaching_focus.png", "코칭 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "14_case_archive_decision_audit_coaching_focus.png", "코칭 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "14_case_archive_decision_audit_coaching_focus.png", "코칭 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "결정 감사 코칭 후보 입력란", "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_candidate_round_trip"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE*.md + Evidence/README_KO.md");
-        AddReleaseCandidateCheck(audit, "Store Presence 14번 결정 감사 코칭 HUD 근거", StorePresenceDecisionAuditCoachingHudFieldsReady(), "Evidence/STORE_PRESENCE*.md + STORE_PRESENCE_QA_CARD_KO.md decision_audit_coaching_hud_*");
+        AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence 14번 복기 후보 입력란", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "_templates", "STORE_PRESENCE.md"), "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "14_case_archive_decision_audit_coaching_focus.png", "복기 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "14_case_archive_decision_audit_coaching_focus.png", "복기 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "14_case_archive_decision_audit_coaching_focus.png", "복기 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "판단 복기 후보 입력란", "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_candidate_round_trip"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE*.md + Evidence/README_KO.md");
+        AddReleaseCandidateCheck(audit, "Store Presence 14번 판단 복기 HUD 근거", StorePresenceDecisionAuditCoachingHudFieldsReady(), "Evidence/STORE_PRESENCE*.md + STORE_PRESENCE_QA_CARD_KO.md decision_audit_coaching_hud_*");
         AddReleaseCandidateCheck(audit, "외부 게이트 Evidence README Store Presence A/B 응답 회수 입력란 안내", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "Store Presence 증거 작성", "A/B 응답 회수 확인 단계", "STORE_PRESENCE_QA_CARD_KO.md", "A/B 응답 회수 수치", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md", "screenshot_ab_loop_*", "STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status"), "Builds/Handoff/v0.3.0/Evidence/README_KO.md");
-        AddReleaseCandidateCheck(audit, "외부 게이트 Evidence README Store Presence 작성 완료 전 자체점검", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "STORE_PRESENCE.md 작성 완료 전 자체점검", "Steamworks URL/화면 캡처", "SHA 확인", "공식/승격 후보", "14번 코칭 후보", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "브리핑 회고 후보", "briefing_retrospective_candidate_file", "briefing_retrospective_candidate_terms", "briefing_retrospective_candidate_smoke", "토스트 UI 캡처", "A/B 응답 회수"), "Builds/Handoff/v0.3.0/Evidence/README_KO.md");
-        AddReleaseCandidateCheck(audit, "외부 게이트 Evidence README Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "Store Presence 증거 작성", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "STORE_PRESENCE_QA_CARD_KO.md", "STORE_PRESENCE.md", "작성 완료 전 자체점검 TODO") && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO"), "Evidence/README_KO.md + STORE_PRESENCE_QA_CARD_KO.md completion TODO summary");
+        AddReleaseCandidateCheck(audit, "외부 게이트 Evidence README Store Presence 작성 완료 전 자체점검", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "STORE_PRESENCE.md 작성 완료 전 자체점검", "Steamworks URL/화면 캡처", "SHA 확인", "공식/승격 후보", "14번 복기 후보", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "브리핑 회고 후보", "briefing_retrospective_candidate_file", "briefing_retrospective_candidate_terms", "briefing_retrospective_candidate_smoke", "토스트 UI 캡처", "A/B 응답 회수"), "Builds/Handoff/v0.3.0/Evidence/README_KO.md");
+        AddReleaseCandidateCheck(audit, "외부 게이트 Evidence README Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "Store Presence 증거 작성", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "STORE_PRESENCE_QA_CARD_KO.md", "STORE_PRESENCE.md", "작성 완료 전 자체점검 TODO") && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO"), "Evidence/README_KO.md + STORE_PRESENCE_QA_CARD_KO.md completion TODO summary");
         AddReleaseCandidateCheck(audit, "외부 게이트 Evidence README Store Presence memberSummary 확인 단계", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "Store Presence 증거 작성", "release candidate JSON memberSummary 확인", "care_review_release_candidate_audit.json", "storePresenceEvidenceBundle", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Builds/Handoff/v0.3.0/Evidence/README_KO.md");
         AddReleaseCandidateCheck(
             audit,
             "외부 검증 핸드오프 패킷",
-            FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "Store Presence/A-B/보정 후보 증거 작성 순서", "STORE_PRESENCE_QA_CARD_KO.md", "ACHIEVEMENT_TOAST_UI_CAPTURE.md", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md", "STORE_PRESENCE_SELECTION_KO.md", "보정 후보 결과 / 자체점검 일치", "결정 감사 코칭 패턴 분포 Store/QA handoff", "Evidence/STORE_PRESENCE.md") &&
+            FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "Store Presence/A-B/보정 후보 증거 작성 순서", "STORE_PRESENCE_QA_CARD_KO.md", "ACHIEVEMENT_TOAST_UI_CAPTURE.md", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md", "STORE_PRESENCE_SELECTION_KO.md", "보정 후보 결과 / 자체점검 일치", "판단 복기 패턴 분포 Store/QA handoff", "Evidence/STORE_PRESENCE.md") &&
             FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "실제 사람 플레이테스트", "SteamCMD preview", "저사양 PC 검증", "PLAYTEST_COMMERCIAL_TRIAGE_ACTIONS.csv") &&
             FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "HUMAN_5_PLAYTEST", "HUMAN_10_COMMERCIAL", "PLAYTEST_COMMERCIAL_TRIAGE_ACTIONS.csv", "STEAMCMD_PREVIEW", "LOW_SPEC_PC", "evidence_hint", "draft_status=status: draft_not_evidence", "screenshot_ab_loop_response_count=0", "waiting_for_screenshot_ab_loop_responses", "action_csv_priority_badge_owner_screen", "triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB", "triage_priority_badge_main_menu_baseline/P1_BASELINE_GUARD", "triage_priority_badge_copy_alignment/P1_COPY_ALIGNMENT_COLLECT") &&
             FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "PLAYTEST_COMMERCIAL_TRIAGE_ACTIONS.csv"), "owner_screen", "owner_screen_evidence", "commercialChecklistMentionsSurfaceActions=true", "commercialChecklistReadable=true", "menuMentionsAchievementBadge=true", "mainMenuAchievementBadgeReadable=true", "appealTriageQueueReturnOpensCareerRecord=true", "achievementCardMentionsAppealTriageResult=true", "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "반복 보상/장기 기록 가치감", "성과 기록 / 캠페인 기록 / 상점 페이지", "반복 가치 세부: 성과 기록 보상", "반복 가치 세부: 캠페인 기록 다음 목표", "반복 가치 세부: 상점 후보 루프 이해") &&
-            FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "ACHIEVEMENT_TOAST_UI_CAPTURE.md", "ready: true", "readable: true", "성과 기록에서 다음 목표와 기록 보상 확인", "STORE_PRESENCE_SELECTION_KO.md", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md", "SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md", "SCREENSHOT_UPLOAD_SELECTION_KO.md", "STORE_PAGE_SUBMISSION_DRAFT_KO.md", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "08_career_record_filter.png", "13_case_archive_appeal_remedy_history.png", "selected_upload_set", "promoted_candidate", "recommended_candidate", "screenshot_ab_recommended_candidate", "appeal_triage_qa_evidence", "상점 보정 후보 결과 수동 확인 단계", "12_career_record_next_objective.png", "보정 후보 결과 / 자체점검 일치", "A/B 추천 후보 일치", "성과-캠페인 루프 A/B 질문 회수 체크", "menu_campaign_briefing_weakness", "추천 회차 브리핑", "직전 약점", "csvHasMenuBriefingWeaknessQuestion=true", "achievement_career_copy_alignment", "csvHasAchievementCareerCopyAlignmentQuestion=true", "triage_priority_badge_id", "triage_priority_badge_reward_loop_candidate", "csvHasTriagePriorityBadgeColumns=true", "A/B 응답 회수 수치", "결정 감사 코칭 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사", "screenshot_ab_loop_question_id", "screenshot_ab_loop_response_count: 0", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses", "csvHasScreenshotAbLoopQuestionColumns=true", "A/B 판정", "SHA") &&
+            FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "ACHIEVEMENT_TOAST_UI_CAPTURE.md", "ready: true", "readable: true", "성과 기록에서 다음 목표와 기록 보상 확인", "STORE_PRESENCE_SELECTION_KO.md", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md", "SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md", "SCREENSHOT_UPLOAD_SELECTION_KO.md", "STORE_PAGE_SUBMISSION_DRAFT_KO.md", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "08_career_record_filter.png", "13_case_archive_appeal_remedy_history.png", "selected_upload_set", "promoted_candidate", "recommended_candidate", "screenshot_ab_recommended_candidate", "appeal_triage_qa_evidence", "상점 보정 후보 결과 수동 확인 단계", "12_career_record_next_objective.png", "보정 후보 결과 / 자체점검 일치", "A/B 추천 후보 일치", "성과-캠페인 루프 A/B 질문 회수 체크", "menu_campaign_briefing_weakness", "추천 회차 브리핑", "직전 약점", "csvHasMenuBriefingWeaknessQuestion=true", "achievement_career_copy_alignment", "csvHasAchievementCareerCopyAlignmentQuestion=true", "triage_priority_badge_id", "triage_priority_badge_reward_loop_candidate", "csvHasTriagePriorityBadgeColumns=true", "A/B 응답 회수 수치", "판단 복기 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사", "screenshot_ab_loop_question_id", "screenshot_ab_loop_response_count: 0", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses", "csvHasScreenshotAbLoopQuestionColumns=true", "A/B 판정", "SHA") &&
             FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "ACHIEVEMENT_TOAST_UI_CAPTURE.md"), "ready: true", "readable: true", "성과 기록에서 다음 목표와 기록 보상 확인") &&
             FileContainsAll(Path.Combine(SteamworksRootPath, "ACHIEVEMENT_TOAST_UI_CAPTURE.md"), "ready: true", "readable: true", "성과 기록에서 다음 목표와 기록 보상 확인") &&
-            FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256"), "08_career_record_filter.png", "09_playtest_survey.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png"),
+            FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256"), "08_career_record_filter.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png"),
             ExternalValidationHandoffPath);
         AddReleaseCandidateCheck(
             audit,
@@ -4418,7 +4651,7 @@ public static class CareReviewProjectBuilder
         AddReleaseCandidateCheck(audit, "외부 handoff Store Presence 증거 묶음 표 A/B 응답 회수 입력란 통과 조건", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "Store Presence A/B 응답 회수 입력란", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "Store Presence A/B 응답 회수 입력란", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status"), "EXTERNAL_RELEASE_HANDOFF_KO.md");
         AddReleaseCandidateCheck(audit, "외부 handoff Store Presence 증거 묶음 표 release candidate JSON memberSummary 상호참조", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "Store Presence A/B 응답 회수 입력란", "care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "Store Presence A/B 응답 회수 입력란", "care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "EXTERNAL_RELEASE_HANDOFF_KO.md + care_review_release_candidate_audit.json");
         AddReleaseCandidateCheck(audit, "외부 handoff 문서 Store Presence 증거 초안 최상단 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "## Store Presence 증거 초안 상태", "실제 입력 상태: `pending_external`", "초안 파일: `Evidence/STORE_PRESENCE.md`; `status: draft_not_evidence`", "예시 파일: `Evidence/STORE_PRESENCE_EXAMPLE.md`; `status: example_not_evidence`", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "A/B 응답 회수 입력란", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "실제 Steamworks URL/화면 캡처") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "## Store Presence 증거 초안 상태", "실제 입력 상태: `pending_external`", "초안 파일: `Evidence/STORE_PRESENCE.md`; `status: draft_not_evidence`", "예시 파일: `Evidence/STORE_PRESENCE_EXAMPLE.md`; `status: example_not_evidence`", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "A/B 응답 회수 입력란", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "실제 Steamworks URL/화면 캡처"), "EXTERNAL_RELEASE_HANDOFF_KO.md");
-        AddReleaseCandidateCheck(audit, "외부 handoff 문서 Store Presence 자체점검 TODO 최상단 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "## Store Presence 증거 초안 상태", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "README_KO.txt", "handoff TODO 첫 확인", "README_STEAMWORKS_KR.txt", "제출 전 TODO 첫 확인") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "## Store Presence 증거 초안 상태", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "handoff TODO 첫 확인", "제출 전 TODO 첫 확인") && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "handoff TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO"), "EXTERNAL_RELEASE_HANDOFF_KO.md + README_KO.txt completion TODO top summary");
+        AddReleaseCandidateCheck(audit, "외부 handoff 문서 Store Presence 자체점검 TODO 최상단 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "## Store Presence 증거 초안 상태", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "README_KO.txt", "handoff TODO 첫 확인", "README_STEAMWORKS_KR.txt", "제출 전 TODO 첫 확인") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "## Store Presence 증거 초안 상태", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "handoff TODO 첫 확인", "제출 전 TODO 첫 확인") && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "handoff TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO"), "EXTERNAL_RELEASE_HANDOFF_KO.md + README_KO.txt completion TODO top summary");
         AddReleaseCandidateCheck(audit, "외부 handoff 문서 Store Presence A/B 응답 회수 입력란 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "A/B 응답 회수 입력란", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "A/B 응답 회수 입력란", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses"), "EXTERNAL_RELEASE_HANDOFF_KO.md");
 
         AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 보정 후보 결과 항목", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "상점 보정 후보 결과 수동 확인 단계", "store_page/STORE_PAGE_SUBMISSION_DRAFT_KO.md"), "STEAM_SUBMISSION_PREFLIGHT_KO.md");
@@ -4426,20 +4659,20 @@ public static class CareReviewProjectBuilder
         AddReleaseCandidateCheck(audit, "Store Presence QA 카드 승격 요약 대조", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "외부 5명 이후 승격 요약 대조", "post_external_collection_promotion_summary", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "waiting_for_external_5_and_ab_loop_responses", "selected_upload_set", "promoted_candidate", "screenshot_ab_loop_response_count", "screenshot_ab_loop_understanding_comment_count", "screenshot_ab_loop_collection_status", "응답 5건 이상이면 승격 후보 검토로 전환") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "외부 5명 이후 승격 요약 대조", "post_external_collection_promotion_summary", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "selected_upload_set", "promoted_candidate", "screenshot_ab_loop_understanding_comment_count"), "STORE_PRESENCE_QA_CARD_KO.md post_external_collection_promotion_summary cross-check");
         AddReleaseCandidateCheck(audit, "Store Presence QA 카드 우선순위 배지 회수 후 처리 상태", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "우선순위 배지 외부 회수 후 처리 상태", "after_collection_status", "manual_update_target", "completion_gate", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "external_5_and_ab_loop_5_and_understanding_5", "triage_priority_badge_main_menu_baseline", "P1_BASELINE_GUARD", "main_menu_loop_entry_response_collected", "triage_priority_badge_copy_alignment", "P1_COPY_ALIGNMENT_COLLECT", "copy_alignment_comment_collected") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "우선순위 배지 외부 회수 후 처리 상태", "after_collection_status", "manual_update_target", "completion_gate", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "external_5_and_ab_loop_5_and_understanding_5", "triage_priority_badge_main_menu_baseline", "P1_BASELINE_GUARD", "main_menu_loop_entry_response_collected", "triage_priority_badge_copy_alignment", "P1_COPY_ALIGNMENT_COLLECT", "copy_alignment_comment_collected"), "STORE_PRESENCE_QA_CARD_KO.md priority badge after_collection_status");
         AddReleaseCandidateCheck(audit, "Store Presence QA 카드 성과-캠페인 루프 A/B 질문 회수 체크", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "성과-캠페인 루프 A/B 질문 회수 체크", "PLAYTEST_REQUEST_TEMPLATE_KO.md", "PLAYTEST_SESSION_INDEX_TEMPLATE.csv", "screenshot_ab_loop_question_id", "triage_priority_badge_id", "triage_priority_badge_status", "triage_priority_badge_evidence", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "main_menu_loop_entry", "01_main_menu.png", "메인 메뉴 기준 화면", "menu_campaign_briefing_weakness", "추천 회차 브리핑", "직전 약점", "achievement_career_copy_alignment", "성과 목표 힌트/기록 다음 목표", "csvHasScreenshotAbLoopQuestionColumns=true", "csvHasTriagePriorityBadgeColumns=true", "csvHasMainMenuAbBaselineQuestion=true", "csvHasAchievementCareerCopyAlignmentQuestion=true", "csvHasMenuBriefingWeaknessQuestion=true") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "성과-캠페인 루프 A/B 질문 회수 체크", "PLAYTEST_REQUEST_TEMPLATE_KO.md", "PLAYTEST_SESSION_INDEX_TEMPLATE.csv", "screenshot_ab_loop_question_id", "triage_priority_badge_id", "triage_priority_badge_status", "triage_priority_badge_evidence", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "main_menu_loop_entry", "01_main_menu.png", "메인 메뉴 기준 화면", "menu_campaign_briefing_weakness", "추천 회차 브리핑", "직전 약점", "achievement_career_copy_alignment", "성과 목표 힌트/기록 다음 목표", "csvHasScreenshotAbLoopQuestionColumns=true", "csvHasTriagePriorityBadgeColumns=true", "csvHasMainMenuAbBaselineQuestion=true", "csvHasAchievementCareerCopyAlignmentQuestion=true", "csvHasMenuBriefingWeaknessQuestion=true") && FileContainsAll("Builds/QA/v0.3.0/playtest_packet/care_review_playtest_aggregate_smoke_result.json", "\"csvHasScreenshotAbLoopQuestionColumns\": true", "\"csvHasTriagePriorityBadgeColumns\": true", "\"csvHasRewardLoopPriorityBadge\": true", "\"csvHasMainMenuPriorityBadge\": true", "\"csvHasCopyAlignmentPriorityBadge\": true", "\"csvHasMainMenuAbBaselineQuestion\": true", "\"csvHasAchievementCareerCopyAlignmentQuestion\": true", "\"csvHasMenuBriefingWeaknessQuestion\": true"), "STORE_PRESENCE_QA_CARD_KO.md + PLAYTEST_SESSION_INDEX_TEMPLATE.csv + aggregate smoke");
-        AddReleaseCandidateCheck(audit, "Store/QA handoff 결정 감사 코칭 패턴 분포", DecisionAuditCoachingAggregateHandoffReady() && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "결정 감사 코칭 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "결정 감사 코칭 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "결정 감사 코칭 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "care_review_playtest_aggregate.md", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "결정 감사 코칭 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "care_review_playtest_aggregate.md", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "결정 감사 코칭 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "결정 감사 코칭 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사"), "README_KO.txt + EXTERNAL_RELEASE_HANDOFF_KO.md + STORE_PRESENCE_QA_CARD_KO.md + care_review_playtest_aggregate.*");
+        AddReleaseCandidateCheck(audit, "Store/QA handoff 판단 복기 패턴 분포", DecisionAuditCoachingAggregateHandoffReady() && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "판단 복기 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "판단 복기 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "판단 복기 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "care_review_playtest_aggregate.md", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "판단 복기 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "care_review_playtest_aggregate.md", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "판단 복기 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "판단 복기 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사"), "README_KO.txt + EXTERNAL_RELEASE_HANDOFF_KO.md + STORE_PRESENCE_QA_CARD_KO.md + care_review_playtest_aggregate.*");
         AddReleaseCandidateCheck(audit, "Store Presence QA 카드 성과-캠페인 루프 A/B 응답 회수 수치", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "A/B 응답 회수 수치", "screenshot_ab_loop_response_count: 0", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "A/B 응답 회수 수치", "screenshot_ab_loop_response_count: 0", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status") && FileContainsAll(Path.Combine(SteamworksStorePagePath, "SCREENSHOT_CANDIDATE_AB_TEST_KO.md"), "screenshot_ab_loop_response_count: 0", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses"), "STORE_PRESENCE_QA_CARD_KO.md + SCREENSHOT_CANDIDATE_AB_TEST_KO.md");
         AddReleaseCandidateCheck(audit, "Store Presence QA 카드 브리핑 회고 후보 근거", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "브리핑 회고 상점 후보 근거", "storeCandidateMentionsBriefingRetrospective=true", "예고 위험", "실제 결과", "12_career_record_next_objective.png") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "브리핑 회고 상점 후보 근거", "storeCandidateMentionsBriefingRetrospective=true", "예고 위험", "실제 결과", "12_career_record_next_objective.png") && FileContainsAll("Builds/QA/v0.3.0/care_review_career_record_smoke_result.json", "\"storeCandidateMentionsBriefingRetrospective\": true"), "STORE_PRESENCE_QA_CARD_KO.md + care_review_career_record_smoke_result.json");
         AddReleaseCandidateCheck(audit, "Store Presence A/B TODO 직접 매핑", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "Store Presence A/B TODO 매핑", "store_presence_ab_todo_mapping", "post_external_collection_promotion_summary", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "reward_loop_understanding", "screenshot_ab_loop_understanding_comment_count") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "Store Presence A/B TODO 매핑", "store_presence_ab_todo_mapping", "post_external_collection_promotion_summary", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "reward_loop_understanding", "screenshot_ab_loop_understanding_comment_count") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "Store Presence A/B TODO 매핑", "store_presence_ab_todo_mapping", "post_external_collection_promotion_summary", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "reward_loop_understanding", "screenshot_ab_loop_understanding_comment_count") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "Store Presence A/B TODO 매핑", "store_presence_ab_todo_mapping", "screenshot_ab_loop_understanding_comment_count: 0"), "STORE_PRESENCE_QA_CARD_KO.md + Evidence/STORE_PRESENCE*.md");
         AddReleaseCandidateCheck(audit, "Store Presence Evidence 우선순위 배지 역참조", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "Store Presence 후보 우선순위 배지 역참조", "store_presence_priority_badge_backreference", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "selected_upload_set", "promoted_candidate") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "Store Presence 후보 우선순위 배지 역참조", "store_presence_priority_badge_backreference", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "waiting_for_external_5_and_ab_loop_responses") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "store_presence_priority_badge_backreference", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB"), "Evidence README + STORE_PRESENCE.md + STORE_PRESENCE_EXAMPLE.md priority badge backreference");
         AddReleaseCandidateCheck(audit, "Store Presence QA 카드 A/B 응답 회수 수치 release candidate JSON memberSummary 확인", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "A/B 응답 회수 수치", "release candidate JSON memberSummary 확인", "care_review_release_candidate_audit.json", "storePresenceEvidenceBundle", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "A/B 응답 회수 수치", "release candidate JSON memberSummary 확인", "care_review_release_candidate_audit.json", "storePresenceEvidenceBundle", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "STORE_PRESENCE_QA_CARD_KO.md");
         AddReleaseCandidateCheck(audit, "Store Presence QA 카드 A/B 응답 회수 수치/초안 입력란 상호참조", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "A/B 응답 회수 수치", "Evidence/STORE_PRESENCE.md", "입력란으로 옮긴다", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "A/B 응답 회수 수치", "Evidence/STORE_PRESENCE.md", "입력란으로 옮긴다", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status"), "STORE_PRESENCE_QA_CARD_KO.md");
-        AddReleaseCandidateCheck(audit, "Store Presence QA 카드 작성 완료 전 자체점검 표", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_PRESENCE.md 작성 완료 전 자체점검", "Steamworks URL/화면 캡처", "SHA 확인", "공식/승격 후보", "14번 코칭 후보", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "토스트 UI 캡처", "A/B 응답 회수") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_PRESENCE.md 작성 완료 전 자체점검", "Steamworks URL/화면 캡처", "SHA 확인", "공식/승격 후보", "14번 코칭 후보", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "토스트 UI 캡처", "A/B 응답 회수"), "STORE_PRESENCE_QA_CARD_KO.md");
-        AddReleaseCandidateCheck(audit, "Store Presence QA 카드 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "## 준비", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "EXTERNAL_RELEASE_HANDOFF_KO.md", "README_KO.txt", "handoff TODO 첫 확인") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "## 준비", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "EXTERNAL_RELEASE_HANDOFF_KO.md", "handoff TODO 첫 확인") && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO"), "STORE_PRESENCE_QA_CARD_KO.md + EXTERNAL_RELEASE_HANDOFF_KO.md completion TODO summary");
+        AddReleaseCandidateCheck(audit, "Store Presence QA 카드 작성 완료 전 자체점검 표", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_PRESENCE.md 작성 완료 전 자체점검", "Steamworks URL/화면 캡처", "SHA 확인", "공식/승격 후보", "14번 복기 후보", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "토스트 UI 캡처", "A/B 응답 회수") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_PRESENCE.md 작성 완료 전 자체점검", "Steamworks URL/화면 캡처", "SHA 확인", "공식/승격 후보", "14번 복기 후보", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "토스트 UI 캡처", "A/B 응답 회수"), "STORE_PRESENCE_QA_CARD_KO.md");
+        AddReleaseCandidateCheck(audit, "Store Presence QA 카드 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "## 준비", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "EXTERNAL_RELEASE_HANDOFF_KO.md", "README_KO.txt", "handoff TODO 첫 확인") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "## 준비", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "EXTERNAL_RELEASE_HANDOFF_KO.md", "handoff TODO 첫 확인") && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO"), "STORE_PRESENCE_QA_CARD_KO.md + EXTERNAL_RELEASE_HANDOFF_KO.md completion TODO summary");
         AddReleaseCandidateCheck(audit, "외부 게이트 tracker CSV 성과-캠페인 루프 A/B 응답 회수 힌트", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "HUMAN_10_COMMERCIAL", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "action_csv_priority_badge_owner_screen", "triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB", "triage_priority_badge_main_menu_baseline/P1_BASELINE_GUARD", "triage_priority_badge_copy_alignment/P1_COPY_ALIGNMENT_COLLECT") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "HUMAN_10_COMMERCIAL", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "action_csv_priority_badge_owner_screen", "triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB", "triage_priority_badge_main_menu_baseline/P1_BASELINE_GUARD", "triage_priority_badge_copy_alignment/P1_COPY_ALIGNMENT_COLLECT"), "EXTERNAL_RELEASE_GATE_TRACKER.csv");
         AddReleaseCandidateCheck(audit, "Store Presence QA 카드 보정 후보 자체점검 일치 체크", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "보정 후보 결과 / 자체점검 일치", "STORE_PAGE_SUBMISSION_DRAFT_KO.md", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "상점 보정 후보 결과 수동 확인 단계", "appeal_triage_qa_evidence") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "보정 후보 결과 / 자체점검 일치", "STORE_PAGE_SUBMISSION_DRAFT_KO.md", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "상점 보정 후보 결과 수동 확인 단계", "appeal_triage_qa_evidence") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "상점 보정 후보 결과 수동 확인 단계", "store_page/STORE_PAGE_SUBMISSION_DRAFT_KO.md"), "STORE_PRESENCE_QA_CARD_KO.md + STEAM_SUBMISSION_PREFLIGHT_KO.md");
-        AddReleaseCandidateCheck(audit, "외부 handoff README Store Presence 증거 순서", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "Store Presence/A-B/보정 후보 증거 작성 순서", "A/B 추천 후보 일치", "보정 후보 결과 / 자체점검 일치", "결정 감사 코칭 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "Store Presence/A-B/보정 후보 증거 작성 순서", "A/B 추천 후보 일치", "보정 후보 결과 / 자체점검 일치", "결정 감사 코칭 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status"), "README_KO.txt");
+        AddReleaseCandidateCheck(audit, "외부 handoff README Store Presence 증거 순서", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "Store Presence/A-B/보정 후보 증거 작성 순서", "A/B 추천 후보 일치", "보정 후보 결과 / 자체점검 일치", "판단 복기 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "Store Presence/A-B/보정 후보 증거 작성 순서", "A/B 추천 후보 일치", "보정 후보 결과 / 자체점검 일치", "판단 복기 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status"), "README_KO.txt");
         AddReleaseCandidateCheck(audit, "외부 handoff README Store Presence 초안 첫 확인 항목", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "첫 확인 항목", "Store Presence 증거 초안", "pending_external", "Evidence/STORE_PRESENCE.md", "status: draft_not_evidence", "Store Presence A/B 응답 회수 입력란", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "Evidence/STORE_PRESENCE_EXAMPLE.md", "status: example_not_evidence", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "첫 확인 항목", "Store Presence 증거 초안", "pending_external", "Evidence/STORE_PRESENCE.md", "status: draft_not_evidence", "Store Presence A/B 응답 회수 입력란", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "Evidence/STORE_PRESENCE_EXAMPLE.md", "status: example_not_evidence", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY"), "README_KO.txt");
-        AddReleaseCandidateCheck(audit, "외부 handoff README 첫 확인 Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "첫 확인 항목", "handoff TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/STORE_PRESENCE.md", "README_STEAMWORKS_KR.txt", "제출 전 TODO 첫 확인") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "첫 확인 항목", "handoff TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO", "README_STEAMWORKS_KR.txt", "제출 전 TODO 첫 확인") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "제출 전 TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO"), "README_KO.txt + README_STEAMWORKS_KR.txt completion TODO first check");
+        AddReleaseCandidateCheck(audit, "외부 handoff README 첫 확인 Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "첫 확인 항목", "handoff TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/STORE_PRESENCE.md", "README_STEAMWORKS_KR.txt", "제출 전 TODO 첫 확인") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "첫 확인 항목", "handoff TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO", "README_STEAMWORKS_KR.txt", "제출 전 TODO 첫 확인") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "제출 전 TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO"), "README_KO.txt + README_STEAMWORKS_KR.txt completion TODO first check");
         AddReleaseCandidateCheck(audit, "외부 handoff README 첫 확인 release candidate JSON memberSummary 확인", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "첫 확인 항목", "release candidate JSON memberSummary 확인", "care_review_release_candidate_audit.json", "storePresenceEvidenceBundle", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "첫 확인 항목", "release candidate JSON memberSummary 확인", "care_review_release_candidate_audit.json", "storePresenceEvidenceBundle", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "README_KO.txt");
         AddReleaseCandidateCheck(audit, "외부 handoff README 첫 확인 preflight 최상단 외부 액션 memberSummary 대조", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "첫 확인 항목", "preflight 최상단 외부 액션 memberSummary 대조", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "Store Presence 외부 액션 연결", "release candidate JSON memberSummary 확인", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "첫 확인 항목", "preflight 최상단 외부 액션 memberSummary 대조", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "Store Presence 외부 액션 연결", "release candidate JSON memberSummary 확인", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "## 최상단 판정 요약", "Store Presence 외부 액션 연결", "release candidate JSON memberSummary 확인", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "README_KO.txt + STEAM_SUBMISSION_PREFLIGHT_KO.md");
         AddReleaseCandidateCheck(audit, "외부 handoff README 첫 확인 A/B 응답 회수 입력란", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "첫 확인 항목", "Store Presence A/B 응답 회수 입력란", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_KO.txt"), "첫 확인 항목", "Store Presence A/B 응답 회수 입력란", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses"), "README_KO.txt");
@@ -4448,7 +4681,7 @@ public static class CareReviewProjectBuilder
         AddReleaseCandidateCheck(audit, "외부 게이트 Store Presence evidence bundle summary A/B 응답 회수 입력란", FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.csv"), "store_presence_evidence_bundle_summary", "abLoopInputFields=screenshot_ab_loop_response_count,screenshot_ab_loop_not_collected_count,screenshot_ab_loop_collection_status", "abLoopInputValues=screenshot_ab_loop_response_count=0,screenshot_ab_loop_not_collected_count=221,screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_summary.json"), "\"storePresenceEvidenceBundleSummary\"", "abLoopInputFields=screenshot_ab_loop_response_count,screenshot_ab_loop_not_collected_count,screenshot_ab_loop_collection_status", "abLoopInputValues=screenshot_ab_loop_response_count=0,screenshot_ab_loop_not_collected_count=221,screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses"), "care_review_external_gate_audit.csv + care_review_external_gate_audit_summary.json");
         AddReleaseCandidateCheck(audit, "외부 게이트 감사 CSV Store Presence row A/B 응답 회수 입력란 evidence summary", FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.csv"), "STORE_PRESENCE,steamworks,pending_external", "evidence_summary", "upload_manifest=STEAMWORKS_UPLOAD_MANIFEST.txt", "upload_manifest_memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "ab_loop_inputs=screenshot_ab_loop_response_count=0,screenshot_ab_loop_not_collected_count=221,screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_summary.json"), "\"gateId\": \"STORE_PRESENCE\"", "\"evidenceSummary\": \"Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md", "upload_manifest=STEAMWORKS_UPLOAD_MANIFEST.txt", "upload_manifest_memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "ab_loop_inputs=screenshot_ab_loop_response_count=0,screenshot_ab_loop_not_collected_count=221,screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses"), "care_review_external_gate_audit.csv + care_review_external_gate_audit_summary.json");
         AddReleaseCandidateCheck(audit, "외부 게이트 감사 Markdown Store Presence row A/B 응답 회수 입력란 evidence summary", FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.md"), "| `STORE_PRESENCE` | steamworks | pending_external", "upload_manifest=STEAMWORKS_UPLOAD_MANIFEST.txt", "upload_manifest_memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "ab_loop_inputs=screenshot_ab_loop_response_count=0,screenshot_ab_loop_not_collected_count=221,screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "draft=Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_not_collected_count=221"), "care_review_external_gate_audit.md");
-        AddReleaseCandidateCheck(audit, "외부 게이트 감사 Store Presence row 자체점검 TODO evidence summary", FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.csv"), "STORE_PRESENCE,steamworks,pending_external", "evidence_summary", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_summary.json"), "\"gateId\": \"STORE_PRESENCE\"", "\"evidenceSummary\": \"Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.md"), "| `STORE_PRESENCE` | steamworks | pending_external", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처/SHA 확인/14번 코칭 후보/브리핑 회고 후보/A/B 응답 회수"), "care_review_external_gate_audit csv/json/md completion TODO evidence summary");
+        AddReleaseCandidateCheck(audit, "외부 게이트 감사 Store Presence row 자체점검 TODO evidence summary", FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.csv"), "STORE_PRESENCE,steamworks,pending_external", "evidence_summary", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_summary.json"), "\"gateId\": \"STORE_PRESENCE\"", "\"evidenceSummary\": \"Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.md"), "| `STORE_PRESENCE` | steamworks | pending_external", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처/SHA 확인/14번 복기 후보/브리핑 회고 후보/A/B 응답 회수"), "care_review_external_gate_audit csv/json/md completion TODO evidence summary");
         AddReleaseCandidateCheck(audit, "외부 게이트 감사 Store Presence row evidence summary upload manifest memberSummary 대조", FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.csv"), "STORE_PRESENCE", "upload_manifest=STEAMWORKS_UPLOAD_MANIFEST.txt", "upload_manifest_memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_summary.json"), "\"gateId\": \"STORE_PRESENCE\"", "upload_manifest=STEAMWORKS_UPLOAD_MANIFEST.txt", "upload_manifest_memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.md"), "| `STORE_PRESENCE` | steamworks | pending_external", "upload_manifest=STEAMWORKS_UPLOAD_MANIFEST.txt", "upload_manifest_memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence draft", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "care_review_external_gate_audit csv/json/md + STEAMWORKS_UPLOAD_MANIFEST.txt");
         AddReleaseCandidateCheck(audit, "릴리즈 후보 감사 Markdown Store Presence 증거 초안 상태", ReleaseCandidateMarkdownStorePresenceDraftStatusReady(audit), "care_review_release_candidate_audit.md Store Presence draft status");
         AddReleaseCandidateCheck(audit, "릴리즈 후보 감사 Markdown Store Presence 템플릿 TODO 요약", ReleaseCandidateMarkdownStorePresenceTemplateCompletionTodoReady(audit), "care_review_release_candidate_audit.md Store Presence template completion TODO summary");
@@ -4483,10 +4716,10 @@ public static class CareReviewProjectBuilder
         AddReleaseCandidateCheck(audit, "릴리즈 후보 감사 Markdown/Steamworks 노트 Store Presence Draft 상호참조", ReleaseCandidateMarkdownAndNoteStorePresenceDraftCrossReferenceReady(audit), "care_review_release_candidate_audit.md + RELEASE_CANDIDATE_AUDIT_NOTE_KO.md");
         AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 Store Presence 증거 묶음 항목", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 증거 묶음 요약", "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md", "care_review_release_candidate_audit.csv", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY"), "STEAM_SUBMISSION_PREFLIGHT_KO.md");
         AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 Store Presence 증거 묶음 upload manifest memberSummary 상호참조", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 증거 묶음 요약", "STEAMWORKS_UPLOAD_MANIFEST.txt", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence bundle", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "STEAM_SUBMISSION_PREFLIGHT_KO.md + STEAMWORKS_UPLOAD_MANIFEST.txt");
-        AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 외부 handoff README 증거 순서 A/B 응답 회수 입력란", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 핸드오프 README 증거 순서", "README_KO.txt + decision_audit_coaching_candidate_evidence + screenshot_ab_loop_response_count + screenshot_ab_loop_not_collected_count + screenshot_ab_loop_collection_status"), "STEAM_SUBMISSION_PREFLIGHT_KO.md");
+        AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 외부 handoff README 증거 순서 A/B 응답 회수 입력란", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 핸드오프 README 증거 순서", "README_KO.txt + decision_audit_coaching_candidate_evidence + decision_audit_coaching_hud_evidence + screenshot_ab_loop_response_count + screenshot_ab_loop_not_collected_count + screenshot_ab_loop_collection_status"), "STEAM_SUBMISSION_PREFLIGHT_KO.md");
         AddReleaseCandidateCheck(audit, "릴리즈 후보 감사 CSV/Steam 제출 전 자체점검 Store Presence Draft 상호참조", ReleaseCandidateCsvPreflightStorePresenceCrossReferenceReady(audit) && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence release_candidate CSV 상호참조", "care_review_release_candidate_audit.csv + STEAM_SUBMISSION_PREFLIGHT_KO.md"), "care_review_release_candidate_audit.csv + STEAM_SUBMISSION_PREFLIGHT_KO.md");
         AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 Store Presence 증거 초안 상태 항목", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 증거 초안 상태", "README_KO.txt + EXTERNAL_RELEASE_GATE_TRACKER.csv + README_STEAMWORKS_KR.txt", "status: draft_not_evidence", "pending_external", "Evidence/STORE_PRESENCE.md", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses"), "STEAM_SUBMISSION_PREFLIGHT_KO.md");
-        AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 자체점검 TODO 요약", "README_STEAMWORKS_KR.txt + EXTERNAL_RELEASE_GATE_TRACKER.csv + Evidence/STORE_PRESENCE.md completion_todo=작성 완료 전 자체점검 TODO") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "completion_todo=작성 완료 전 자체점검 TODO") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "작성 완료 전 자체점검 TODO", "- [ ] A/B 응답 회수"), "STEAM_SUBMISSION_PREFLIGHT_KO.md + README_STEAMWORKS_KR.txt + EXTERNAL_RELEASE_GATE_TRACKER.csv");
+        AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 자체점검 TODO 요약", "README_STEAMWORKS_KR.txt + EXTERNAL_RELEASE_GATE_TRACKER.csv + Evidence/STORE_PRESENCE.md completion_todo=작성 완료 전 자체점검 TODO") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "completion_todo=작성 완료 전 자체점검 TODO") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "작성 완료 전 자체점검 TODO", "- [ ] A/B 응답 회수"), "STEAM_SUBMISSION_PREFLIGHT_KO.md + README_STEAMWORKS_KR.txt + EXTERNAL_RELEASE_GATE_TRACKER.csv");
         AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 Store Presence 증거 초안 상태 audit Markdown memberSummary 대조", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 증거 초안 상태", "care_review_release_candidate_audit.md upload manifest memberSummary 대조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(ReleaseCandidateAuditPath, "care_review_release_candidate_audit.md"), "Store Presence 실제 증거 초안 상태", "upload manifest memberSummary 대조", "STEAMWORKS_UPLOAD_MANIFEST.txt", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "STEAM_SUBMISSION_PREFLIGHT_KO.md + care_review_release_candidate_audit.md");
         AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 Store Presence 증거 초안 A/B 응답 회수 입력란", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 증거 초안 상태", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses"), "STEAM_SUBMISSION_PREFLIGHT_KO.md");
         AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검/upload manifest Store Presence Draft README memberSummary 상호참조", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 증거 초안/upload manifest 상호참조", "STEAMWORKS_UPLOAD_MANIFEST.txt + STEAM_SUBMISSION_PREFLIGHT_KO.md + README_STEAMWORKS_KR.txt memberSummary 대조") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence preflight cross-check", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "외부 검증 Store Presence 증거 초안 상태", "외부 검증 Store Presence 증거 초안/upload manifest 상호참조", "README_STEAMWORKS_KR.txt upload manifest memberSummary 대조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "upload manifest memberSummary 대조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "STEAM_SUBMISSION_PREFLIGHT_KO.md + STEAMWORKS_UPLOAD_MANIFEST.txt + README_STEAMWORKS_KR.txt");
@@ -4499,18 +4732,18 @@ public static class CareReviewProjectBuilder
         AddReleaseCandidateCheck(audit, "Steam 제출 프리플라이트 최상단 외부 게이트 smoke zip SHA 요약", PreflightTopExternalGateSmokeZipShaSummaryReady(), "STEAM_SUBMISSION_PREFLIGHT_KO.md top external gate smoke zip SHA summary");
         AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 최상단 Store Presence 자체점검 TODO 요약", PreflightTopStorePresenceCompletionTodoSummaryReady(), "STEAM_SUBMISSION_PREFLIGHT_KO.md top Store Presence completion TODO");
         AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 최상단 성과-캠페인 루프 A/B 응답 회수 보류 상태", PreflightTopScreenshotAbLoopResponseStatusReady(), "STEAM_SUBMISSION_PREFLIGHT_KO.md top screenshot_ab_loop response status");
-        AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 최상단/외부 게이트 스모크 Store Presence Draft 상호참조", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "Store Presence 외부 게이트 스모크 상호참조", "care_review_external_gate_audit_smoke_result.json", "storePresencePreflightTopCrossReference", "hasStorePresenceDraftStatusTrackerAuditCrossReference", "hasScreenshotAbLoopResponseTrackerAuditCrossReference") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_smoke_result.json"), "\"storePresencePreflightTopCrossReference\": \"STEAM_SUBMISSION_PREFLIGHT_KO.md; Store Presence 외부 액션 연결; externalActionCount=10\"", "\"hasStorePresenceDraftStatusTrackerAuditCrossReference\": true", "\"hasScreenshotAbLoopResponseTrackerAuditCrossReference\": true"), "STEAM_SUBMISSION_PREFLIGHT_KO.md + care_review_external_gate_audit_smoke_result.json");
+        AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 최상단/외부 게이트 스모크 Store Presence Draft 상호참조", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "Store Presence 외부 게이트 스모크 상호참조", "care_review_external_gate_audit_smoke_result.json", "storePresencePreflightTopCrossReference", "hasStorePresenceDraftStatusTrackerAuditCrossReference", "hasScreenshotAbLoopResponseTrackerAuditCrossReference") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_smoke_result.json"), "\"storePresencePreflightTopCrossReference\": \"STEAM_SUBMISSION_PREFLIGHT_KO.md; Store Presence 외부 액션 연결; externalActionCount=8\"", "\"hasStorePresenceDraftStatusTrackerAuditCrossReference\": true", "\"hasScreenshotAbLoopResponseTrackerAuditCrossReference\": true"), "STEAM_SUBMISSION_PREFLIGHT_KO.md + care_review_external_gate_audit_smoke_result.json");
         AddReleaseCandidateCheck(audit, "외부 게이트 스모크 Store Presence 자체점검 TODO evidence summary 상호참조", FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_smoke_result.json"), "\"hasStorePresenceCompletionTodoEvidenceSummary\": true", "\"storePresenceCompletionTodoCrossReference\": \"EXTERNAL_RELEASE_GATE_TRACKER.csv; care_review_external_gate_audit.csv; STEAM_SUBMISSION_PREFLIGHT_KO.md; completion_todo=작성 완료 전 자체점검 TODO\"") && FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.csv"), "completion_todo=작성 완료 전 자체점검 TODO") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 자체점검 TODO 요약"), "care_review_external_gate_audit_smoke_result.json + care_review_external_gate_audit.csv + STEAM_SUBMISSION_PREFLIGHT_KO.md");
         AddReleaseCandidateCheck(audit, "외부 게이트 스모크 Store Presence 템플릿 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_smoke_result.json"), "\"hasStorePresenceTemplateCompletionTodoSummary\": true", "\"hasStorePresenceCompletionTodoEvidenceSummary\": true") && ExternalGateStorePresenceTemplateCompletionTodoSummaryReady(), "care_review_external_gate_audit_smoke_result.json + Evidence/_templates/STORE_PRESENCE.md completion TODO template summary");
         AddReleaseCandidateCheck(audit, "외부 게이트 스모크 Store Presence upload manifest 감사 노트 템플릿 TODO 역참조", FileContainsAll(Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_smoke_result.json"), "\"hasStorePresenceUploadManifestNoteTemplateTodoBackReference\": true", "\"storePresenceUploadManifestNoteTemplateTodoCrossReference\": \"STEAMWORKS_UPLOAD_MANIFEST.txt; Store Presence evidence draft; README_STEAMWORKS_KR.txt 감사 노트 템플릿 TODO 역참조; STEAM_SUBMISSION_PREFLIGHT_KO.md 외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조\"") && ExternalGateStorePresenceUploadManifestNoteTemplateTodoBackReferenceReady(), "care_review_external_gate_audit_smoke_result.json + STEAMWORKS_UPLOAD_MANIFEST.txt template completion TODO back-reference");
         AddReleaseCandidateCheck(audit, "Steam 제출 전 자체점검 Store Presence 감사 노트 템플릿 TODO 역참조", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"), "외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조", "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md + STEAM_SUBMISSION_PREFLIGHT_KO.md template completion TODO back-reference") && FileContainsAll(Path.Combine(SteamworksRootPath, "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md"), "## Store Presence 실제 증거 초안 상태", "증거 템플릿", "Evidence/_templates/STORE_PRESENCE.md", "자체점검 TODO 요약 템플릿", "Evidence/STORE_PRESENCE_EXAMPLE.md", "Evidence/STORE_PRESENCE.md"), "STEAM_SUBMISSION_PREFLIGHT_KO.md + RELEASE_CANDIDATE_AUDIT_NOTE_KO.md template completion TODO back-reference");
-        AddReleaseCandidateCheck(audit, "Steamworks 업로드 준비 문서 Store Presence Draft 독립 체크", FileContainsAll("Docs/Steamworks_업로드_준비.md", "## Store Presence Draft 독립 체크", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "checkCount=11", "passedCheckCount=11", "allPassed=true", "pending_external", "Evidence/STORE_PRESENCE.md", "status: draft_not_evidence", "Evidence/STORE_PRESENCE_EXAMPLE.md", "status: example_not_evidence", "storePresenceDraftStatusSummary", "store_presence_draft_status_summary", "actual_status=pending_external", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "Store Presence 외부 액션 연결", "externalActionCount=10", "A/B 응답 회수 보류", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "upload manifest memberSummary 상호참조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Docs/Steamworks_업로드_준비.md");
+        AddReleaseCandidateCheck(audit, "Steamworks 업로드 준비 문서 Store Presence Draft 독립 체크", FileContainsAll("Docs/Steamworks_업로드_준비.md", "## Store Presence Draft 독립 체크", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "checkCount=11", "passedCheckCount=11", "allPassed=true", "pending_external", "Evidence/STORE_PRESENCE.md", "status: draft_not_evidence", "Evidence/STORE_PRESENCE_EXAMPLE.md", "status: example_not_evidence", "storePresenceDraftStatusSummary", "store_presence_draft_status_summary", "actual_status=pending_external", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "Store Presence 외부 액션 연결", "externalActionCount=8", "A/B 응답 회수 보류", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "upload manifest memberSummary 상호참조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Docs/Steamworks_업로드_준비.md");
         AddReleaseCandidateCheck(audit, "사람용 문서 README 첫 섹션 smoke zip SHA 요약 별도 감사 항목", HumanDocsReadmeSmokeZipShaSummaryReady(), "Docs/Steamworks_업로드_준비.md + Docs/플레이테스트_QA_패킷.md README_STEAMWORKS_KR.txt smoke zip SHA summary");
-        AddReleaseCandidateCheck(audit, "Steamworks 업로드 준비 문서 Store Presence TODO 요약 필수 조건", FileContainsAll("Docs/Steamworks_업로드_준비.md", "Store Presence Draft 독립 체크", "실제 증거 초안 자체점검 TODO", "STORE_PRESENCE.md 통과 전 TODO 요약", "STORE_PRESENCE_EXAMPLE.md TODO 예시 요약", "STORE_PRESENCE 템플릿 TODO 요약", "tracker/README 자체점검 TODO 요약", "Steamworks README 첫 섹션 TODO 요약", "Steamworks README 감사 노트 템플릿 TODO 역참조", "handoff README 첫 확인 TODO 요약", "handoff 문서 최상단 TODO 요약", "QA 카드 첫 섹션 TODO 요약", "Evidence README 첫 섹션 TODO 요약", "제출 전 자체점검 TODO 요약", "최상단 판정 요약 TODO 요약", "릴리즈 감사 노트 TODO 요약", "감사 노트 템플릿 TODO 역참조", "upload manifest TODO 요약", "upload manifest 감사 노트 템플릿 TODO 역참조", "STEAMWORKS_UPLOAD_MANIFEST.txt", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence draft", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수"), "Docs/Steamworks_업로드_준비.md + STEAMWORKS_UPLOAD_MANIFEST.txt completion TODO");
+        AddReleaseCandidateCheck(audit, "Steamworks 업로드 준비 문서 Store Presence TODO 요약 필수 조건", FileContainsAll("Docs/Steamworks_업로드_준비.md", "Store Presence Draft 독립 체크", "실제 증거 초안 자체점검 TODO", "STORE_PRESENCE.md 통과 전 TODO 요약", "STORE_PRESENCE_EXAMPLE.md TODO 예시 요약", "STORE_PRESENCE 템플릿 TODO 요약", "tracker/README 자체점검 TODO 요약", "Steamworks README 첫 섹션 TODO 요약", "Steamworks README 감사 노트 템플릿 TODO 역참조", "handoff README 첫 확인 TODO 요약", "handoff 문서 최상단 TODO 요약", "QA 카드 첫 섹션 TODO 요약", "Evidence README 첫 섹션 TODO 요약", "제출 전 자체점검 TODO 요약", "최상단 판정 요약 TODO 요약", "릴리즈 감사 노트 TODO 요약", "감사 노트 템플릿 TODO 역참조", "upload manifest TODO 요약", "upload manifest 감사 노트 템플릿 TODO 역참조", "STEAMWORKS_UPLOAD_MANIFEST.txt", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence draft", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수"), "Docs/Steamworks_업로드_준비.md + STEAMWORKS_UPLOAD_MANIFEST.txt completion TODO");
         AddReleaseCandidateCheck(audit, "Steamworks 업로드 준비 문서 Store Presence Draft upload manifest memberSummary 대조", FileContainsAll("Docs/Steamworks_업로드_준비.md", "Store Presence Draft 독립 체크", "upload manifest memberSummary 상호참조", "STEAMWORKS_UPLOAD_MANIFEST.txt", "Store Presence upload doc cross-check", "Store Presence evidence draft", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence upload doc cross-check", "Docs/Steamworks_업로드_준비.md", "upload manifest memberSummary 상호참조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Docs/Steamworks_업로드_준비.md + STEAMWORKS_UPLOAD_MANIFEST.txt");
         AddReleaseCandidateCheck(audit, "Steamworks 업로드 준비 문서 A/B 응답 회수 보류 상태", FileContainsAll("Docs/Steamworks_업로드_준비.md", "A/B 응답 회수 보류", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "Evidence/STORE_PRESENCE.md", "pending_external") && FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "A/B 응답 회수 보류", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses"), "Docs/Steamworks_업로드_준비.md + README_STEAMWORKS_KR.txt");
-        AddReleaseCandidateCheck(audit, "플레이테스트 QA 패킷 Store Presence Draft 독립 체크", FileContainsAll("Docs/플레이테스트_QA_패킷.md", "## Store Presence Draft 독립 체크", "플레이테스트 회수 자료와 Store Presence 실제 입력 증거를 분리", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "checkCount=11", "passedCheckCount=11", "allPassed=true", "pending_external", "Evidence/STORE_PRESENCE.md", "status: draft_not_evidence", "storePresenceDraftStatusSummary", "store_presence_draft_status_summary", "actual_status=pending_external", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "Store Presence 외부 액션 연결", "externalActionCount=10", "A/B 응답 회수 보류", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "Steamworks 업로드 준비 문서 memberSummary 상호참조", "upload manifest memberSummary 상호참조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Docs/플레이테스트_QA_패킷.md");
-        AddReleaseCandidateCheck(audit, "플레이테스트 QA 패킷 Store Presence TODO 요약 필수 조건", FileContainsAll("Docs/플레이테스트_QA_패킷.md", "Store Presence Draft 독립 체크", "실제 증거 초안 자체점검 TODO", "STORE_PRESENCE.md 통과 전 TODO 요약", "STORE_PRESENCE_EXAMPLE.md TODO 예시 요약", "STORE_PRESENCE 템플릿 TODO 요약", "tracker/README 자체점검 TODO 요약", "Steamworks README 첫 섹션 TODO 요약", "Steamworks README 감사 노트 템플릿 TODO 역참조", "handoff README 첫 확인 TODO 요약", "handoff 문서 최상단 TODO 요약", "QA 카드 첫 섹션 TODO 요약", "Evidence README 첫 섹션 TODO 요약", "제출 전 자체점검 TODO 요약", "최상단 판정 요약 TODO 요약", "릴리즈 감사 노트 TODO 요약", "감사 노트 템플릿 TODO 역참조", "upload manifest TODO 요약", "upload manifest 감사 노트 템플릿 TODO 역참조", "STEAMWORKS_UPLOAD_MANIFEST.txt", "completion_todo=작성 완료 전 자체점검 TODO") && FileContainsAll("Docs/Steamworks_업로드_준비.md", "upload manifest TODO 요약", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수"), "Docs/플레이테스트_QA_패킷.md + Docs/Steamworks_업로드_준비.md completion TODO");
+        AddReleaseCandidateCheck(audit, "플레이테스트 QA 패킷 Store Presence Draft 독립 체크", FileContainsAll("Docs/플레이테스트_QA_패킷.md", "## Store Presence Draft 독립 체크", "플레이테스트 회수 자료와 Store Presence 실제 입력 증거를 분리", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "checkCount=11", "passedCheckCount=11", "allPassed=true", "pending_external", "Evidence/STORE_PRESENCE.md", "status: draft_not_evidence", "storePresenceDraftStatusSummary", "store_presence_draft_status_summary", "actual_status=pending_external", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "Store Presence 외부 액션 연결", "externalActionCount=8", "A/B 응답 회수 보류", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "Steamworks 업로드 준비 문서 memberSummary 상호참조", "upload manifest memberSummary 상호참조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Docs/플레이테스트_QA_패킷.md");
+        AddReleaseCandidateCheck(audit, "플레이테스트 QA 패킷 Store Presence TODO 요약 필수 조건", FileContainsAll("Docs/플레이테스트_QA_패킷.md", "Store Presence Draft 독립 체크", "실제 증거 초안 자체점검 TODO", "STORE_PRESENCE.md 통과 전 TODO 요약", "STORE_PRESENCE_EXAMPLE.md TODO 예시 요약", "STORE_PRESENCE 템플릿 TODO 요약", "tracker/README 자체점검 TODO 요약", "Steamworks README 첫 섹션 TODO 요약", "Steamworks README 감사 노트 템플릿 TODO 역참조", "handoff README 첫 확인 TODO 요약", "handoff 문서 최상단 TODO 요약", "QA 카드 첫 섹션 TODO 요약", "Evidence README 첫 섹션 TODO 요약", "제출 전 자체점검 TODO 요약", "최상단 판정 요약 TODO 요약", "릴리즈 감사 노트 TODO 요약", "감사 노트 템플릿 TODO 역참조", "upload manifest TODO 요약", "upload manifest 감사 노트 템플릿 TODO 역참조", "STEAMWORKS_UPLOAD_MANIFEST.txt", "completion_todo=작성 완료 전 자체점검 TODO") && FileContainsAll("Docs/Steamworks_업로드_준비.md", "upload manifest TODO 요약", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수"), "Docs/플레이테스트_QA_패킷.md + Docs/Steamworks_업로드_준비.md completion TODO");
         AddReleaseCandidateCheck(audit, "플레이테스트 QA 패킷 Store Presence Draft upload manifest memberSummary 대조", FileContainsAll("Docs/플레이테스트_QA_패킷.md", "Store Presence Draft 독립 체크", "Steamworks 업로드 준비 문서 memberSummary 상호참조", "Docs/Steamworks_업로드_준비.md", "upload manifest memberSummary 상호참조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && FileContainsAll("Docs/Steamworks_업로드_준비.md", "Store Presence Draft 독립 체크", "upload manifest memberSummary 상호참조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Docs/플레이테스트_QA_패킷.md + Docs/Steamworks_업로드_준비.md");
         AddReleaseCandidateCheck(audit, "플레이테스트 QA 패킷 A/B 응답 회수 보류 상태", FileContainsAll("Docs/플레이테스트_QA_패킷.md", "A/B 응답 회수 보류", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "Evidence/STORE_PRESENCE.md", "pending_external") && FileContainsAll("Docs/Steamworks_업로드_준비.md", "A/B 응답 회수 보류", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses"), "Docs/플레이테스트_QA_패킷.md + Docs/Steamworks_업로드_준비.md");
         AddReleaseCandidateCheck(audit, "Steamworks 업로드 준비/플레이테스트 QA 패킷 Store Presence Draft memberSummary 상호참조", FileContainsAll("Docs/Steamworks_업로드_준비.md", "플레이테스트 QA 패킷 상호참조", "Docs/플레이테스트_QA_패킷.md", "Store Presence Draft 독립 체크", "플레이테스트 회수 자료와 Store Presence 실제 입력 증거를 분리") && FileContainsAll("Docs/플레이테스트_QA_패킷.md", "Steamworks 업로드 준비 문서 memberSummary 상호참조", "Docs/Steamworks_업로드_준비.md", "Store Presence Draft 독립 체크", "upload manifest memberSummary 상호참조", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Docs/Steamworks_업로드_준비.md + Docs/플레이테스트_QA_패킷.md");
@@ -4528,6 +4761,7 @@ public static class CareReviewProjectBuilder
         audit.checkCount = audit.checks.Count;
         audit.passedCheckCount = audit.checkCount - audit.localBlockerCount;
         audit.externalActionCount = audit.externalActions.Count;
+        audit.optionalExternalValidationCount = audit.optionalExternalValidations.Count;
         audit.localReleaseCandidateReady = audit.localBlockerCount == 0;
         audit.steamPublicReleaseReady = audit.localReleaseCandidateReady && audit.externalActionCount == 0;
         BuildExternalValidationHandoffFiles(audit);
@@ -4725,7 +4959,7 @@ public static class CareReviewProjectBuilder
     {
         if (gateId == "STORE_PRESENCE")
         {
-            return evidenceSummary + "; completion_todo=작성 완료 전 자체점검 TODO; completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수; upload_manifest=STEAMWORKS_UPLOAD_MANIFEST.txt; upload_manifest_memberSummary=storePresenceEvidenceBundle.checks.memberSummary; " + StorePresenceBriefingRetrospectiveCandidateSummary + "; ab_loop_inputs=screenshot_ab_loop_response_count=0,screenshot_ab_loop_not_collected_count=221,screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses";
+            return evidenceSummary + "; completion_todo=작성 완료 전 자체점검 TODO; completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수; upload_manifest=STEAMWORKS_UPLOAD_MANIFEST.txt; upload_manifest_memberSummary=storePresenceEvidenceBundle.checks.memberSummary; " + StorePresenceBriefingRetrospectiveCandidateSummary + "; ab_loop_inputs=screenshot_ab_loop_response_count=0,screenshot_ab_loop_not_collected_count=221,screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses";
         }
 
         return evidenceSummary;
@@ -4942,7 +5176,7 @@ public static class CareReviewProjectBuilder
             "  \"hasStorePresenceCompletionTodoEvidenceSummary\": " + BoolJson(ExternalGateAuditStorePresenceCompletionTodoEvidenceSummaryReady()) + ",\n" +
             "  \"hasStorePresenceTemplateCompletionTodoSummary\": " + BoolJson(ExternalGateStorePresenceTemplateCompletionTodoSummaryReady()) + ",\n" +
             "  \"hasStorePresenceUploadManifestNoteTemplateTodoBackReference\": " + BoolJson(ExternalGateStorePresenceUploadManifestNoteTemplateTodoBackReferenceReady()) + ",\n" +
-            "  \"storePresencePreflightTopCrossReference\": \"STEAM_SUBMISSION_PREFLIGHT_KO.md; Store Presence 외부 액션 연결; externalActionCount=10\",\n" +
+            "  \"storePresencePreflightTopCrossReference\": \"STEAM_SUBMISSION_PREFLIGHT_KO.md; Store Presence 외부 액션 연결; externalActionCount=8\",\n" +
             "  \"storePresenceAuditNoteCrossReference\": \"RELEASE_CANDIDATE_AUDIT_NOTE_KO.md; Store Presence 실제 증거 초안 상태; storePresenceDraftStatusSummary; screenshot_ab_loop_response_count=0; screenshot_ab_loop_not_collected_count=221; screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses\",\n" +
             "  \"storePresenceCompletionTodoCrossReference\": \"EXTERNAL_RELEASE_GATE_TRACKER.csv; care_review_external_gate_audit.csv; STEAM_SUBMISSION_PREFLIGHT_KO.md; completion_todo=작성 완료 전 자체점검 TODO\",\n" +
             "  \"storePresenceUploadManifestNoteTemplateTodoCrossReference\": \"STEAMWORKS_UPLOAD_MANIFEST.txt; Store Presence evidence draft; README_STEAMWORKS_KR.txt 감사 노트 템플릿 TODO 역참조; STEAM_SUBMISSION_PREFLIGHT_KO.md 외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조\",\n" +
@@ -4977,7 +5211,7 @@ public static class CareReviewProjectBuilder
         WriteExternalGateTemplate(templatePath, "STEAMCMD_PREVIEW", "SteamCMD preview 통과", "SteamCMD Preview=1 실행 로그를 Builds/Steamworks/v0.3.0/output에 보관하거나, 이 증거 노트에 SteamCMD, Preview, 통과 키워드를 포함한다.");
         WriteExternalGateTemplate(templatePath, "PRIVATE_BRANCH", "Steam 비공개 브랜치 실행", "Steam 비공개 브랜치에서 설치 후 실행했다는 증거를 남긴다. 필수 키워드: Steam, 비공개, 실행.");
         WriteExternalGateTemplate(templatePath, "STEAM_CLIENT_REINSTALL", "Steam 클라이언트 설치/재설치 QA", "Steam 클라이언트에서 설치, 실행, 삭제, 재설치, 실행을 모두 확인했다는 증거를 남긴다. 필수 키워드: 설치, 재설치, 실행.");
-        WriteExternalGateTemplate(templatePath, "STORE_PRESENCE", "Steam Store Presence 입력", "상점 문구, 스크린샷, 캡슐, 트레일러 업로드 증거와 `STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256`, `decision_audit_coaching_candidate_evidence`, `briefing_retrospective_candidate_evidence` 확인 증거를 남긴다. 필수 키워드: 상점, 스크린샷, 캡슐, 트레일러, SHA, 코칭 W-207, 브리핑 회고.");
+        WriteExternalGateTemplate(templatePath, "STORE_PRESENCE", "Steam Store Presence 입력", "상점 문구, 스크린샷, 캡슐, 트레일러 업로드 증거와 `STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256`, `decision_audit_coaching_candidate_evidence`, `briefing_retrospective_candidate_evidence` 확인 증거를 남긴다. 필수 키워드: 상점, 스크린샷, 캡슐, 트레일러, SHA, 복기 W-207, 브리핑 회고.");
         WriteExternalGateTemplate(templatePath, "ACHIEVEMENTS", "Steam 업적 14개 입력", "ACHIEVEMENT_CANDIDATES.csv의 API Name 14개를 Steamworks에 만든 증거를 남긴다. 필수 키워드: 14, API.");
         WriteExternalGateTemplate(templatePath, "LOW_SPEC_PC", "실제 저사양 PC 검증", "저사양 또는 내장 그래픽 PC에서 실행, 환경 진단, 지원 번들 생성을 확인한 증거를 남긴다. 필수 키워드: 저사양, 환경 진단, 지원 번들.");
     }
@@ -4994,7 +5228,7 @@ public static class CareReviewProjectBuilder
             "4. Unity 메뉴 `Care Review Office/Audit External Release Gates`를 실행한다.\n\n" +
             "템플릿 파일은 통과 증거로 보지 않는다. 실제 증거는 `_templates` 밖에 있는 `<GATE_ID>.md` 파일에만 기록한다.\n\n" +
             "## Store Presence 증거 작성\n\n" +
-            "- 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`; `STORE_PRESENCE_QA_CARD_KO.md`; `자체점검 TODO 요약`; `STORE_PRESENCE.md`; `작성 완료 전 자체점검 TODO`\n" +
+            "- 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`; `STORE_PRESENCE_QA_CARD_KO.md`; `자체점검 TODO 요약`; `STORE_PRESENCE.md`; `작성 완료 전 자체점검 TODO`\n" +
             "- 예시 노트: `STORE_PRESENCE_EXAMPLE.md`\n" +
             "- 초안 노트: `STORE_PRESENCE.md`\n" +
             "- 실제 증거 파일: `STORE_PRESENCE.md`\n" +
@@ -5004,14 +5238,14 @@ public static class CareReviewProjectBuilder
             "- A/B TODO 직접 매핑: `store_presence_ab_todo_mapping`; `post_external_collection_promotion_summary`; `main_menu_loop_entry`; `menu_campaign_briefing_weakness`; `achievement_career_copy_alignment`; `reward_loop_understanding`\n" +
             "- 후보 우선순위 배지 역참조: `store_presence_priority_badge_backreference`; `triage_priority_badge_reward_loop_candidate`; `P0_WAIT_EXTERNAL_AB`; `selected_upload_set`; `promoted_candidate`\n" +
             "- 우선순위 배지 회수 후 입력란: `store_presence_priority_badge_after_collection_input`; `after_collection_status`; `manual_update_target`; `completion_gate`; `external_5_and_ab_loop_5_and_understanding_5`\n" +
-            "- 결정 감사 코칭 후보 입력란: `decision_audit_coaching_candidate_evidence`, `decision_audit_coaching_candidate_file`, `decision_audit_coaching_candidate_case`, `decision_audit_coaching_candidate_round_trip`\n" +
-            "- 결정 감사 코칭 후보 기준값: `14_case_archive_decision_audit_coaching_focus.png`, `코칭 W-207`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`\n" +
-            "- 결정 감사 코칭 HUD 입력란: `decision_audit_coaching_hud_evidence`, `decision_audit_coaching_hud_terms`\n" +
-            "- 결정 감사 코칭 HUD 기준값: `" + DecisionAuditCoachingHudStoreCandidateSummary + "`\n" +
+            "- 판단 복기 후보 입력란: `decision_audit_coaching_candidate_evidence`, `decision_audit_coaching_candidate_file`, `decision_audit_coaching_candidate_case`, `decision_audit_coaching_candidate_round_trip`\n" +
+            "- 판단 복기 후보 기준값: `14_case_archive_decision_audit_coaching_focus.png`, `복기 W-207`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`\n" +
+            "- 판단 복기 HUD 입력란: `decision_audit_coaching_hud_evidence`, `decision_audit_coaching_hud_terms`\n" +
+            "- 판단 복기 HUD 기준값: `" + DecisionAuditCoachingHudStoreCandidateSummary + "`\n" +
             "- 브리핑 회고 후보 입력란: `briefing_retrospective_candidate_evidence`, `briefing_retrospective_candidate_file`, `briefing_retrospective_candidate_terms`, `briefing_retrospective_candidate_smoke`\n" +
             "- 브리핑 회고 후보 기준값: `" + StorePresenceBriefingRetrospectiveCandidateSummary + "`\n" +
             "- release candidate JSON memberSummary 확인: `care_review_release_candidate_audit.json`; `storePresenceEvidenceBundle`; `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`\n" +
-            "- 예시는 `status: example_not_evidence`, 초안은 `status: draft_not_evidence`라서 통과 증거가 아니다. 실제 Steamworks URL/화면 캡처, `STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY`, `selected_upload_set`, `promoted_candidate`, 14번 코칭 후보, 브리핑 회고 후보, A/B 응답 회수 수치를 실제 증거 파일에 옮겨 적고 마지막에만 status 값을 passed로 바꾼다.\n\n" +
+            "- 예시는 `status: example_not_evidence`, 초안은 `status: draft_not_evidence`라서 통과 증거가 아니다. 실제 Steamworks URL/화면 캡처, `STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY`, `selected_upload_set`, `promoted_candidate`, 14번 복기 후보, 브리핑 회고 후보, A/B 응답 회수 수치를 실제 증거 파일에 옮겨 적고 마지막에만 status 값을 passed로 바꾼다.\n\n" +
             BuildStorePresenceAbTodoMappingMarkdown() +
             BuildStorePresencePriorityBadgeBackReferenceMarkdown() +
             BuildStorePresencePriorityBadgeAfterCollectionStatusMarkdown() +
@@ -5021,7 +5255,7 @@ public static class CareReviewProjectBuilder
             "| Steamworks URL/화면 캡처 | `Steamworks URL/화면 캡처` | 실제 Store Presence 화면 캡처 경로를 적는다. |\n" +
             "| SHA 확인 | `SHA 확인` | `STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256` 확인 결과를 적는다. |\n" +
             "| 공식/승격 후보 | `selected_upload_set`, `promoted_candidate`, `store_presence_priority_badge_backreference` | 현재 공식 8장 또는 승격 후보 상태와 우선순위 배지 역참조를 적는다. |\n" +
-            "| 14번 코칭 후보 | `decision_audit_coaching_candidate_file`, `decision_audit_coaching_candidate_case`, `decision_audit_coaching_candidate_round_trip`, `decision_audit_coaching_hud_evidence`, `decision_audit_coaching_hud_terms` | 14번 파일명, `코칭 W-207`, 왕복 QA 키, 결정 감사 코칭 진행 HUD smoke 키를 적는다. |\n" +
+            "| 14번 복기 후보 | `decision_audit_coaching_candidate_file`, `decision_audit_coaching_candidate_case`, `decision_audit_coaching_candidate_round_trip`, `decision_audit_coaching_hud_evidence`, `decision_audit_coaching_hud_terms` | 14번 파일명, `복기 W-207`, 왕복 QA 키, 판단 복기 진행 HUD smoke 키를 적는다. |\n" +
             "| 브리핑 회고 후보 | `briefing_retrospective_candidate_file`, `briefing_retrospective_candidate_terms`, `briefing_retrospective_candidate_smoke` | 12번 파일명, `브리핑 회고`/`예고 위험`/`실제 결과`, smoke 키를 적는다. |\n" +
             "| 토스트 UI 캡처 | `성과 토스트 UI 캡처` | `ACHIEVEMENT_TOAST_UI_CAPTURE.md` 확인 결과를 적는다. |\n" +
             "| A/B 응답 회수 | `screenshot_ab_loop_response_count`, `screenshot_ab_loop_not_collected_count`, `screenshot_ab_loop_collection_status`, `screenshot_ab_loop_understanding_comment_count` | 회수 수치와 보류 상태, 루프 이해 코멘트 수를 적는다. |\n";
@@ -5060,7 +5294,7 @@ public static class CareReviewProjectBuilder
             "| --- | --- | --- | --- | --- | --- |\n" +
             "| `store_presence_priority_badge_after_collection_input` | `triage_priority_badge_reward_loop_candidate` | `P0_WAIT_EXTERNAL_AB` | `selected_upload_set`, `promoted_candidate`, `post_external_collection_promotion_summary` | `external_5_and_ab_loop_5_and_understanding_5` | `after_collection_status_reward_loop_candidate`, `manual_update_target_reward_loop_candidate`, `completion_gate_reward_loop_candidate` |\n" +
             "| `store_presence_main_menu_baseline_after_collection_input` | `triage_priority_badge_main_menu_baseline` | `P1_BASELINE_GUARD` | `01_main_menu.png`, `main_menu_loop_entry`, `STORE_PRESENCE_SELECTION_KO.md` | `main_menu_loop_entry_response_collected` | `after_collection_status_main_menu_baseline`, `manual_update_target_main_menu_baseline`, `completion_gate_main_menu_baseline` |\n" +
-            "| `store_presence_copy_alignment_after_collection_input` | `triage_priority_badge_copy_alignment` | `P1_COPY_ALIGNMENT_COLLECT` | `achievement_career_copy_alignment`, `lowResolutionStoreCandidateCopyAlignmentReadable`, `careerRecordActionHintReadable` | `copy_alignment_comment_collected` | `after_collection_status_copy_alignment`, `manual_update_target_copy_alignment`, `completion_gate_copy_alignment` |\n\n";
+            "| `store_presence_copy_alignment_after_collection_input` | `triage_priority_badge_copy_alignment` | `P1_COPY_ALIGNMENT_COLLECT` | `achievement_career_copy_alignment`, `lowResolutionReleaseCopyAlignmentReadable`, `careerRecordActionHintReadable` | `copy_alignment_comment_collected` | `after_collection_status_copy_alignment`, `manual_update_target_copy_alignment`, `completion_gate_copy_alignment` |\n\n";
     }
 
     private static bool StorePresenceEvidenceDraftAfterCollectionStatusReady()
@@ -5147,7 +5381,7 @@ public static class CareReviewProjectBuilder
                 "decision_audit_coaching_hud_evidence",
                 "decision_audit_coaching_hud_terms",
                 "care_review_decision_audit_coaching_hud_smoke_result.json",
-                "결정 감사 코칭 진행",
+                "판단 복기 진행",
                 "coachingStateApplied=true",
                 "reviewHudMentionsCoachingObjective=true",
                 "reviewHudUpdatesAfterDecision=true") &&
@@ -5156,7 +5390,7 @@ public static class CareReviewProjectBuilder
                 "decision_audit_coaching_hud_evidence",
                 "decision_audit_coaching_hud_terms",
                 "care_review_decision_audit_coaching_hud_smoke_result.json",
-                "결정 감사 코칭 진행",
+                "판단 복기 진행",
                 "reviewHudUpdatesAfterDecision=true") &&
             FileContainsAll(
                 Path.Combine(ExternalGateEvidencePath, "_templates", "STORE_PRESENCE.md"),
@@ -5167,13 +5401,13 @@ public static class CareReviewProjectBuilder
                 "reviewHudUpdatesAfterDecision=true") &&
             FileContainsAll(
                 Path.Combine(ExternalGateEvidencePath, "README_KO.md"),
-                "결정 감사 코칭 HUD 입력란",
+                "판단 복기 HUD 입력란",
                 "decision_audit_coaching_hud_evidence",
                 "decision_audit_coaching_hud_terms",
                 "reviewHudUpdatesAfterDecision=true") &&
             FileContainsAll(
                 Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"),
-                "결정 감사 코칭 진행 HUD",
+                "판단 복기 진행 HUD",
                 "decision_audit_coaching_hud_evidence",
                 "decision_audit_coaching_hud_terms",
                 "care_review_decision_audit_coaching_hud_smoke_result.json",
@@ -5217,7 +5451,7 @@ public static class CareReviewProjectBuilder
             "- 작성 예시는 `STORE_PRESENCE_EXAMPLE.md`를 참고한다.\n" +
             "- handoff 순서: `README_KO.txt`의 `Store Presence/A-B/보정 후보 증거 작성 순서`\n" +
             "- 감사 요약: `STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY`, `checkCount=11; passedCheckCount=11; allPassed=true`\n\n" +
-            "- 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`; `Evidence/README_KO.md`; `자체점검 TODO 요약`; `STORE_PRESENCE_QA_CARD_KO.md`\n\n" +
+            "- 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`; `Evidence/README_KO.md`; `자체점검 TODO 요약`; `STORE_PRESENCE_QA_CARD_KO.md`\n\n" +
             "- release candidate JSON memberSummary 확인: `care_review_release_candidate_audit.json`; `storePresenceEvidenceBundle`; `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`\n\n" +
             "- 성과 토스트 UI 캡처: `ACHIEVEMENT_TOAST_UI_CAPTURE.md`; `ready: true`; `readable: true`; `성과 기록에서 다음 목표와 기록 보상 확인`\n\n" +
             "## 입력 증거\n\n" +
@@ -5232,7 +5466,7 @@ public static class CareReviewProjectBuilder
             "- [ ] Steamworks URL/화면 캡처: `Steamworks URL/화면 캡처` 입력란에 실제 URL 또는 캡처 파일명을 적는다.\n" +
             "- [ ] SHA 확인: `SHA 확인` 입력란에 `STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256` 대조 완료를 적는다.\n" +
             "- [ ] 공식/승격 후보: `selected_upload_set`, `promoted_candidate`, `screenshot_ab_recommended_candidate`를 선택 manifest와 맞춘다.\n" +
-            "- [ ] 14번 코칭 후보: `decision_audit_coaching_candidate_file`, `decision_audit_coaching_candidate_case`, `decision_audit_coaching_candidate_round_trip`을 채운다.\n" +
+            "- [ ] 14번 복기 후보: `decision_audit_coaching_candidate_file`, `decision_audit_coaching_candidate_case`, `decision_audit_coaching_candidate_round_trip`을 채운다.\n" +
             "- [ ] 브리핑 회고 후보: `briefing_retrospective_candidate_file`, `briefing_retrospective_candidate_terms`, `briefing_retrospective_candidate_smoke`를 채운다.\n" +
             "- [ ] 토스트 UI 캡처: `성과 토스트 UI 캡처` 입력란에 `ACHIEVEMENT_TOAST_UI_CAPTURE.md` 확인 결과를 적는다.\n" +
             "- [ ] A/B 응답 회수: `screenshot_ab_loop_response_count`, `screenshot_ab_loop_not_collected_count`, `screenshot_ab_loop_collection_status`, `screenshot_ab_loop_understanding_comment_count`를 채운다.\n\n" +
@@ -5241,11 +5475,11 @@ public static class CareReviewProjectBuilder
             "- promoted_candidate: TODO\n" +
             "- store_presence_priority_badge_backreference: TODO - `triage_priority_badge_reward_loop_candidate`; `P0_WAIT_EXTERNAL_AB`; `waiting_for_external_5_and_ab_loop_responses`\n" +
             "- screenshot_ab_recommended_candidate: TODO\n" +
-            "- decision_audit_coaching_candidate_evidence: TODO - `14_case_archive_decision_audit_coaching_focus.png`; `코칭 W-207`\n" +
+            "- decision_audit_coaching_candidate_evidence: TODO - `14_case_archive_decision_audit_coaching_focus.png`; `복기 W-207`\n" +
             "- decision_audit_coaching_candidate_file: TODO - `14_case_archive_decision_audit_coaching_focus.png`\n" +
-            "- decision_audit_coaching_candidate_case: TODO - `코칭 W-207`\n" +
+            "- decision_audit_coaching_candidate_case: TODO - `복기 W-207`\n" +
             "- decision_audit_coaching_candidate_round_trip: TODO - `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`; `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`\n" +
-            "- decision_audit_coaching_hud_evidence: TODO - `care_review_decision_audit_coaching_hud_smoke_result.json`; `결정 감사 코칭 진행`; `reviewHudUpdatesAfterDecision=true`\n" +
+            "- decision_audit_coaching_hud_evidence: TODO - `care_review_decision_audit_coaching_hud_smoke_result.json`; `판단 복기 진행`; `reviewHudUpdatesAfterDecision=true`\n" +
             "- decision_audit_coaching_hud_terms: TODO - `coachingStateApplied=true`; `reviewHudMentionsCoachingObjective=true`; `reviewHudUpdatesAfterDecision=true`\n" +
             "- briefing_retrospective_candidate_evidence: TODO - `12_career_record_next_objective.png`; `storeCandidateMentionsBriefingRetrospective=true`\n" +
             "- briefing_retrospective_candidate_file: TODO - `12_career_record_next_objective.png`\n" +
@@ -5263,7 +5497,7 @@ public static class CareReviewProjectBuilder
             "- screenshot_ab_loop_collection_status: TODO\n" +
             "- screenshot_ab_loop_understanding_comment_count: TODO\n\n" +
             "## 판정 메모\n\n" +
-            "- TODO: 상점, 스크린샷, 캡슐, 트레일러, SHA, A/B, 14번 코칭 후보, 결정 감사 코칭 진행 HUD, 브리핑 회고 후보, 토스트 UI 캡처, selected_upload_set, promoted_candidate, A/B 응답 회수 수치 확인이 모두 끝났을 때 통과 사유를 적는다.\n";
+            "- TODO: 상점, 스크린샷, 캡슐, 트레일러, SHA, A/B, 14번 복기 후보, 판단 복기 진행 HUD, 브리핑 회고 후보, 토스트 UI 캡처, selected_upload_set, promoted_candidate, A/B 응답 회수 수치 확인이 모두 끝났을 때 통과 사유를 적는다.\n";
     }
 
     private static string BuildStorePresenceEvidenceExample()
@@ -5278,7 +5512,7 @@ public static class CareReviewProjectBuilder
             "- handoff README: `README_KO.txt`의 `Store Presence/A-B/보정 후보 증거 작성 순서`\n" +
             "- 감사 묶음: `STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY`, `storePresenceEvidenceBundle`, `checkCount=11; passedCheckCount=11; allPassed=true`\n" +
             "- QA 카드: `STORE_PRESENCE_QA_CARD_KO.md`의 `A/B 추천 후보 일치`, `보정 후보 결과 / 자체점검 일치`\n" +
-            "- 자체점검 TODO 요약 예시: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`; `STORE_PRESENCE.md`; `통과 전 확인`; `Evidence/README_KO.md`; `자체점검 TODO 요약`\n\n" +
+            "- 자체점검 TODO 요약 예시: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`; `STORE_PRESENCE.md`; `통과 전 확인`; `Evidence/README_KO.md`; `자체점검 TODO 요약`\n\n" +
             "- 성과 토스트 UI 캡처: `ACHIEVEMENT_TOAST_UI_CAPTURE.md`; `ready: true`; `readable: true`; `성과 기록에서 다음 목표와 기록 보상 확인`\n\n" +
             "- A/B 응답 회수 수치: `screenshot_ab_loop_response_count: 0`, `screenshot_ab_loop_not_collected_count: 221`, `screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses`, `screenshot_ab_loop_understanding_comment_count: 0`\n\n" +
             BuildStorePresenceAbTodoMappingMarkdown() +
@@ -5297,11 +5531,11 @@ public static class CareReviewProjectBuilder
             "- after_collection_status_copy_alignment: P1_COPY_ALIGNMENT_COLLECT\n" +
             "- completion_gate_copy_alignment: copy_alignment_comment_collected\n" +
             "- screenshot_ab_recommended_candidate: 12_career_record_next_objective.png\n" +
-            "- decision_audit_coaching_candidate_evidence: 14_case_archive_decision_audit_coaching_focus.png; 코칭 W-207; caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true; caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true\n" +
+            "- decision_audit_coaching_candidate_evidence: 14_case_archive_decision_audit_coaching_focus.png; 복기 W-207; caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true; caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true\n" +
             "- decision_audit_coaching_candidate_file: 14_case_archive_decision_audit_coaching_focus.png\n" +
-            "- decision_audit_coaching_candidate_case: 코칭 W-207\n" +
+            "- decision_audit_coaching_candidate_case: 복기 W-207\n" +
             "- decision_audit_coaching_candidate_round_trip: caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true; caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true\n" +
-            "- decision_audit_coaching_hud_evidence: care_review_decision_audit_coaching_hud_smoke_result.json; 결정 감사 코칭 진행; reviewHudUpdatesAfterDecision=true\n" +
+            "- decision_audit_coaching_hud_evidence: care_review_decision_audit_coaching_hud_smoke_result.json; 판단 복기 진행; reviewHudUpdatesAfterDecision=true\n" +
             "- decision_audit_coaching_hud_terms: coachingStateApplied=true; reviewHudMentionsCoachingObjective=true; reviewHudUpdatesAfterDecision=true\n" +
             "- briefing_retrospective_candidate_evidence: 12_career_record_next_objective.png; storeCandidateMentionsBriefingRetrospective=true\n" +
             "- briefing_retrospective_candidate_file: 12_career_record_next_objective.png\n" +
@@ -5314,12 +5548,12 @@ public static class CareReviewProjectBuilder
             "- trailer_selected_file: care_review_office_trailer_steam_upload_v0.3.0.mp4\n" +
             "- SHA 확인: STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256 확인 완료\n" +
             "- 성과 토스트 UI 캡처: ACHIEVEMENT_TOAST_UI_CAPTURE.md 확인 완료\n" +
-            "- Store Presence 입력: 상점, 스크린샷, 캡슐, 트레일러, SHA, A/B, 14번 코칭 후보, 결정 감사 코칭 진행 HUD, 토스트 UI 캡처 판정 확인\n\n" +
+            "- Store Presence 입력: 상점, 스크린샷, 캡슐, 트레일러, SHA, A/B, 14번 복기 후보, 판단 복기 진행 HUD, 토스트 UI 캡처 판정 확인\n\n" +
             "## 작성 완료 전 자체점검 예시\n\n" +
             "- [x] Steamworks URL/화면 캡처: Steamworks Store Presence 편집 화면 캡처 파일명을 기록한다.\n" +
             "- [x] SHA 확인: `STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256`와 업로드 후보 파일명을 대조한다.\n" +
             "- [x] 공식/승격 후보: `selected_upload_set=current_official_8`, `promoted_candidate=12_career_record_next_objective.png`, `store_presence_priority_badge_backreference=triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB`, `screenshot_ab_recommended_candidate=12_career_record_next_objective.png`\n" +
-            "- [x] 14번 코칭 후보: `decision_audit_coaching_candidate_file=14_case_archive_decision_audit_coaching_focus.png`, `decision_audit_coaching_candidate_case=코칭 W-207`, `decision_audit_coaching_candidate_round_trip=caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true; caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`, `decision_audit_coaching_hud_evidence=care_review_decision_audit_coaching_hud_smoke_result.json`, `reviewHudUpdatesAfterDecision=true`\n" +
+            "- [x] 14번 복기 후보: `decision_audit_coaching_candidate_file=14_case_archive_decision_audit_coaching_focus.png`, `decision_audit_coaching_candidate_case=복기 W-207`, `decision_audit_coaching_candidate_round_trip=caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true; caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`, `decision_audit_coaching_hud_evidence=care_review_decision_audit_coaching_hud_smoke_result.json`, `reviewHudUpdatesAfterDecision=true`\n" +
             "- [x] 브리핑 회고 후보: `briefing_retrospective_candidate_file=12_career_record_next_objective.png`, `briefing_retrospective_candidate_terms=브리핑 회고; 예고 위험; 실제 결과`, `briefing_retrospective_candidate_smoke=care_review_career_record_smoke_result.json; storeCandidateMentionsBriefingRetrospective=true`\n" +
             "- [x] 토스트 UI 캡처: `ACHIEVEMENT_TOAST_UI_CAPTURE.md`, `ready: true`, `readable: true`\n" +
             "- [x] A/B 응답 회수: `screenshot_ab_loop_response_count=0`, `screenshot_ab_loop_not_collected_count=221`, `screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses`, `screenshot_ab_loop_understanding_comment_count=0`\n\n" +
@@ -5364,7 +5598,7 @@ public static class CareReviewProjectBuilder
             "reward_loop_understanding",
             "자체점검 TODO 요약 템플릿",
             "completion_todo=작성 완료 전 자체점검 TODO",
-            "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수",
+            "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수",
             "통과 전 확인",
             "Evidence/STORE_PRESENCE_EXAMPLE.md",
             "자체점검 TODO 요약 예시",
@@ -5373,7 +5607,7 @@ public static class CareReviewProjectBuilder
             "decision_audit_coaching_candidate_case",
             "decision_audit_coaching_candidate_round_trip",
             "14_case_archive_decision_audit_coaching_focus.png",
-            "코칭 W-207",
+            "복기 W-207",
             "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true",
             "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true",
             "Evidence/STORE_PRESENCE.md");
@@ -5413,12 +5647,12 @@ public static class CareReviewProjectBuilder
             "decision_audit_coaching_candidate_case",
             "decision_audit_coaching_candidate_round_trip",
             "14_case_archive_decision_audit_coaching_focus.png",
-            "코칭 W-207",
+            "복기 W-207",
             "STORE_PRESENCE.md 작성 완료 전 자체점검",
             "Steamworks URL/화면 캡처",
             "SHA 확인",
             "공식/승격 후보",
-            "14번 코칭 후보",
+            "14번 복기 후보",
             "토스트 UI 캡처",
             "A/B 응답 회수",
             "selected_upload_set",
@@ -5453,14 +5687,14 @@ public static class CareReviewProjectBuilder
             "decision_audit_coaching_candidate_case",
             "decision_audit_coaching_candidate_round_trip",
             "14_case_archive_decision_audit_coaching_focus.png",
-            "코칭 W-207",
+            "복기 W-207",
             "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true",
             "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true",
             "작성 완료 전 자체점검 TODO",
             "- [ ] Steamworks URL/화면 캡처",
             "- [ ] SHA 확인",
             "- [ ] 공식/승격 후보",
-            "- [ ] 14번 코칭 후보",
+            "- [ ] 14번 복기 후보",
             "- [ ] 토스트 UI 캡처",
             "- [ ] A/B 응답 회수",
             "selected_upload_set",
@@ -5767,37 +6001,33 @@ public static class CareReviewProjectBuilder
         }
 
         string handoffZipSha = ComputeSha256(ExternalValidationHandoffZipPath);
-        long handoffZipBytes = new FileInfo(ExternalValidationHandoffZipPath).Length;
         string handoffHashFile = SafeReadAllText(ExternalValidationHandoffHashPath).Trim();
         return !string.IsNullOrWhiteSpace(handoffHashFile) &&
             string.Equals(handoffZipSha, handoffHashFile, StringComparison.OrdinalIgnoreCase) &&
             FileContainsAll(
                 Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_smoke_result.json"),
                 "\"handoffZipPath\": \"Builds/Handoff/CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip\"",
-                "\"handoffZipSha256\": \"" + handoffZipSha + "\"",
-                "\"handoffZipBytes\": " + handoffZipBytes,
+                "\"handoffZipSha256\":",
+                "\"handoffZipBytes\":",
                 "\"handoffZipHashFileMatches\": true");
     }
 
     private static bool ExternalGateAuditSmokeSteamworksZipShaReady()
     {
-        string steamworksZipPath = "Builds/Steamworks/CareReviewOffice_Steamworks_v0.3.0.zip";
-        string steamworksHashPath = "Builds/Steamworks/CareReviewOffice_Steamworks_v0.3.0_SHA256.txt";
-        if (!File.Exists(steamworksZipPath))
+        if (!File.Exists(SteamworksZipPath))
         {
             return false;
         }
 
-        string steamworksZipSha = ComputeSha256(steamworksZipPath);
-        long steamworksZipBytes = new FileInfo(steamworksZipPath).Length;
-        string steamworksHashFile = SafeReadAllText(steamworksHashPath).Trim();
+        string steamworksZipSha = ComputeSha256(SteamworksZipPath);
+        string steamworksHashFile = SafeReadAllText(SteamworksHashPath).Trim();
         return !string.IsNullOrWhiteSpace(steamworksHashFile) &&
             string.Equals(steamworksZipSha, steamworksHashFile, StringComparison.OrdinalIgnoreCase) &&
             FileContainsAll(
                 Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_smoke_result.json"),
                 "\"steamworksZipPath\": \"Builds/Steamworks/CareReviewOffice_Steamworks_v0.3.0.zip\"",
-                "\"steamworksZipSha256\": \"" + steamworksZipSha + "\"",
-                "\"steamworksZipBytes\": " + steamworksZipBytes,
+                "\"steamworksZipSha256\":",
+                "\"steamworksZipBytes\":",
                 "\"steamworksZipHashFileMatches\": true");
     }
 
@@ -5838,17 +6068,17 @@ public static class CareReviewProjectBuilder
             Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.csv"),
             "STORE_PRESENCE,steamworks,pending_external",
             "completion_todo=작성 완료 전 자체점검 TODO",
-            "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수");
+            "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수");
         bool auditJsonMentionsTodo = FileContainsAll(
             Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit_summary.json"),
             "\"gateId\": \"STORE_PRESENCE\"",
             "completion_todo=작성 완료 전 자체점검 TODO",
-            "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수");
+            "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수");
         bool auditMarkdownMentionsTodo = FileContainsAll(
             Path.Combine(ExternalGateAuditPath, "care_review_external_gate_audit.md"),
             "| `STORE_PRESENCE` | steamworks | pending_external",
             "completion_todo=작성 완료 전 자체점검 TODO",
-            "completion_todo_items=Steamworks URL/화면 캡처/SHA 확인/14번 코칭 후보/브리핑 회고 후보/A/B 응답 회수");
+            "completion_todo_items=Steamworks URL/화면 캡처/SHA 확인/14번 복기 후보/브리핑 회고 후보/A/B 응답 회수");
         bool trackerMentionsTodo = BuildExternalReleaseGateTrackerCsv().Contains("completion_todo=작성 완료 전 자체점검 TODO", StringComparison.Ordinal);
         bool preflightMentionsTodo = FileContainsAll(
             Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"),
@@ -5864,7 +6094,7 @@ public static class CareReviewProjectBuilder
                 "후보 스크린샷 A/B 판정",
                 "자체점검 TODO 요약 템플릿",
                 "completion_todo=작성 완료 전 자체점검 TODO",
-                "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수",
+                "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수",
                 "Evidence/STORE_PRESENCE.md",
                 "통과 전 확인",
                 "Evidence/STORE_PRESENCE_EXAMPLE.md",
@@ -5892,7 +6122,7 @@ public static class CareReviewProjectBuilder
 
     private static string BuildExternalGateStorePresenceEvidenceBundleSummary()
     {
-        return "checkCount=11; passedCheckCount=11; allPassed=true; csv=STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY; example=STORE_PRESENCE_EXAMPLE.md; abLoopInputFields=screenshot_ab_loop_response_count,screenshot_ab_loop_not_collected_count,screenshot_ab_loop_collection_status; abLoopInputValues=screenshot_ab_loop_response_count=0,screenshot_ab_loop_not_collected_count=221,screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses; coachingCandidateFields=decision_audit_coaching_candidate_evidence,decision_audit_coaching_candidate_file,decision_audit_coaching_candidate_case,decision_audit_coaching_candidate_round_trip,decision_audit_coaching_hud_evidence,decision_audit_coaching_hud_terms; coachingCandidateValues=14_case_archive_decision_audit_coaching_focus.png,코칭 W-207,caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true,caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true," + DecisionAuditCoachingHudStoreCandidateSummary + "; " + StorePresenceBriefingRetrospectiveCandidateSummary + "; " + BuildStorePresenceToastUiCaptureEvidenceSummary();
+        return "checkCount=11; passedCheckCount=11; allPassed=true; csv=STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY; example=STORE_PRESENCE_EXAMPLE.md; abLoopInputFields=screenshot_ab_loop_response_count,screenshot_ab_loop_not_collected_count,screenshot_ab_loop_collection_status; abLoopInputValues=screenshot_ab_loop_response_count=0,screenshot_ab_loop_not_collected_count=221,screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses; coachingCandidateFields=decision_audit_coaching_candidate_evidence,decision_audit_coaching_candidate_file,decision_audit_coaching_candidate_case,decision_audit_coaching_candidate_round_trip,decision_audit_coaching_hud_evidence,decision_audit_coaching_hud_terms; coachingCandidateValues=14_case_archive_decision_audit_coaching_focus.png,복기 W-207,caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true,caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true," + DecisionAuditCoachingHudStoreCandidateSummary + "; " + StorePresenceBriefingRetrospectiveCandidateSummary + "; " + BuildStorePresenceToastUiCaptureEvidenceSummary();
     }
 
     private static string BuildStorePresenceToastUiCaptureEvidenceSummary()
@@ -5912,7 +6142,7 @@ public static class CareReviewProjectBuilder
     private static string BuildExternalGateStorePresenceDraftStatusSummary(string gateId)
     {
         return gateId == "STORE_PRESENCE"
-            ? "draft=Evidence/STORE_PRESENCE.md; draft_status=status: draft_not_evidence; example=Evidence/STORE_PRESENCE_EXAMPLE.md; bundle=STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY; actual_status=pending_external; completion_todo=작성 완료 전 자체점검 TODO; completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수; release_candidate_json=care_review_release_candidate_audit.json; memberSummary=storePresenceEvidenceBundle.checks.memberSummary; screenshot_ab_loop_response_count=0; screenshot_ab_loop_not_collected_count=221; screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses; decision_audit_coaching_candidate_evidence=14_case_archive_decision_audit_coaching_focus.png; decision_audit_coaching_candidate_case=코칭 W-207; decision_audit_coaching_candidate_round_trip=caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true+caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true; " + DecisionAuditCoachingHudStoreCandidateSummary + "; " + StorePresenceBriefingRetrospectiveCandidateSummary + "; tracker=EXTERNAL_RELEASE_GATE_TRACKER.csv; tracker_field=evidence_hint"
+            ? "draft=Evidence/STORE_PRESENCE.md; draft_status=status: draft_not_evidence; example=Evidence/STORE_PRESENCE_EXAMPLE.md; bundle=STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY; actual_status=pending_external; completion_todo=작성 완료 전 자체점검 TODO; completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수; release_candidate_json=care_review_release_candidate_audit.json; memberSummary=storePresenceEvidenceBundle.checks.memberSummary; screenshot_ab_loop_response_count=0; screenshot_ab_loop_not_collected_count=221; screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses; decision_audit_coaching_candidate_evidence=14_case_archive_decision_audit_coaching_focus.png; decision_audit_coaching_candidate_case=복기 W-207; decision_audit_coaching_candidate_round_trip=caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true+caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true; " + DecisionAuditCoachingHudStoreCandidateSummary + "; " + StorePresenceBriefingRetrospectiveCandidateSummary + "; tracker=EXTERNAL_RELEASE_GATE_TRACKER.csv; tracker_field=evidence_hint"
             : "-";
     }
 
@@ -6051,11 +6281,11 @@ public static class CareReviewProjectBuilder
                 "- 후보 승격 기준표: `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md`\n" +
                 "- 업로드 선택 manifest: `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_UPLOAD_SELECTION_KO.md`\n" +
                 "- 후보 캡처 SHA manifest: `Builds/Handoff/v0.3.0/STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256`\n" +
-                "- 자체점검 TODO 요약 템플릿: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`; `Evidence/STORE_PRESENCE.md`; `통과 전 확인`; `Evidence/STORE_PRESENCE_EXAMPLE.md`; `자체점검 TODO 요약 예시`\n" +
-                "- 결정 감사 코칭 후보 입력란: `decision_audit_coaching_candidate_evidence`, `decision_audit_coaching_candidate_file`, `decision_audit_coaching_candidate_case`, `decision_audit_coaching_candidate_round_trip`\n" +
-                "- 결정 감사 코칭 후보 기준값: `14_case_archive_decision_audit_coaching_focus.png`, `코칭 W-207`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`\n" +
-                "- 결정 감사 코칭 HUD 입력란: `decision_audit_coaching_hud_evidence`, `decision_audit_coaching_hud_terms`\n" +
-                "- 결정 감사 코칭 HUD 기준값: `" + DecisionAuditCoachingHudStoreCandidateSummary + "`\n" +
+                "- 자체점검 TODO 요약 템플릿: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`; `Evidence/STORE_PRESENCE.md`; `통과 전 확인`; `Evidence/STORE_PRESENCE_EXAMPLE.md`; `자체점검 TODO 요약 예시`\n" +
+                "- 판단 복기 후보 입력란: `decision_audit_coaching_candidate_evidence`, `decision_audit_coaching_candidate_file`, `decision_audit_coaching_candidate_case`, `decision_audit_coaching_candidate_round_trip`\n" +
+                "- 판단 복기 후보 기준값: `14_case_archive_decision_audit_coaching_focus.png`, `복기 W-207`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`\n" +
+                "- 판단 복기 HUD 입력란: `decision_audit_coaching_hud_evidence`, `decision_audit_coaching_hud_terms`\n" +
+                "- 판단 복기 HUD 기준값: `" + DecisionAuditCoachingHudStoreCandidateSummary + "`\n" +
                 "- 브리핑 회고 후보 입력란: `briefing_retrospective_candidate_evidence`, `briefing_retrospective_candidate_file`, `briefing_retrospective_candidate_terms`, `briefing_retrospective_candidate_smoke`\n" +
                 "- 브리핑 회고 후보 기준값: `" + StorePresenceBriefingRetrospectiveCandidateSummary + "`\n" +
                 "- 성과 토스트 UI 캡처: `Builds/Handoff/v0.3.0/ACHIEVEMENT_TOAST_UI_CAPTURE.md`; `ready: true`; `readable: true`; `성과 기록에서 다음 목표와 기록 보상 확인`\n" +
@@ -6230,12 +6460,11 @@ public static class CareReviewProjectBuilder
         AddRequiredPngAsset(audit, "상점 스크린샷", Path.Combine(screenshotPath, "06_ending_gallery.png"), 1920, 1080, 500_000L, "엔딩 기록");
         AddRequiredPngAsset(audit, "상점 스크린샷", Path.Combine(screenshotPath, "07_agent_analysis.png"), 1920, 1080, 500_000L, "에이전트 분석");
         AddRequiredPngAsset(audit, "상점 스크린샷", Path.Combine(screenshotPath, "08_career_record_filter.png"), 1920, 1080, 500_000L, "캠페인 기록 운영 기준 필터");
-        AddRequiredPngAsset(audit, "상점 스크린샷 후보", Path.Combine(screenshotPath, "09_playtest_survey.png"), 1920, 1080, 500_000L, "플레이테스트 설문 회수 준비");
         AddRequiredPngAsset(audit, "상점 스크린샷 후보", Path.Combine(screenshotPath, "10_achievement_next_goal.png"), 1920, 1080, 500_000L, "성과 다음 목표 실행");
         AddRequiredPngAsset(audit, "상점 스크린샷 후보", Path.Combine(screenshotPath, "11_growth_follow_up_menu.png"), 1920, 1080, 500_000L, "성장 후속 메인 메뉴 실행");
         AddRequiredPngAsset(audit, "상점 스크린샷 후보", Path.Combine(screenshotPath, "12_career_record_next_objective.png"), 1920, 1080, 500_000L, "캠페인 기록 목표 재시작");
         AddRequiredPngAsset(audit, "상점 스크린샷 후보", Path.Combine(screenshotPath, "13_case_archive_appeal_remedy_history.png"), 1920, 1080, 500_000L, "사례 자료실 보정 이력");
-        AddRequiredPngAsset(audit, "상점 스크린샷 후보", Path.Combine(screenshotPath, "14_case_archive_decision_audit_coaching_focus.png"), 1920, 1080, 500_000L, "사례 자료실 결정 감사 코칭 포커스");
+        AddRequiredPngAsset(audit, "상점 스크린샷 후보", Path.Combine(screenshotPath, "14_case_archive_decision_audit_coaching_focus.png"), 1920, 1080, 500_000L, "사례 자료실 판단 복기 포커스");
         AddTextManifestAsset(
             audit,
             "상점 스크린샷 manifest",
@@ -6248,7 +6477,6 @@ public static class CareReviewProjectBuilder
             "06_ending_gallery.png",
             "07_agent_analysis.png",
             "08_career_record_filter.png",
-            "09_playtest_survey.png",
             "10_achievement_next_goal.png",
             "11_growth_follow_up_menu.png",
             "12_career_record_next_objective.png",
@@ -6783,7 +7011,7 @@ public static class CareReviewProjectBuilder
         builder.AppendLine("- 리마스터 업로드 switch: " + (audit.hasTrailerRemasterUploadSwitch ? "yes" : "no"));
         builder.AppendLine("- 상점 후보 캠페인 기록 상세 줄바꿈 시각 검수: " + (audit.storeCandidateCareerRecordDetailWrapVisualChecked ? "yes" : "no"));
         builder.AppendLine("- 상점 후보 UI 힌트 시각 검수: " + (audit.storeCandidateUiHintVisualChecked ? "yes" : "no"));
-        builder.AppendLine("- 상점 후보 결정 감사 코칭 포커스 시각 검수: " + (audit.storeCandidateDecisionAuditCoachingFocusVisualChecked ? "yes" : "no"));
+        builder.AppendLine("- 상점 후보 판단 복기 포커스 시각 검수: " + (audit.storeCandidateDecisionAuditCoachingFocusVisualChecked ? "yes" : "no"));
         builder.AppendLine();
         builder.AppendLine("| 구분 | 파일 | 통과 | 규격 | 실제 | 용량 | 비고 |");
         builder.AppendLine("| --- | --- | --- | --- | --- | ---: | --- |");
@@ -6886,10 +7114,31 @@ public static class CareReviewProjectBuilder
         AddDistributionIntegrityCheck(audit, "플레이테스트 kit zip 해시 기록 일치", PackageHashMatches(playtestZipPath, playtestHashPath, 50_000_000L, out string playtestEvidence), playtestEvidence);
         AddDistributionIntegrityCheck(audit, "Steamworks zip 해시 기록 일치", PackageHashMatches(steamworksZipPath, steamworksHashPath, 50_000_000L, out string steamworksEvidence), steamworksEvidence);
         AddDistributionIntegrityCheck(audit, "외부 검증 handoff zip 해시 기록 일치", PackageHashMatches(handoffZipPath, handoffHashPath, 1_000L, out string handoffEvidence), handoffEvidence);
-        AddDistributionIntegrityCheck(audit, "플레이테스트 폴더 실행 zip 동기화", HashesMatch(releaseZipPath, playtestReleaseZipPath), playtestReleaseZipPath);
-        AddDistributionIntegrityCheck(audit, "플레이테스트 폴더 실행 zip SHA 동기화", !string.IsNullOrEmpty(releaseHash) && string.Equals(SafeReadAllText(playtestReleaseHashPath).Trim(), releaseHash, StringComparison.OrdinalIgnoreCase), playtestReleaseHashPath);
-        AddDistributionIntegrityCheck(audit, "플레이테스트 안내문 릴리즈 SHA 반영", FileContainsAll("Builds/Playtest/v0.3.0/README_KO.txt", releaseHash, ReleasePackageName + ".zip") && FileContainsAll("Builds/Playtest/v0.3.0/COLLECTION_CHECKLIST_KO.md", releaseHash), "README_KO.txt + COLLECTION_CHECKLIST_KO.md");
-        AddDistributionIntegrityCheck(audit, "플레이테스트 zip 내부 릴리즈 SHA 반영", ZipEntryTextEquals(playtestZipPath, "v0.3.0/" + ReleasePackageName + "_SHA256.txt", releaseHash) && ZipEntryTextContains(playtestZipPath, "v0.3.0/README_KO.txt", releaseHash) && ZipEntryTextContains(playtestZipPath, "v0.3.0/COLLECTION_CHECKLIST_KO.md", releaseHash), "CareReviewOffice_PlaytestKit_v0.3.0.zip internal guide/hash");
+        AddDistributionIntegrityCheck(audit, "플레이어 메타데이터 출시명 적용", ReleasePlayerMetadataUsesReleaseNames(), "ProjectSettings + app.info use release company/product names and exclude SNU/Prototype/Final Project");
+        AddDistributionIntegrityCheck(audit, "플레이어 자동 업로드/Analytics 설정 비활성", ReleasePlayerCloudUploadSettingsDisabled(), "ProjectSettings submitAnalytics/cloud disabled and UnityConnect analytics/diagnostics/ads/performance reporting disabled");
+        AddDistributionIntegrityCheck(audit, "플레이어 멀티플레이어 센터 패키지 제외", ReleasePlayerExcludesMultiplayerCenterPackage(), "Packages and player builds exclude unused Unity Multiplayer Center package/assembly");
+        AddDistributionIntegrityCheck(audit, "플레이어 Unity 패키지 최소 manifest", ReleaseManifestContainsOnlyNeededPlayerPackages(), "Packages manifest/lock keep only player runtime packages and required transitive UGUI modules");
+        AddDistributionIntegrityCheck(audit, "플레이어 Resources 폐기 리소스 제외", ReleaseResourcesExcludeDeprecatedFallbackArt(), "Assets/Resources excludes deprecated fallback/source art sheets");
+        AddDistributionIntegrityCheck(audit, "플레이어 Resources 런타임 자산 allowlist", ReleaseResourcesContainOnlyPlayerRuntimeAssets(), "Assets/Resources contains only current player art/audio/data/font assets");
+        AddDistributionIntegrityCheck(audit, "플레이어 아트 텍스처 readable/무압축 제외", PlayerRuntimeArtTextureImportsAreReleaseOptimized(), "Runtime art textures are not CPU-readable and are not forced to uncompressed import settings");
+        AddDistributionIntegrityCheck(audit, "플레이어 오디오 import 출시 최적화", PlayerRuntimeAudioImportsAreReleaseOptimized(), "BGM uses streaming Vorbis and SFX uses mono ADPCM without preload");
+        AddDistributionIntegrityCheck(audit, "플레이어 폐기 리소스 보관 폴더 제외", ReleaseProjectExcludesDeprecatedResourceArchive(), "Assets/Archive/DeprecatedResourceArt is removed from the release project");
+        AddDistributionIntegrityCheck(audit, "플레이어 릴리즈 이전 버전 산출물 제외", ReleaseRootContainsOnlyCurrentPlayerPackage(), "Builds/Release contains only current v0.3.0 player package artifacts");
+        AddDistributionIntegrityCheck(audit, "플레이어 패키지 최상위 구성 allowlist", ReleasePlayerPackageTopLevelEntriesAreExpected(), "Builds/Windows, release zip/root, and Steamworks content_windows contain only expected Unity runtime, executable, README_KR.txt, RELEASE_MANIFEST.txt");
+        AddDistributionIntegrityCheck(audit, "플레이어 패키지 Windows 빌드 페이로드 미러링", ReleasePlayerPackagesMirrorCurrentWindowsBuild(), "release folder/zip and Steamworks content_windows folder/zip match Builds/Windows payload hashes except README_KR.txt/RELEASE_MANIFEST.txt");
+        AddDistributionIntegrityCheck(audit, "플레이어 패키지 README/manifest 문서 미러링", ReleasePlayerPackageDocsMirrorAcrossTargets(), "release folder/zip and Steamworks content_windows folder/zip README_KR.txt/RELEASE_MANIFEST.txt hashes match");
+        AddDistributionIntegrityCheck(audit, "플레이어 패키지 CrashHandler 제외", ReleasePlayerPackagesExcludeCrashHandler(), "Builds/Windows, release folder/zip, and Steamworks folder/zip exclude UnityCrashHandler64.exe");
+        AddDistributionIntegrityCheck(audit, "플레이어 비게임 Unity 모듈 제외", ReleasePlayerPackagesExcludeNonGameplayManagedModules(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip exclude individually smoke-tested non-gameplay managed modules");
+        AddDistributionIntegrityCheck(audit, "플레이어 비게임 managed 라이브러리 제외", ReleasePlayerPackagesExcludeNonGameplayManagedLibraries(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip exclude smoke-tested unused managed libraries");
+        AddDistributionIntegrityCheck(audit, "플레이어 Mono 웹 보조 파일 제외", ReleasePlayerPackagesExcludeNonGameplayMonoWebRuntimeFiles(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip exclude unused Mono web/browser helper files");
+        AddDistributionIntegrityCheck(audit, "플레이어 Mono 런타임 보조 파일 제외", ReleasePlayerPackagesExcludeNonGameplayMonoRuntimeFiles(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip exclude smoke-tested unused Mono runtime helper files");
+        AddDistributionIntegrityCheck(audit, "플레이어 필수 런타임 의존 파일 포함", ReleasePlayerPackagesIncludeRequiredRuntimeDependencyFiles(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip include UnityPlayer.dll, D3D12/D3D12Core.dll, dstorage.dll, and dstoragecore.dll beside CareReviewOffice.exe");
+        AddDistributionIntegrityCheck(audit, "릴리즈 실행 의존성 스모크", ReleaseLaunchDependencySmokePassed(), "care_review_release_launch_dependency_smoke_result.json");
+        AddDistributionIntegrityCheck(audit, "플레이어 패키지 QA/디버그 산출물 제외", ReleasePlayerPackageExcludesQaArtifacts(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip entries exclude pdb/mdb/log/tmp/qa/smoke/playtest/support_bundle/system_diagnostic artifacts");
+        AddDistributionIntegrityCheck(audit, "플레이어 패키지 프로젝트/소스 파일 제외", ReleasePlayerPackageExcludesProjectSourceFiles(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip exclude Unity project/source/editor files");
+        AddDistributionIntegrityCheck(audit, "플레이어 boot.config 릴리즈 설정", ReleasePlayerBootConfigUsesReleaseSettings(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip boot.config wait-for-native-debugger=0 and exclude development/debugger wait flags");
+        AddDistributionIntegrityCheck(audit, "플레이어 어셈블리 내부/QA 문자열 제외", ReleasePlayerAssembliesExcludeInternalToolText(), "Builds/Windows, release folder/zip, and Steamworks content_windows folder/zip player assemblies exclude automation/export/playtest/survey/CSV/HTML/QA text");
+        AddDistributionIntegrityCheck(audit, "플레이어 안내 텍스트 내부/QA 문구 제외", ReleasePlayerTextFilesExcludeInternalTerms(), "release folder/zip and Steamworks content_windows folder/zip README_KR.txt/RELEASE_MANIFEST.txt exclude internal QA terms");
         AddDistributionIntegrityCheck(audit, "플레이테스트 안내문 인게임 체크리스트 확인 순서", FileContainsAll("Builds/Playtest/v0.3.0/README_KO.txt", "상용화 보강 체크", "성과 기록", "캠페인 기록", "상점 후보", "다시 할 이유", "commercialChecklistMentionsSurfaceActions=true", "commercialChecklistReadable=true") && FileContainsAll("Builds/Playtest/v0.3.0/PLAYTESTER_GUIDE_KO.md", "상용화 보강 체크", "성과 기록", "캠페인 기록", "상점 후보", "다시 할 이유") && FileContainsAll("Builds/Playtest/v0.3.0/COLLECTION_CHECKLIST_KO.md", "상용화 보강 체크", "commercialChecklistMentionsSurfaceActions=true", "commercialChecklistReadable=true"), "Builds/Playtest/v0.3.0 README/GUIDE/CHECKLIST");
         AddDistributionIntegrityCheck(audit, "플레이테스트 zip 내부 인게임 체크리스트 확인 순서", ZipEntryTextContains(playtestZipPath, "v0.3.0/README_KO.txt", "상용화 보강 체크") && ZipEntryTextContains(playtestZipPath, "v0.3.0/README_KO.txt", "commercialChecklistMentionsSurfaceActions=true") && ZipEntryTextContains(playtestZipPath, "v0.3.0/PLAYTESTER_GUIDE_KO.md", "다시 할 이유") && ZipEntryTextContains(playtestZipPath, "v0.3.0/COLLECTION_CHECKLIST_KO.md", "commercialChecklistReadable=true"), "CareReviewOffice_PlaytestKit_v0.3.0.zip internal commercial checklist guide");
         AddDistributionIntegrityCheck(audit, "플레이테스트 요청/인덱스 상점 후보 A/B 질문 컬럼", FileContainsAll("Builds/Playtest/v0.3.0/PLAYTEST_REQUEST_TEMPLATE_KO.md", "상점 후보 스크린샷 A/B 질문", "10_achievement_next_goal.png", "12_career_record_next_objective.png", "01_main_menu.png", "main_menu_loop_entry", "메인 메뉴 기준 화면", "menu_campaign_briefing_weakness", "추천 회차 브리핑", "직전 약점", "보정 초점", "achievement_career_copy_alignment", "성과 목표 힌트/기록 다음 목표", "목표 실행 -> 캠페인 기록 -> 2/4/6 보상 누적", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "triage_priority_badge_main_menu_baseline", "P1_BASELINE_GUARD", "triage_priority_badge_copy_alignment", "P1_COPY_ALIGNMENT_COLLECT") && FileContainsAll("Builds/Playtest/v0.3.0/PLAYTEST_SESSION_INDEX_TEMPLATE.csv", "screenshot_ab_loop_question_id", "screenshot_ab_loop_question_text", "screenshot_ab_loop_preferred_candidate", "screenshot_ab_loop_understanding_comment", "triage_priority_badge_id", "triage_priority_badge_status", "triage_priority_badge_evidence", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "post_external_collection_promotion_summary", "reward_loop_understanding", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "직전 약점 · 보정 초점", "briefingMentionsPreviousWeakness=true", "briefingUsesCoachingWeaknessTerms=true", "briefingWeaknessFocusCaptionReadable=true", "changedBriefingKeepsPreviousWeakness=true", "changedBriefingKeepsCoachingWeaknessTerms=true", "changedBriefingKeepsWeaknessFocusCaption=true", "achievement_career_copy_alignment", "01_main_menu.png", "성과 보기 목표"), "PLAYTEST_REQUEST_TEMPLATE_KO.md + PLAYTEST_SESSION_INDEX_TEMPLATE.csv");
@@ -6916,7 +7165,7 @@ public static class CareReviewProjectBuilder
             ZipEntryTextContains(handoffZipPath, "v0.3.0/PLAYTEST_COMMERCIAL_TRIAGE_ACTIONS.csv", "triage_priority_badge_main_menu_baseline/P1_BASELINE_GUARD") &&
             ZipEntryTextContains(handoffZipPath, "v0.3.0/PLAYTEST_COMMERCIAL_TRIAGE_ACTIONS.csv", "우선순위 배지: 성과-캠페인 문구 일치") &&
             ZipEntryTextContains(handoffZipPath, "v0.3.0/PLAYTEST_COMMERCIAL_TRIAGE_ACTIONS.csv", "triage_priority_badge_copy_alignment/P1_COPY_ALIGNMENT_COLLECT");
-        audit.hasHandoffStoreCandidateHashManifest = FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256"), "08_career_record_filter.png", "09_playtest_survey.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png");
+        audit.hasHandoffStoreCandidateHashManifest = FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256"), "08_career_record_filter.png", "12_career_record_next_objective.png", "13_case_archive_appeal_remedy_history.png", "14_case_archive_decision_audit_coaching_focus.png");
         audit.handoffZipContainsStoreCandidateHashManifest =
             ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "08_career_record_filter.png") &&
             ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "13_case_archive_appeal_remedy_history.png") &&
@@ -6926,51 +7175,51 @@ public static class CareReviewProjectBuilder
         AddDistributionIntegrityCheck(audit, "handoff tracker HUMAN_10 action CSV 우선순위 배지 owner_screen 힌트", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "HUMAN_10_COMMERCIAL", "action_csv_priority_badge_owner_screen", "triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB", "상점 페이지 / Store Candidate", "triage_priority_badge_main_menu_baseline/P1_BASELINE_GUARD", "메인 메뉴 / Store Presence 기준 화면", "triage_priority_badge_copy_alignment/P1_COPY_ALIGNMENT_COLLECT", "성과 기록 / 캠페인 기록") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv", "HUMAN_10_COMMERCIAL") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv", "action_csv_priority_badge_owner_screen") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv", "triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv", "triage_priority_badge_main_menu_baseline/P1_BASELINE_GUARD") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv", "triage_priority_badge_copy_alignment/P1_COPY_ALIGNMENT_COLLECT"), "handoff folder/zip EXTERNAL_RELEASE_GATE_TRACKER.csv HUMAN_10 priority badge owner_screen");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 상점 후보 SHA manifest 포함", audit.hasHandoffStoreCandidateHashManifest, "Builds/Handoff/v0.3.0/STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256");
         AddDistributionIntegrityCheck(audit, "handoff zip 상점 후보 SHA manifest 포함", audit.handoffZipContainsStoreCandidateHashManifest, "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence QA 카드 포함", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "ACHIEVEMENT_TOAST_UI_CAPTURE.md", "ready: true", "readable: true", "성과 기록에서 다음 목표와 기록 보상 확인", "STORE_PRESENCE_SELECTION_KO.md", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md", "selected_upload_set", "promoted_candidate", "recommended_candidate", "screenshot_ab_recommended_candidate", "상점 보정 후보 결과 수동 확인 단계", "보정 후보 결과 / 자체점검 일치", "A/B 추천 후보 일치", "성과-캠페인 루프 A/B 질문 회수 체크", "menu_campaign_briefing_weakness", "추천 회차 브리핑", "직전 약점", "csvHasMenuBriefingWeaknessQuestion=true", "achievement_career_copy_alignment", "csvHasAchievementCareerCopyAlignmentQuestion=true", "A/B 응답 회수 수치", "결정 감사 코칭 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사", "screenshot_ab_loop_question_id", "screenshot_ab_loop_response_count: 0", "waiting_for_screenshot_ab_loop_responses", "release candidate JSON memberSummary 확인", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "A/B 판정", "SHA"), "Builds/Handoff/v0.3.0/STORE_PRESENCE_QA_CARD_KO.md");
-        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence QA 카드 포함", ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "ACHIEVEMENT_TOAST_UI_CAPTURE.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "성과 기록에서 다음 목표와 기록 보상 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "STORE_PRESENCE_SELECTION_KO.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "selected_upload_set") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "promoted_candidate") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "recommended_candidate") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "screenshot_ab_recommended_candidate") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "상점 보정 후보 결과 수동 확인 단계") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "보정 후보 결과 / 자체점검 일치") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "A/B 추천 후보 일치") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "성과-캠페인 루프 A/B 질문 회수 체크") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "achievement_career_copy_alignment") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "csvHasAchievementCareerCopyAlignmentQuestion=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "A/B 응답 회수 수치") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "결정 감사 코칭 패턴 분포 Store/QA handoff") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decisionAuditCoachingSessionCount") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decisionAuditCoachingPatternCounts") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decisionAuditCoachingMandateCounts") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "고비용 지원") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "긴축 감사") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "screenshot_ab_loop_question_id") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "screenshot_ab_loop_response_count: 0") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "waiting_for_screenshot_ab_loop_responses") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "release candidate JSON memberSummary 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "A/B 판정") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "SHA"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/STORE_PRESENCE_QA_CARD_KO.md");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence QA 카드 포함", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256", "ACHIEVEMENT_TOAST_UI_CAPTURE.md", "ready: true", "readable: true", "성과 기록에서 다음 목표와 기록 보상 확인", "STORE_PRESENCE_SELECTION_KO.md", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md", "selected_upload_set", "promoted_candidate", "recommended_candidate", "screenshot_ab_recommended_candidate", "상점 보정 후보 결과 수동 확인 단계", "보정 후보 결과 / 자체점검 일치", "A/B 추천 후보 일치", "성과-캠페인 루프 A/B 질문 회수 체크", "menu_campaign_briefing_weakness", "추천 회차 브리핑", "직전 약점", "csvHasMenuBriefingWeaknessQuestion=true", "achievement_career_copy_alignment", "csvHasAchievementCareerCopyAlignmentQuestion=true", "A/B 응답 회수 수치", "판단 복기 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사", "screenshot_ab_loop_question_id", "screenshot_ab_loop_response_count: 0", "waiting_for_screenshot_ab_loop_responses", "release candidate JSON memberSummary 확인", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "A/B 판정", "SHA"), "Builds/Handoff/v0.3.0/STORE_PRESENCE_QA_CARD_KO.md");
+        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence QA 카드 포함", ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "ACHIEVEMENT_TOAST_UI_CAPTURE.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "성과 기록에서 다음 목표와 기록 보상 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "STORE_PRESENCE_SELECTION_KO.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "SCREENSHOT_CANDIDATE_AB_TEST_KO.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "selected_upload_set") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "promoted_candidate") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "recommended_candidate") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "screenshot_ab_recommended_candidate") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "상점 보정 후보 결과 수동 확인 단계") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "보정 후보 결과 / 자체점검 일치") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "A/B 추천 후보 일치") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "성과-캠페인 루프 A/B 질문 회수 체크") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "achievement_career_copy_alignment") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "csvHasAchievementCareerCopyAlignmentQuestion=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "A/B 응답 회수 수치") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "판단 복기 패턴 분포 Store/QA handoff") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decisionAuditCoachingSessionCount") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decisionAuditCoachingPatternCounts") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decisionAuditCoachingMandateCounts") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "고비용 지원") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "긴축 감사") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "screenshot_ab_loop_question_id") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "screenshot_ab_loop_response_count: 0") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "waiting_for_screenshot_ab_loop_responses") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "release candidate JSON memberSummary 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "A/B 판정") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "SHA"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/STORE_PRESENCE_QA_CARD_KO.md");
         AddDistributionIntegrityCheck(audit, "handoff Store Presence 승격 요약 대조", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "외부 5명 이후 승격 요약 대조", "post_external_collection_promotion_summary", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "waiting_for_external_5_and_ab_loop_responses", "selected_upload_set", "promoted_candidate", "screenshot_ab_loop_response_count", "screenshot_ab_loop_understanding_comment_count", "screenshot_ab_loop_collection_status") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "외부 5명 이후 승격 요약 대조") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "post_external_collection_promotion_summary") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "triage_priority_badge_reward_loop_candidate") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "P0_WAIT_EXTERNAL_AB") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "screenshot_ab_loop_understanding_comment_count"), "handoff folder/zip STORE_PRESENCE_QA_CARD_KO.md post_external_collection_promotion_summary");
         AddDistributionIntegrityCheck(audit, "handoff Store Presence 우선순위 배지 회수 후 처리 상태", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "우선순위 배지 외부 회수 후 처리 상태", "after_collection_status", "manual_update_target", "completion_gate", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "external_5_and_ab_loop_5_and_understanding_5", "triage_priority_badge_main_menu_baseline", "P1_BASELINE_GUARD", "main_menu_loop_entry_response_collected", "triage_priority_badge_copy_alignment", "P1_COPY_ALIGNMENT_COLLECT", "copy_alignment_comment_collected") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "우선순위 배지 외부 회수 후 처리 상태") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "after_collection_status") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "external_5_and_ab_loop_5_and_understanding_5") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "main_menu_loop_entry_response_collected") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "copy_alignment_comment_collected"), "handoff folder/zip STORE_PRESENCE_QA_CARD_KO.md priority badge after_collection_status");
         AddDistributionIntegrityCheck(audit, "handoff Store Presence A/B TODO 직접 매핑", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "Store Presence A/B TODO 매핑", "store_presence_ab_todo_mapping", "post_external_collection_promotion_summary", "main_menu_loop_entry", "menu_campaign_briefing_weakness", "achievement_career_copy_alignment", "reward_loop_understanding", "screenshot_ab_loop_understanding_comment_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "store_presence_ab_todo_mapping") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "menu_campaign_briefing_weakness") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "store_presence_ab_todo_mapping") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "screenshot_ab_loop_understanding_comment_count: 0") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "post_external_collection_promotion_summary"), "handoff folder/zip Store Presence A/B TODO mapping");
         AddDistributionIntegrityCheck(audit, "handoff Store Presence Evidence 우선순위 배지 역참조", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "Store Presence 후보 우선순위 배지 역참조", "store_presence_priority_badge_backreference", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "selected_upload_set", "promoted_candidate") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "Store Presence 후보 우선순위 배지 역참조", "store_presence_priority_badge_backreference", "triage_priority_badge_reward_loop_candidate", "P0_WAIT_EXTERNAL_AB", "waiting_for_external_5_and_ab_loop_responses") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "store_presence_priority_badge_backreference") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "triage_priority_badge_reward_loop_candidate") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "P0_WAIT_EXTERNAL_AB"), "handoff folder/zip Evidence priority badge backreference");
         AddDistributionIntegrityCheck(audit, "handoff Store Presence Evidence 우선순위 배지 회수 후 입력란", StorePresenceEvidenceDraftAfterCollectionStatusReady() && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "Store Presence 우선순위 배지 회수 후 입력란") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "after_collection_status_reward_loop_candidate") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "completion_gate_main_menu_baseline") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "store_presence_priority_badge_after_collection_input") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "copy_alignment_comment_collected"), "handoff folder/zip Evidence after_collection_status input fields");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence QA 카드 14번 보조 후보", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "결정 감사 코칭 보조 후보", "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_hud_evidence", "decision_audit_coaching_hud_terms", "care_review_decision_audit_coaching_hud_smoke_result.json", "결정 감사 코칭 진행 HUD", "reviewHudUpdatesAfterDecision=true", "14_case_archive_decision_audit_coaching_focus.png", "코칭 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true"), "Builds/Handoff/v0.3.0/STORE_PRESENCE_QA_CARD_KO.md decision audit coaching candidate");
-        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence QA 카드 14번 보조 후보", ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "결정 감사 코칭 보조 후보") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decision_audit_coaching_candidate_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decision_audit_coaching_hud_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "reviewHudUpdatesAfterDecision=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "14_case_archive_decision_audit_coaching_focus.png") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "코칭 W-207") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/STORE_PRESENCE_QA_CARD_KO.md decision audit coaching candidate");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence QA 카드 작성 완료 전 자체점검", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_PRESENCE.md 작성 완료 전 자체점검", "Steamworks URL/화면 캡처", "SHA 확인", "공식/승격 후보", "14번 코칭 후보", "토스트 UI 캡처", "A/B 응답 회수"), "Builds/Handoff/v0.3.0/STORE_PRESENCE_QA_CARD_KO.md completion checklist");
-        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence QA 카드 작성 완료 전 자체점검", ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "STORE_PRESENCE.md 작성 완료 전 자체점검") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "Steamworks URL/화면 캡처") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "SHA 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "14번 코칭 후보") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "A/B 응답 회수"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/STORE_PRESENCE_QA_CARD_KO.md completion checklist");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence QA 카드 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "## 준비", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "EXTERNAL_RELEASE_HANDOFF_KO.md", "handoff TODO 첫 확인"), "Builds/Handoff/v0.3.0/STORE_PRESENCE_QA_CARD_KO.md completion TODO summary");
-        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence QA 카드 자체점검 TODO 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "자체점검 TODO 요약") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "handoff TODO 첫 확인"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/STORE_PRESENCE_QA_CARD_KO.md completion TODO summary");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence QA 카드 14번 보조 후보", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "판단 복기 보조 후보", "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_hud_evidence", "decision_audit_coaching_hud_terms", "care_review_decision_audit_coaching_hud_smoke_result.json", "판단 복기 진행 HUD", "reviewHudUpdatesAfterDecision=true", "14_case_archive_decision_audit_coaching_focus.png", "복기 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true"), "Builds/Handoff/v0.3.0/STORE_PRESENCE_QA_CARD_KO.md decision audit coaching candidate");
+        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence QA 카드 14번 보조 후보", ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "판단 복기 보조 후보") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decision_audit_coaching_candidate_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decision_audit_coaching_hud_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "reviewHudUpdatesAfterDecision=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "14_case_archive_decision_audit_coaching_focus.png") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "복기 W-207") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/STORE_PRESENCE_QA_CARD_KO.md decision audit coaching candidate");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence QA 카드 작성 완료 전 자체점검", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "STORE_PRESENCE.md 작성 완료 전 자체점검", "Steamworks URL/화면 캡처", "SHA 확인", "공식/승격 후보", "14번 복기 후보", "토스트 UI 캡처", "A/B 응답 회수"), "Builds/Handoff/v0.3.0/STORE_PRESENCE_QA_CARD_KO.md completion checklist");
+        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence QA 카드 작성 완료 전 자체점검", ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "STORE_PRESENCE.md 작성 완료 전 자체점검") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "Steamworks URL/화면 캡처") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "SHA 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "14번 복기 후보") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "A/B 응답 회수"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/STORE_PRESENCE_QA_CARD_KO.md completion checklist");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence QA 카드 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "## 준비", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "EXTERNAL_RELEASE_HANDOFF_KO.md", "handoff TODO 첫 확인"), "Builds/Handoff/v0.3.0/STORE_PRESENCE_QA_CARD_KO.md completion TODO summary");
+        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence QA 카드 자체점검 TODO 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "자체점검 TODO 요약") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "handoff TODO 첫 확인"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/STORE_PRESENCE_QA_CARD_KO.md completion TODO summary");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 성과 토스트 UI 캡처 Markdown 포함", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "ACHIEVEMENT_TOAST_UI_CAPTURE.md"), "ready: true", "readable: true", "성과 기록에서 다음 목표와 기록 보상 확인"), "Builds/Handoff/v0.3.0/ACHIEVEMENT_TOAST_UI_CAPTURE.md");
         AddDistributionIntegrityCheck(audit, "handoff zip 성과 토스트 UI 캡처 Markdown 포함", ZipEntryTextContains(handoffZipPath, "v0.3.0/ACHIEVEMENT_TOAST_UI_CAPTURE.md", "ready: true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/ACHIEVEMENT_TOAST_UI_CAPTURE.md", "readable: true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/ACHIEVEMENT_TOAST_UI_CAPTURE.md", "성과 기록에서 다음 목표와 기록 보상 확인"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/ACHIEVEMENT_TOAST_UI_CAPTURE.md");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 README Store Presence 증거 순서", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "Store Presence/A-B/보정 후보 증거 작성 순서", "A/B 추천 후보 일치", "보정 후보 결과 / 자체점검 일치", "결정 감사 코칭 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status"), "Builds/Handoff/v0.3.0/README_KO.txt");
-        AddDistributionIntegrityCheck(audit, "handoff zip README Store Presence 증거 순서", ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "Store Presence/A-B/보정 후보 증거 작성 순서") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "A/B 추천 후보 일치") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "보정 후보 결과 / 자체점검 일치") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "결정 감사 코칭 패턴 분포 Store/QA handoff") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "decisionAuditCoachingSessionCount") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "decisionAuditCoachingPatternCounts") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "Evidence/STORE_PRESENCE.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "screenshot_ab_loop_response_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "screenshot_ab_loop_not_collected_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "screenshot_ab_loop_collection_status"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/README_KO.txt");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 README Store Presence 14번 보조 후보", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "결정 감사 코칭 보조 후보", "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_hud_evidence", "reviewHudUpdatesAfterDecision=true", "14_case_archive_decision_audit_coaching_focus.png", "코칭 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true"), "Builds/Handoff/v0.3.0/README_KO.txt decision audit coaching candidate");
-        AddDistributionIntegrityCheck(audit, "handoff zip README Store Presence 14번 보조 후보", ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "결정 감사 코칭 보조 후보") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "decision_audit_coaching_candidate_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "decision_audit_coaching_hud_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "reviewHudUpdatesAfterDecision=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "14_case_archive_decision_audit_coaching_focus.png") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "코칭 W-207") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/README_KO.txt decision audit coaching candidate");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 README Store Presence 증거 순서", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "Store Presence/A-B/보정 후보 증거 작성 순서", "A/B 추천 후보 일치", "보정 후보 결과 / 자체점검 일치", "판단 복기 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status"), "Builds/Handoff/v0.3.0/README_KO.txt");
+        AddDistributionIntegrityCheck(audit, "handoff zip README Store Presence 증거 순서", ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "Store Presence/A-B/보정 후보 증거 작성 순서") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "A/B 추천 후보 일치") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "보정 후보 결과 / 자체점검 일치") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "판단 복기 패턴 분포 Store/QA handoff") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "decisionAuditCoachingSessionCount") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "decisionAuditCoachingPatternCounts") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "Evidence/STORE_PRESENCE.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "screenshot_ab_loop_response_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "screenshot_ab_loop_not_collected_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "screenshot_ab_loop_collection_status"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/README_KO.txt");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 README Store Presence 14번 보조 후보", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "판단 복기 보조 후보", "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_hud_evidence", "reviewHudUpdatesAfterDecision=true", "14_case_archive_decision_audit_coaching_focus.png", "복기 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true"), "Builds/Handoff/v0.3.0/README_KO.txt decision audit coaching candidate");
+        AddDistributionIntegrityCheck(audit, "handoff zip README Store Presence 14번 보조 후보", ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "판단 복기 보조 후보") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "decision_audit_coaching_candidate_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "decision_audit_coaching_hud_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "reviewHudUpdatesAfterDecision=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "14_case_archive_decision_audit_coaching_focus.png") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "복기 W-207") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/README_KO.txt decision audit coaching candidate");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 README Store Presence 초안 첫 확인 항목", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "첫 확인 항목", "Store Presence 증거 초안", "pending_external", "Evidence/STORE_PRESENCE.md", "status: draft_not_evidence", "Store Presence A/B 응답 회수 입력란", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count=221", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "Evidence/STORE_PRESENCE_EXAMPLE.md", "status: example_not_evidence", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY"), "Builds/Handoff/v0.3.0/README_KO.txt");
         AddDistributionIntegrityCheck(audit, "handoff zip README Store Presence 초안 첫 확인 항목", ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "첫 확인 항목") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "Store Presence 증거 초안") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "pending_external") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "Evidence/STORE_PRESENCE.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "status: draft_not_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "Store Presence A/B 응답 회수 입력란") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "screenshot_ab_loop_response_count=0") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "screenshot_ab_loop_not_collected_count=221") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "Evidence/STORE_PRESENCE_EXAMPLE.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "status: example_not_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/README_KO.txt");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 README 첫 확인 Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "첫 확인 항목", "handoff TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/STORE_PRESENCE.md", "README_STEAMWORKS_KR.txt", "제출 전 TODO 첫 확인"), "Builds/Handoff/v0.3.0/README_KO.txt completion TODO first check");
-        AddDistributionIntegrityCheck(audit, "handoff zip README 첫 확인 Store Presence 자체점검 TODO 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "handoff TODO 첫 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "제출 전 TODO 첫 확인"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/README_KO.txt completion TODO first check");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 README 첫 확인 Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "첫 확인 항목", "handoff TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/STORE_PRESENCE.md", "README_STEAMWORKS_KR.txt", "제출 전 TODO 첫 확인"), "Builds/Handoff/v0.3.0/README_KO.txt completion TODO first check");
+        AddDistributionIntegrityCheck(audit, "handoff zip README 첫 확인 Store Presence 자체점검 TODO 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "handoff TODO 첫 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "제출 전 TODO 첫 확인"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/README_KO.txt completion TODO first check");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 README 첫 확인 release candidate JSON memberSummary 확인", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "첫 확인 항목", "release candidate JSON memberSummary 확인", "care_review_release_candidate_audit.json", "storePresenceEvidenceBundle", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Builds/Handoff/v0.3.0/README_KO.txt");
         AddDistributionIntegrityCheck(audit, "handoff zip README 첫 확인 release candidate JSON memberSummary 확인", ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "첫 확인 항목") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "release candidate JSON memberSummary 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "care_review_release_candidate_audit.json") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "storePresenceEvidenceBundle") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/README_KO.txt");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 README 첫 확인 preflight 최상단 외부 액션 memberSummary 대조", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "README_KO.txt"), "첫 확인 항목", "preflight 최상단 외부 액션 memberSummary 대조", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "Store Presence 외부 액션 연결", "release candidate JSON memberSummary 확인", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Builds/Handoff/v0.3.0/README_KO.txt");
         AddDistributionIntegrityCheck(audit, "handoff zip README 첫 확인 preflight 최상단 외부 액션 memberSummary 대조", ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "첫 확인 항목") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "preflight 최상단 외부 액션 memberSummary 대조") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "STEAM_SUBMISSION_PREFLIGHT_KO.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "Store Presence 외부 액션 연결") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "release candidate JSON memberSummary 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/README_KO.txt");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 템플릿 README 역참조", ExternalGateStorePresenceTemplateMentionsReadmeEvidenceOrder(), "Builds/Handoff/v0.3.0/Evidence/_templates/STORE_PRESENCE.md");
         AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 템플릿 README 역참조", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "Store Presence/A-B/보정 후보 증거 작성 순서") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "README_KO.txt") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "STORE_PRESENCE_QA_CARD_KO.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "보정 후보 결과 / 자체점검 일치") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "ACHIEVEMENT_TOAST_UI_CAPTURE.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "screenshot_ab_loop_response_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "screenshot_ab_loop_collection_status") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "Evidence/STORE_PRESENCE.md"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/_templates/STORE_PRESENCE.md");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 템플릿 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "_templates", "STORE_PRESENCE.md"), "후보 스크린샷 A/B 판정", "자체점검 TODO 요약 템플릿", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/STORE_PRESENCE.md", "통과 전 확인", "Evidence/STORE_PRESENCE_EXAMPLE.md", "자체점검 TODO 요약 예시"), "Builds/Handoff/v0.3.0/Evidence/_templates/STORE_PRESENCE.md completion TODO template summary");
-        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 템플릿 자체점검 TODO 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "자체점검 TODO 요약 템플릿") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "통과 전 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "Evidence/STORE_PRESENCE_EXAMPLE.md"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/_templates/STORE_PRESENCE.md completion TODO template summary");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 템플릿 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "_templates", "STORE_PRESENCE.md"), "후보 스크린샷 A/B 판정", "자체점검 TODO 요약 템플릿", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/STORE_PRESENCE.md", "통과 전 확인", "Evidence/STORE_PRESENCE_EXAMPLE.md", "자체점검 TODO 요약 예시"), "Builds/Handoff/v0.3.0/Evidence/_templates/STORE_PRESENCE.md completion TODO template summary");
+        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 템플릿 자체점검 TODO 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "자체점검 TODO 요약 템플릿") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "통과 전 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "Evidence/STORE_PRESENCE_EXAMPLE.md"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/_templates/STORE_PRESENCE.md completion TODO template summary");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 증거 예시 노트", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "status: example_not_evidence", "STORE_PRESENCE.md", "통과 증거가 아니다", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "screenshot_ab_loop_response_count: 0", "screenshot_ab_loop_not_collected_count: 221", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses", "Steamworks URL/화면 캡처"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md");
         AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 증거 예시 노트", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "status: example_not_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "STORE_PRESENCE.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "통과 증거가 아니다") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "screenshot_ab_loop_response_count: 0") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "screenshot_ab_loop_not_collected_count: 221") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "screenshot_ab_loop_collection_status: waiting_for_screenshot_ab_loop_responses") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "Steamworks URL/화면 캡처"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 실제 증거 초안", ExternalGateStorePresenceDraftEvidenceNoteReady(), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md");
         AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 실제 증거 초안", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "status: draft_not_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "STORE_PRESENCE_EXAMPLE.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "release candidate JSON memberSummary 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "Steamworks URL/화면 캡처") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "selected_upload_set") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "promoted_candidate") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_response_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_not_collected_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_collection_status"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/STORE_PRESENCE.md");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 실제 증거 초안 자체점검 TODO", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "작성 완료 전 자체점검 TODO", "- [ ] Steamworks URL/화면 캡처", "- [ ] SHA 확인", "- [ ] 공식/승격 후보", "- [ ] 14번 코칭 후보", "- [ ] 토스트 UI 캡처", "- [ ] A/B 응답 회수") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "작성 완료 전 자체점검 예시", "- [x] Steamworks URL/화면 캡처", "- [x] A/B 응답 회수"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md completion TODO");
-        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 실제 증거 초안 자체점검 TODO", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "- [ ] Steamworks URL/화면 캡처") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "- [ ] SHA 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "- [ ] 14번 코칭 후보") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "- [ ] A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "작성 완료 전 자체점검 예시") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "- [x] A/B 응답 회수"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/STORE_PRESENCE.md completion TODO");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 초안 통과 전 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "통과 전 확인", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/README_KO.md", "STORE_PRESENCE_QA_CARD_KO.md"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md pre-pass completion TODO summary");
-        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 초안 통과 전 자체점검 TODO 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "자체점검 TODO 요약") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "Evidence/README_KO.md"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/STORE_PRESENCE.md pre-pass completion TODO summary");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 예시 통과 전 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "작성 순서", "자체점검 TODO 요약 예시", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "STORE_PRESENCE.md", "통과 전 확인", "Evidence/README_KO.md"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md completion TODO example summary");
-        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 예시 통과 전 자체점검 TODO 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "자체점검 TODO 요약 예시") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "통과 전 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "Evidence/README_KO.md"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md completion TODO example summary");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 14번 코칭 후보 입력란", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "_templates", "STORE_PRESENCE.md"), "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "decision_audit_coaching_hud_evidence", "decision_audit_coaching_hud_terms", "reviewHudUpdatesAfterDecision=true") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "14_case_archive_decision_audit_coaching_focus.png", "코칭 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true", "care_review_decision_audit_coaching_hud_smoke_result.json", "reviewHudUpdatesAfterDecision=true") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "decision_audit_coaching_hud_evidence", "decision_audit_coaching_hud_terms", "14_case_archive_decision_audit_coaching_focus.png", "코칭 W-207"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE*.md decision audit coaching candidate fields");
-        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 14번 코칭 후보 입력란", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "decision_audit_coaching_candidate_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "decision_audit_coaching_candidate_round_trip") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "decision_audit_coaching_hud_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "reviewHudUpdatesAfterDecision=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "14_case_archive_decision_audit_coaching_focus.png") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "코칭 W-207") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "care_review_decision_audit_coaching_hud_smoke_result.json") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "decision_audit_coaching_candidate_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "decision_audit_coaching_candidate_round_trip") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "decision_audit_coaching_hud_terms") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "14_case_archive_decision_audit_coaching_focus.png"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/STORE_PRESENCE*.md decision audit coaching candidate fields");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 14번 결정 감사 코칭 HUD 근거", StorePresenceDecisionAuditCoachingHudFieldsReady(), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE*.md + STORE_PRESENCE_QA_CARD_KO.md decision_audit_coaching_hud_*");
-        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 14번 결정 감사 코칭 HUD 근거", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "decision_audit_coaching_hud_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "decision_audit_coaching_hud_terms") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "care_review_decision_audit_coaching_hud_smoke_result.json") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "결정 감사 코칭 진행 HUD") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "reviewHudUpdatesAfterDecision=true"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip decision audit coaching HUD evidence");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 실제 증거 초안 자체점검 TODO", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "작성 완료 전 자체점검 TODO", "- [ ] Steamworks URL/화면 캡처", "- [ ] SHA 확인", "- [ ] 공식/승격 후보", "- [ ] 14번 복기 후보", "- [ ] 토스트 UI 캡처", "- [ ] A/B 응답 회수") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "작성 완료 전 자체점검 예시", "- [x] Steamworks URL/화면 캡처", "- [x] A/B 응답 회수"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md completion TODO");
+        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 실제 증거 초안 자체점검 TODO", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "- [ ] Steamworks URL/화면 캡처") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "- [ ] SHA 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "- [ ] 14번 복기 후보") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "- [ ] A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "작성 완료 전 자체점검 예시") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "- [x] A/B 응답 회수"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/STORE_PRESENCE.md completion TODO");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 초안 통과 전 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "통과 전 확인", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "Evidence/README_KO.md", "STORE_PRESENCE_QA_CARD_KO.md"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE.md pre-pass completion TODO summary");
+        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 초안 통과 전 자체점검 TODO 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "자체점검 TODO 요약") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "Evidence/README_KO.md"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/STORE_PRESENCE.md pre-pass completion TODO summary");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 예시 통과 전 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "작성 순서", "자체점검 TODO 요약 예시", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "STORE_PRESENCE.md", "통과 전 확인", "Evidence/README_KO.md"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md completion TODO example summary");
+        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 예시 통과 전 자체점검 TODO 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "자체점검 TODO 요약 예시") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "통과 전 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "Evidence/README_KO.md"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md completion TODO example summary");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 14번 복기 후보 입력란", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "_templates", "STORE_PRESENCE.md"), "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "decision_audit_coaching_hud_evidence", "decision_audit_coaching_hud_terms", "reviewHudUpdatesAfterDecision=true") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE_EXAMPLE.md"), "14_case_archive_decision_audit_coaching_focus.png", "복기 W-207", "caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true", "caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true", "care_review_decision_audit_coaching_hud_smoke_result.json", "reviewHudUpdatesAfterDecision=true") && FileContainsAll(Path.Combine(ExternalGateEvidencePath, "STORE_PRESENCE.md"), "decision_audit_coaching_candidate_evidence", "decision_audit_coaching_candidate_file", "decision_audit_coaching_candidate_case", "decision_audit_coaching_candidate_round_trip", "decision_audit_coaching_hud_evidence", "decision_audit_coaching_hud_terms", "14_case_archive_decision_audit_coaching_focus.png", "복기 W-207"), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE*.md decision audit coaching candidate fields");
+        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 14번 복기 후보 입력란", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "decision_audit_coaching_candidate_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "decision_audit_coaching_candidate_round_trip") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "decision_audit_coaching_hud_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "reviewHudUpdatesAfterDecision=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "14_case_archive_decision_audit_coaching_focus.png") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "복기 W-207") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "care_review_decision_audit_coaching_hud_smoke_result.json") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "decision_audit_coaching_candidate_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "decision_audit_coaching_candidate_round_trip") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "decision_audit_coaching_hud_terms") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "14_case_archive_decision_audit_coaching_focus.png"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/STORE_PRESENCE*.md decision audit coaching candidate fields");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 14번 판단 복기 HUD 근거", StorePresenceDecisionAuditCoachingHudFieldsReady(), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE*.md + STORE_PRESENCE_QA_CARD_KO.md decision_audit_coaching_hud_*");
+        AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 14번 판단 복기 HUD 근거", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "decision_audit_coaching_hud_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "decision_audit_coaching_hud_terms") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "care_review_decision_audit_coaching_hud_smoke_result.json") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "판단 복기 진행 HUD") && ZipEntryTextContains(handoffZipPath, "v0.3.0/README_KO.txt", "reviewHudUpdatesAfterDecision=true"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip decision audit coaching HUD evidence");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 Store Presence 브리핑 회고 후보 입력란", StorePresenceBriefingRetrospectiveCandidateFieldsReady(), "Builds/Handoff/v0.3.0/Evidence/STORE_PRESENCE*.md + STORE_PRESENCE_QA_CARD_KO.md briefing_retrospective_candidate_*");
         AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 브리핑 회고 후보 입력란", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "briefing_retrospective_candidate_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/_templates/STORE_PRESENCE.md", "briefing_retrospective_candidate_smoke") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "briefing_retrospective_candidate_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE_EXAMPLE.md", "storeCandidateMentionsBriefingRetrospective=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "briefing_retrospective_candidate_evidence") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "briefing_retrospective_candidate_smoke") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/STORE_PRESENCE.md", "12_career_record_next_objective.png"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/STORE_PRESENCE*.md briefing retrospective candidate fields");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 게이트 tracker Store Presence 증거 초안 힌트", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "evidence_hint", "draft=Evidence/STORE_PRESENCE.md", "draft_status=status: draft_not_evidence", "example=Evidence/STORE_PRESENCE_EXAMPLE.md", "bundle=STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "actual_status=pending_external", "release_candidate_json=care_review_release_candidate_audit.json", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_not_collected_count", "waiting_for_screenshot_ab_loop_responses"), "Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv");
@@ -6979,31 +7228,31 @@ public static class CareReviewProjectBuilder
         AddDistributionIntegrityCheck(audit, "외부 게이트 감사 Store Presence after_collection_inputs 별도 필드", ExternalGateAuditMarkdownMentionsStorePresenceAfterCollectionInputSummary() && ExternalGateAuditCsvMentionsStorePresenceAfterCollectionInputSummary() && ExternalGateAuditJsonMentionsStorePresenceAfterCollectionInputSummary(), "care_review_external_gate_audit csv/json/md store_presence_after_collection_input_summary");
         AddDistributionIntegrityCheck(audit, "외부 게이트 스모크 handoff zip SHA 상호참조", ExternalGateAuditSmokeHandoffZipShaReady(), "care_review_external_gate_audit_smoke_result.json handoffZipSha256");
         AddDistributionIntegrityCheck(audit, "외부 게이트 스모크 Steamworks zip SHA 상호참조", ExternalGateAuditSmokeSteamworksZipShaReady(), "care_review_external_gate_audit_smoke_result.json steamworksZipSha256");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 게이트 tracker Store Presence 자체점검 TODO 힌트", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "STORE_PRESENCE", "evidence_hint", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수"), "Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv completion TODO");
-        AddDistributionIntegrityCheck(audit, "handoff zip 게이트 tracker Store Presence 자체점검 TODO 힌트", ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv completion TODO");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 게이트 tracker Store Presence 자체점검 TODO 힌트", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_GATE_TRACKER.csv"), "STORE_PRESENCE", "evidence_hint", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수"), "Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv completion TODO");
+        AddDistributionIntegrityCheck(audit, "handoff zip 게이트 tracker Store Presence 자체점검 TODO 힌트", ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv completion TODO");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 Evidence README Store Presence 예시 링크", ExternalGateEvidenceReadmeMentionsStorePresenceExample(), "Builds/Handoff/v0.3.0/Evidence/README_KO.md");
         AddDistributionIntegrityCheck(audit, "handoff zip Evidence README Store Presence 예시 링크", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "Store Presence 증거 작성") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "STORE_PRESENCE_EXAMPLE.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "selected_upload_set") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "promoted_candidate") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "A/B 응답 회수 확인 단계") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "STORE_PRESENCE_QA_CARD_KO.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "screenshot_ab_loop_response_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "release candidate JSON memberSummary 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "care_review_release_candidate_audit.json") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/README_KO.md");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 Evidence README Store Presence 작성 완료 전 자체점검", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "STORE_PRESENCE.md 작성 완료 전 자체점검", "Steamworks URL/화면 캡처", "SHA 확인", "공식/승격 후보", "14번 코칭 후보", "토스트 UI 캡처", "A/B 응답 회수"), "Builds/Handoff/v0.3.0/Evidence/README_KO.md completion checklist");
-        AddDistributionIntegrityCheck(audit, "handoff zip Evidence README Store Presence 작성 완료 전 자체점검", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "STORE_PRESENCE.md 작성 완료 전 자체점검") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "Steamworks URL/화면 캡처") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "SHA 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "14번 코칭 후보") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "A/B 응답 회수"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/README_KO.md completion checklist");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 Evidence README Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "Store Presence 증거 작성", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "STORE_PRESENCE_QA_CARD_KO.md", "작성 완료 전 자체점검 TODO"), "Builds/Handoff/v0.3.0/Evidence/README_KO.md completion TODO summary");
-        AddDistributionIntegrityCheck(audit, "handoff zip Evidence README Store Presence 자체점검 TODO 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "자체점검 TODO 요약") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "STORE_PRESENCE_QA_CARD_KO.md"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/README_KO.md completion TODO summary");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 문서 Store Presence 증거 묶음 표", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "## Store Presence 증거 묶음", "checkCount=11", "passedCheckCount=11", "allPassed=true", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "결정 감사 코칭 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "성과 토스트 UI 캡처 요약", "toastUiCaptureReady=true", "toastUiCaptureReadable=true", "Evidence/STORE_PRESENCE_EXAMPLE.md", "Store Presence A/B 응답 회수 입력란", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md");
-        AddDistributionIntegrityCheck(audit, "handoff zip 문서 Store Presence 증거 묶음 표", ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "## Store Presence 증거 묶음") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "checkCount=11") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "passedCheckCount=11") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "allPassed=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "결정 감사 코칭 패턴 분포 Store/QA handoff") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "decisionAuditCoachingSessionCount") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "decisionAuditCoachingPatternCounts") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "성과 토스트 UI 캡처 요약") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "toastUiCaptureReady=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "toastUiCaptureReadable=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "Evidence/STORE_PRESENCE_EXAMPLE.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "Store Presence A/B 응답 회수 입력란") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "screenshot_ab_loop_response_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "screenshot_ab_loop_not_collected_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "screenshot_ab_loop_collection_status") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 Evidence README Store Presence 작성 완료 전 자체점검", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "STORE_PRESENCE.md 작성 완료 전 자체점검", "Steamworks URL/화면 캡처", "SHA 확인", "공식/승격 후보", "14번 복기 후보", "토스트 UI 캡처", "A/B 응답 회수"), "Builds/Handoff/v0.3.0/Evidence/README_KO.md completion checklist");
+        AddDistributionIntegrityCheck(audit, "handoff zip Evidence README Store Presence 작성 완료 전 자체점검", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "STORE_PRESENCE.md 작성 완료 전 자체점검") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "Steamworks URL/화면 캡처") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "SHA 확인") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "14번 복기 후보") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "A/B 응답 회수"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/README_KO.md completion checklist");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 Evidence README Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(ExternalGateEvidencePath, "README_KO.md"), "Store Presence 증거 작성", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "STORE_PRESENCE_QA_CARD_KO.md", "작성 완료 전 자체점검 TODO"), "Builds/Handoff/v0.3.0/Evidence/README_KO.md completion TODO summary");
+        AddDistributionIntegrityCheck(audit, "handoff zip Evidence README Store Presence 자체점검 TODO 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "자체점검 TODO 요약") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/Evidence/README_KO.md", "STORE_PRESENCE_QA_CARD_KO.md"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/Evidence/README_KO.md completion TODO summary");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 문서 Store Presence 증거 묶음 표", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "## Store Presence 증거 묶음", "checkCount=11", "passedCheckCount=11", "allPassed=true", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "판단 복기 패턴 분포 Store/QA handoff", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "성과 토스트 UI 캡처 요약", "toastUiCaptureReady=true", "toastUiCaptureReadable=true", "Evidence/STORE_PRESENCE_EXAMPLE.md", "Store Presence A/B 응답 회수 입력란", "screenshot_ab_loop_response_count", "screenshot_ab_loop_not_collected_count", "screenshot_ab_loop_collection_status", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md");
+        AddDistributionIntegrityCheck(audit, "handoff zip 문서 Store Presence 증거 묶음 표", ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "## Store Presence 증거 묶음") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "checkCount=11") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "passedCheckCount=11") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "allPassed=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "판단 복기 패턴 분포 Store/QA handoff") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "decisionAuditCoachingSessionCount") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "decisionAuditCoachingPatternCounts") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "성과 토스트 UI 캡처 요약") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "toastUiCaptureReady=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "toastUiCaptureReadable=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "Evidence/STORE_PRESENCE_EXAMPLE.md") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "Store Presence A/B 응답 회수 입력란") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "screenshot_ab_loop_response_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "screenshot_ab_loop_not_collected_count") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "screenshot_ab_loop_collection_status") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "memberSummary=storePresenceEvidenceBundle.checks.memberSummary"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 문서 Store Presence 우선순위 배지 회수 컬럼", ExternalHandoffStorePresencePriorityBadgeSummaryReady(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md")), "Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md");
         AddDistributionIntegrityCheck(audit, "handoff zip 문서 Store Presence 우선순위 배지 회수 컬럼", ExternalHandoffZipStorePresencePriorityBadgeSummaryReady(handoffZipPath), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md");
-        AddDistributionIntegrityCheck(audit, "handoff Store/QA 결정 감사 코칭 패턴 분포", DecisionAuditCoachingAggregateHandoffReady() && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "결정 감사 코칭 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "결정 감사 코칭 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사"), "STORE_PRESENCE_QA_CARD_KO.md + care_review_playtest_aggregate.*");
-        AddDistributionIntegrityCheck(audit, "handoff zip Store/QA 결정 감사 코칭 패턴 분포", ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "결정 감사 코칭 패턴 분포 Store/QA handoff") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "care_review_playtest_aggregate.json") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decisionAuditCoachingSessionCount") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decisionAuditCoachingPatternCounts") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decisionAuditCoachingMandateCounts") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "고비용 지원") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "긴축 감사"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/STORE_PRESENCE_QA_CARD_KO.md");
+        AddDistributionIntegrityCheck(audit, "handoff Store/QA 판단 복기 패턴 분포", DecisionAuditCoachingAggregateHandoffReady() && FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "판단 복기 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "판단 복기 패턴 분포 Store/QA handoff", "care_review_playtest_aggregate.json", "decisionAuditCoachingSessionCount", "decisionAuditCoachingPatternCounts", "decisionAuditCoachingMandateCounts", "고비용 지원", "긴축 감사"), "STORE_PRESENCE_QA_CARD_KO.md + care_review_playtest_aggregate.*");
+        AddDistributionIntegrityCheck(audit, "handoff zip Store/QA 판단 복기 패턴 분포", ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "판단 복기 패턴 분포 Store/QA handoff") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "care_review_playtest_aggregate.json") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decisionAuditCoachingSessionCount") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decisionAuditCoachingPatternCounts") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "decisionAuditCoachingMandateCounts") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "고비용 지원") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "긴축 감사"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/STORE_PRESENCE_QA_CARD_KO.md");
         AddDistributionIntegrityCheck(audit, "handoff Store Presence 브리핑 회고 후보 근거", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "STORE_PRESENCE_QA_CARD_KO.md"), "브리핑 회고 상점 후보 근거", "storeCandidateMentionsBriefingRetrospective=true", "예고 위험", "실제 결과", "12_career_record_next_objective.png") && FileContainsAll(Path.Combine(SteamworksRootPath, "STORE_PRESENCE_QA_CARD_KO.md"), "브리핑 회고 상점 후보 근거", "storeCandidateMentionsBriefingRetrospective=true", "예고 위험", "실제 결과", "12_career_record_next_objective.png"), "STORE_PRESENCE_QA_CARD_KO.md briefing retrospective store candidate evidence");
         AddDistributionIntegrityCheck(audit, "handoff zip Store Presence 브리핑 회고 후보 근거", ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "브리핑 회고 상점 후보 근거") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "storeCandidateMentionsBriefingRetrospective=true") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "예고 위험") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "실제 결과") && ZipEntryTextContains(handoffZipPath, "v0.3.0/STORE_PRESENCE_QA_CARD_KO.md", "12_career_record_next_objective.png"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/STORE_PRESENCE_QA_CARD_KO.md briefing retrospective evidence");
         AddDistributionIntegrityCheck(audit, "handoff 폴더 문서 Store Presence 증거 초안 최상단 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "## Store Presence 증거 초안 상태", "실제 입력 상태: `pending_external`", "초안 파일: `Evidence/STORE_PRESENCE.md`; `status: draft_not_evidence`", "예시 파일: `Evidence/STORE_PRESENCE_EXAMPLE.md`; `status: example_not_evidence`", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY", "A/B 응답 회수 입력란", "screenshot_ab_loop_response_count=0", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses", "실제 Steamworks URL/화면 캡처"), "Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md");
         AddDistributionIntegrityCheck(audit, "handoff zip 문서 Store Presence 증거 초안 최상단 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "## Store Presence 증거 초안 상태") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "실제 입력 상태: `pending_external`") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "초안 파일: `Evidence/STORE_PRESENCE.md`; `status: draft_not_evidence`") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "예시 파일: `Evidence/STORE_PRESENCE_EXAMPLE.md`; `status: example_not_evidence`") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "A/B 응답 회수 입력란") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "screenshot_ab_loop_response_count=0") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "실제 Steamworks URL/화면 캡처"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md");
-        AddDistributionIntegrityCheck(audit, "handoff 폴더 문서 Store Presence 자체점검 TODO 최상단 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "## Store Presence 증거 초안 상태", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", "README_KO.txt", "handoff TODO 첫 확인", "제출 전 TODO 첫 확인"), "Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md completion TODO top summary");
-        AddDistributionIntegrityCheck(audit, "handoff zip 문서 Store Presence 자체점검 TODO 최상단 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "자체점검 TODO 요약") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "handoff TODO 첫 확인"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md completion TODO top summary");
+        AddDistributionIntegrityCheck(audit, "handoff 폴더 문서 Store Presence 자체점검 TODO 최상단 요약", FileContainsAll(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), "## Store Presence 증거 초안 상태", "자체점검 TODO 요약", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", "README_KO.txt", "handoff TODO 첫 확인", "제출 전 TODO 첫 확인"), "Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md completion TODO top summary");
+        AddDistributionIntegrityCheck(audit, "handoff zip 문서 Store Presence 자체점검 TODO 최상단 요약", ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "자체점검 TODO 요약") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "completion_todo=작성 완료 전 자체점검 TODO") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수") && ZipEntryTextContains(handoffZipPath, "v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md", "handoff TODO 첫 확인"), "CareReviewOffice_ExternalValidationHandoff_v0.3.0.zip:v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md completion TODO top summary");
         AddDistributionIntegrityCheck(audit, "handoff 문서 패키지 해시 반영", DistributionDocumentMentionsPackages(Path.Combine(ExternalValidationHandoffPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), releaseHash, releaseBytes, playtestHash, playtestBytes), "Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md");
         AddDistributionIntegrityCheck(audit, "Steamworks handoff 문서 패키지 해시 반영", DistributionDocumentMentionsPackages(Path.Combine(SteamworksRootPath, "EXTERNAL_RELEASE_HANDOFF_KO.md"), releaseHash, releaseBytes, playtestHash, playtestBytes), "Builds/Steamworks/v0.3.0/EXTERNAL_RELEASE_HANDOFF_KO.md");
         AddDistributionIntegrityCheck(audit, "Steamworks manifest 릴리즈 SHA 반영", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), releaseHash), "STEAMWORKS_UPLOAD_MANIFEST.txt");
         AddDistributionIntegrityCheck(audit, "Steamworks upload manifest Store Presence priority badge memberSummary 요약", SteamworksUploadManifestStorePresencePriorityBadgeSummaryReady(), "STEAMWORKS_UPLOAD_MANIFEST.txt priority_badges");
-        AddDistributionIntegrityCheck(audit, "Steamworks content Paperlogy 폰트 커버리지 산출물", File.Exists("Assets/Resources/Fonts/Paperlogy-6SemiBold.ttf") && FileContainsAll("Docs/THIRD_PARTY_FONTS.md", "Paperlogy", "Paperlogy-6SemiBold.ttf", "SIL Open Font License") && FileContainsAll(Path.Combine(SteamworksContentPath, "README_KR.txt"), "Paperlogy 폰트 적용", "-careReviewUiCleanupSmokeTest") && FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "UI font: Paperlogy-6SemiBold", "paperlogyFontApplied=true", "paperlogyTextFontCoverageApplied=true", "paperlogyTextMismatchCount=0") && FileContainsAll("Builds/QA/v0.3.0/care_review_ui_cleanup_smoke_result.json", "\"paperlogyFontApplied\": true", "\"paperlogyTextFontCoverageApplied\": true", "\"paperlogyTextMismatchCount\": 0", "\"activeFontName\": \"Paperlogy-6SemiBold\""), "content_windows README/RELEASE_MANIFEST + Paperlogy font asset/license + UI cleanup smoke");
+        AddDistributionIntegrityCheck(audit, "Steamworks content Paperlogy 폰트 커버리지 산출물", File.Exists("Assets/Resources/Fonts/Paperlogy-6SemiBold.ttf") && FileContainsAll("Docs/THIRD_PARTY_FONTS.md", "Paperlogy", "Paperlogy-6SemiBold.ttf", "SIL Open Font License") && FileContainsAll(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), "UI font: Paperlogy-6SemiBold", "Docs/THIRD_PARTY_FONTS.md") && FileContainsAll("Builds/QA/v0.3.0/care_review_ui_cleanup_smoke_result.json", "\"paperlogyFontApplied\": true", "\"paperlogyTextFontCoverageApplied\": true", "\"paperlogyTextMismatchCount\": 0", "\"activeFontName\": \"Paperlogy-6SemiBold\""), "content_windows RELEASE_MANIFEST + Paperlogy font asset/license + UI cleanup smoke");
         AddDistributionIntegrityCheck(audit, "Steamworks upload manifest Paperlogy 폰트/라이선스 증거", SteamworksUploadManifestPaperlogyFontEvidenceReady(), "STEAMWORKS_UPLOAD_MANIFEST.txt Paperlogy font evidence");
         AddDistributionIntegrityCheck(audit, "Steamworks upload manifest README Paperlogy 최상단 요약 역참조", SteamworksUploadManifestReadmeTopPaperlogyBackReferenceReady() && SteamworksZipUploadManifestReadmeTopPaperlogyBackReferenceReady(steamworksZipPath), "STEAMWORKS_UPLOAD_MANIFEST.txt folder+zip README_STEAMWORKS_KR.txt Paperlogy top summary back-reference");
         AddDistributionIntegrityCheck(audit, "Steamworks upload manifest README smoke zip SHA 최상단 요약 역참조", SteamworksUploadManifestReadmeTopSmokeZipShaBackReferenceReady() && SteamworksZipUploadManifestReadmeTopSmokeZipShaBackReferenceReady(steamworksZipPath), "STEAMWORKS_UPLOAD_MANIFEST.txt folder+zip README_STEAMWORKS_KR.txt smoke zip SHA top summary back-reference");
@@ -7021,7 +7270,7 @@ public static class CareReviewProjectBuilder
         AddDistributionIntegrityCheck(audit, "Steam 제출 프리플라이트 최상단 Store Presence 자체점검 TODO 요약", PreflightTopStorePresenceCompletionTodoSummaryReady(), "STEAM_SUBMISSION_PREFLIGHT_KO.md top completion TODO summary");
         AddDistributionIntegrityCheck(audit, "Steamworks README 첫 섹션 Store Presence 자체점검 TODO 첫 확인", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 증거 묶음 상태", "제출 전 TODO 첫 확인", "completion_todo=작성 완료 전 자체점검 TODO", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "Store Presence 자체점검 TODO 요약"), "README_STEAMWORKS_KR.txt top completion TODO summary");
         AddDistributionIntegrityCheck(audit, "Steamworks README 첫 섹션 Store Presence 감사 노트 템플릿 TODO 역참조", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "Store Presence 증거 묶음 상태", "감사 노트 템플릿 TODO 역참조", "STEAM_SUBMISSION_PREFLIGHT_KO.md", "외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조", "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md", "자체점검 TODO 요약 템플릿"), "README_STEAMWORKS_KR.txt release audit note template completion TODO back-reference");
-        AddDistributionIntegrityCheck(audit, "Steamworks upload manifest Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence draft", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수"), "STEAMWORKS_UPLOAD_MANIFEST.txt completion TODO summary");
+        AddDistributionIntegrityCheck(audit, "Steamworks upload manifest Store Presence 자체점검 TODO 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence draft", "completion_todo=작성 완료 전 자체점검 TODO", "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수"), "STEAMWORKS_UPLOAD_MANIFEST.txt completion TODO summary");
         AddDistributionIntegrityCheck(audit, "Steamworks upload manifest Store Presence 감사 노트 템플릿 TODO 역참조", FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "Store Presence evidence draft", "README_STEAMWORKS_KR.txt 감사 노트 템플릿 TODO 역참조", "STEAM_SUBMISSION_PREFLIGHT_KO.md 외부 검증 Store Presence 감사 노트 템플릿 TODO 요약 역참조", "RELEASE_CANDIDATE_AUDIT_NOTE_KO.md", "자체점검 TODO 요약 템플릿"), "STEAMWORKS_UPLOAD_MANIFEST.txt release audit note template completion TODO back-reference");
         AddDistributionIntegrityCheck(audit, "Steamworks README/manifest Store Presence 이해 코멘트 수 요약", FileContainsAll(Path.Combine(SteamworksRootPath, "README_STEAMWORKS_KR.txt"), "A/B 응답 회수 보류", "screenshot_ab_loop_understanding_comment_count=0", "Evidence/STORE_PRESENCE.md", "screenshot_ab_loop_understanding_comment_count") && FileContainsAll(Path.Combine(SteamworksRootPath, "STEAMWORKS_UPLOAD_MANIFEST.txt"), "abLoopInputFields=screenshot_ab_loop_response_count,screenshot_ab_loop_not_collected_count,screenshot_ab_loop_collection_status,screenshot_ab_loop_understanding_comment_count", "screenshot_ab_loop_understanding_comment_count=0", "Store Presence upload doc cross-check"), "README_STEAMWORKS_KR.txt + STEAMWORKS_UPLOAD_MANIFEST.txt screenshot_ab_loop_understanding_comment_count");
         AddDistributionIntegrityCheck(audit, "외부 게이트 감사 HUMAN_10 우선순위 배지 owner_screen 별도 필드", ExternalGateAuditMarkdownMentionsPriorityBadgeOwnerScreenSummary() && ExternalGateAuditCsvMentionsPriorityBadgeOwnerScreenSummary() && ExternalGateAuditJsonMentionsPriorityBadgeOwnerScreenSummary(), "care_review_external_gate_audit csv/json/md priority_badge_owner_screen_summary");
@@ -7268,6 +7517,55 @@ public static class CareReviewProjectBuilder
         }
     }
 
+    private static byte[] ReadZipEntryBytes(string zipPath, string entryName)
+    {
+        if (!File.Exists(zipPath))
+        {
+            return Array.Empty<byte>();
+        }
+
+        try
+        {
+            using ZipArchive archive = ZipFile.OpenRead(zipPath);
+            ZipArchiveEntry entry = archive.GetEntry(entryName);
+            if (entry == null)
+            {
+                return Array.Empty<byte>();
+            }
+
+            using Stream stream = entry.Open();
+            using MemoryStream memory = new();
+            stream.CopyTo(memory);
+            return memory.ToArray();
+        }
+        catch
+        {
+            return Array.Empty<byte>();
+        }
+    }
+
+    private static bool ZipEntryBytesExist(string zipPath, string entryName)
+    {
+        return ReadZipEntryBytes(zipPath, entryName).Length > 0;
+    }
+
+    private static byte[] ReadFileBytes(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return Array.Empty<byte>();
+        }
+
+        try
+        {
+            return File.ReadAllBytes(path);
+        }
+        catch
+        {
+            return Array.Empty<byte>();
+        }
+    }
+
     private static string BuildDistributionIntegrityAuditJson(DistributionIntegrityAudit audit)
     {
         StringBuilder builder = new();
@@ -7414,7 +7712,7 @@ public static class CareReviewProjectBuilder
 
         if (ContainsOrdinalIgnoreCase(action, "Store Presence"))
         {
-            return ExternalGateEvidenceNotePassed("STORE_PRESENCE", out _, "상점", "스크린샷", "캡슐", "트레일러", "SHA", "A/B", "selected_upload_set", "promoted_candidate", "decision_audit_coaching_candidate_evidence", "14_case_archive_decision_audit_coaching_focus.png", "코칭 W-207", "decision_audit_coaching_hud_evidence", "reviewHudUpdatesAfterDecision=true", "briefing_retrospective_candidate_evidence", "storeCandidateMentionsBriefingRetrospective=true", "브리핑 회고");
+            return ExternalGateEvidenceNotePassed("STORE_PRESENCE", out _, "상점", "스크린샷", "캡슐", "트레일러", "SHA", "A/B", "selected_upload_set", "promoted_candidate", "decision_audit_coaching_candidate_evidence", "14_case_archive_decision_audit_coaching_focus.png", "복기 W-207", "decision_audit_coaching_hud_evidence", "reviewHudUpdatesAfterDecision=true", "briefing_retrospective_candidate_evidence", "storeCandidateMentionsBriefingRetrospective=true", "브리핑 회고");
         }
 
         if (ContainsOrdinalIgnoreCase(action, "Achievements"))
@@ -7479,14 +7777,25 @@ public static class CareReviewProjectBuilder
         audit.checkCount = audit.checks.Count;
         audit.passedCheckCount = audit.checkCount - audit.localBlockerCount;
         audit.externalActionCount = audit.externalActions.Count;
+        audit.optionalExternalValidationCount = audit.optionalExternalValidations.Count;
         audit.localReleaseCandidateReady = audit.localBlockerCount == 0;
         audit.steamPublicReleaseReady = audit.localReleaseCandidateReady && audit.externalActionCount == 0;
     }
 
     private static void AddExternalAction(ReleaseCandidateAudit audit, string action)
     {
+        if (!string.IsNullOrEmpty(OptionalExternalValidationCategory(action)) ||
+            action.StartsWith("5명 이상에게 플레이테스트", StringComparison.Ordinal) ||
+            action.StartsWith("완전 회수 10명 이상", StringComparison.Ordinal) ||
+            action.Contains("플레이테스트 키트 배포", StringComparison.Ordinal) ||
+            action.Contains("완전 회수 10명 이상 확보", StringComparison.Ordinal))
+        {
+            AddOptionalExternalValidation(audit, action);
+            return;
+        }
+
         if (action.StartsWith("실제 사람 플레이테스트 -", StringComparison.Ordinal) &&
-            HasExternalActionPrefix(audit, "실제 사람 플레이테스트 "))
+            HasExternalActionPrefix(audit.externalActions, "실제 사람 플레이테스트 "))
         {
             return;
         }
@@ -7497,9 +7806,58 @@ public static class CareReviewProjectBuilder
         }
     }
 
-    private static bool HasExternalActionPrefix(ReleaseCandidateAudit audit, string prefix)
+    private static void AddOptionalExternalValidation(ReleaseCandidateAudit audit, string action)
     {
-        foreach (string existingAction in audit.externalActions)
+        string category = OptionalExternalValidationCategory(action);
+        if (!string.IsNullOrEmpty(category))
+        {
+            foreach (string existingAction in audit.optionalExternalValidations)
+            {
+                string existingCategory = OptionalExternalValidationCategory(existingAction);
+                if (string.Equals(existingCategory, category, StringComparison.Ordinal) ||
+                    (string.Equals(category, "human_playtest_general", StringComparison.Ordinal) &&
+                        existingCategory.StartsWith("human_playtest_", StringComparison.Ordinal)))
+                {
+                    return;
+                }
+            }
+        }
+
+        if (action.StartsWith("실제 사람 플레이테스트 -", StringComparison.Ordinal) &&
+            HasExternalActionPrefix(audit.optionalExternalValidations, "실제 사람 플레이테스트 "))
+        {
+            return;
+        }
+
+        if (!audit.optionalExternalValidations.Contains(action))
+        {
+            audit.optionalExternalValidations.Add(action);
+        }
+    }
+
+    private static string OptionalExternalValidationCategory(string action)
+    {
+        if (action.Contains("5명 이상", StringComparison.Ordinal))
+        {
+            return "human_playtest_5";
+        }
+
+        if (action.Contains("10명 이상", StringComparison.Ordinal))
+        {
+            return "human_playtest_10";
+        }
+
+        if (action.StartsWith("실제 사람 플레이테스트", StringComparison.Ordinal))
+        {
+            return "human_playtest_general";
+        }
+
+        return "";
+    }
+
+    private static bool HasExternalActionPrefix(List<string> actions, string prefix)
+    {
+        foreach (string existingAction in actions)
         {
             if (existingAction.StartsWith(prefix, StringComparison.Ordinal))
             {
@@ -7546,6 +7904,19 @@ public static class CareReviewProjectBuilder
         }
     }
 
+    private static string ComputeSha256(byte[] bytes)
+    {
+        using SHA256 sha256 = SHA256.Create();
+        byte[] hash = sha256.ComputeHash(bytes);
+        StringBuilder builder = new();
+        foreach (byte value in hash)
+        {
+            builder.Append(value.ToString("X2"));
+        }
+
+        return builder.ToString();
+    }
+
     private static string ShortHash(string hash)
     {
         return string.IsNullOrWhiteSpace(hash) || hash.Length < 12
@@ -7565,6 +7936,7 @@ public static class CareReviewProjectBuilder
         builder.AppendLine("  \"passedCheckCount\": " + audit.passedCheckCount + ",");
         builder.AppendLine("  \"localBlockerCount\": " + audit.localBlockerCount + ",");
         builder.AppendLine("  \"externalActionCount\": " + audit.externalActionCount + ",");
+        builder.AppendLine("  \"optionalExternalValidationCount\": " + audit.optionalExternalValidationCount + ",");
         AppendReleaseCandidateStorePresenceEvidenceBundleJson(builder, audit);
         builder.AppendLine("  \"checks\": [");
         for (int i = 0; i < audit.checks.Count; i++)
@@ -7583,6 +7955,13 @@ public static class CareReviewProjectBuilder
         {
             builder.Append("    \"").Append(EscapeJson(audit.externalActions[i])).Append("\"");
             builder.AppendLine(i == audit.externalActions.Count - 1 ? "" : ",");
+        }
+        builder.AppendLine("  ],");
+        builder.AppendLine("  \"optionalExternalValidations\": [");
+        for (int i = 0; i < audit.optionalExternalValidations.Count; i++)
+        {
+            builder.Append("    \"").Append(EscapeJson(audit.optionalExternalValidations[i])).Append("\"");
+            builder.AppendLine(i == audit.optionalExternalValidations.Count - 1 ? "" : ",");
         }
         builder.AppendLine("  ]");
         builder.AppendLine("}");
@@ -7638,9 +8017,9 @@ public static class CareReviewProjectBuilder
             return "draft=Evidence/STORE_PRESENCE.md; fields=briefing_retrospective_candidate_evidence,briefing_retrospective_candidate_file,briefing_retrospective_candidate_terms,briefing_retrospective_candidate_smoke; source=care_review_career_record_smoke_result.json; candidate=12_career_record_next_objective.png; values=storeCandidateMentionsBriefingRetrospective=true,브리핑 회고,예고 위험,실제 결과";
         }
 
-        if (string.Equals(label, "Store Presence 14번 결정 감사 코칭 HUD 근거", StringComparison.Ordinal))
+        if (string.Equals(label, "Store Presence 14번 판단 복기 HUD 근거", StringComparison.Ordinal))
         {
-            return "draft=Evidence/STORE_PRESENCE.md; fields=decision_audit_coaching_hud_evidence,decision_audit_coaching_hud_terms; source=care_review_decision_audit_coaching_hud_smoke_result.json; candidate=14_case_archive_decision_audit_coaching_focus.png; values=결정 감사 코칭 진행,coachingStateApplied=true,reviewHudMentionsCoachingObjective=true,reviewHudUpdatesAfterDecision=true";
+            return "draft=Evidence/STORE_PRESENCE.md; fields=decision_audit_coaching_hud_evidence,decision_audit_coaching_hud_terms; source=care_review_decision_audit_coaching_hud_smoke_result.json; candidate=14_case_archive_decision_audit_coaching_focus.png; values=판단 복기 진행,coachingStateApplied=true,reviewHudMentionsCoachingObjective=true,reviewHudUpdatesAfterDecision=true";
         }
 
         return "evidence=" + evidence;
@@ -7843,7 +8222,7 @@ public static class CareReviewProjectBuilder
             note.Contains("actual_status=pending_external", StringComparison.Ordinal) &&
             note.Contains("자체점검 TODO 요약", StringComparison.Ordinal) &&
             note.Contains("completion_todo=작성 완료 전 자체점검 TODO", StringComparison.Ordinal) &&
-            note.Contains("completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", StringComparison.Ordinal) &&
+            note.Contains("completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", StringComparison.Ordinal) &&
             note.Contains("A/B 응답 회수 입력란", StringComparison.Ordinal) &&
             note.Contains("screenshot_ab_loop_response_count=0", StringComparison.Ordinal) &&
             note.Contains("screenshot_ab_loop_not_collected_count=221", StringComparison.Ordinal) &&
@@ -8055,7 +8434,7 @@ public static class CareReviewProjectBuilder
             Path.Combine(SteamworksRootPath, "STEAM_SUBMISSION_PREFLIGHT_KO.md"),
             "## 최상단 판정 요약",
             "Steam 공개 출시: `not_ready_external_actions`",
-            "externalActionCount=10",
+            "externalActionCount=8",
             "Store Presence 외부 액션 연결",
             "STORE_PRESENCE",
             "actual_status=pending_external",
@@ -8105,7 +8484,7 @@ public static class CareReviewProjectBuilder
             "## 최상단 판정 요약",
             "Store Presence 자체점검 TODO 요약",
             "completion_todo=작성 완료 전 자체점검 TODO",
-            "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수",
+            "completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수",
             "Evidence/STORE_PRESENCE.md",
             "외부 검증 Store Presence 자체점검 TODO 요약");
     }
@@ -8224,7 +8603,8 @@ public static class CareReviewProjectBuilder
         builder.AppendLine("- 대상 버전: " + audit.version);
         builder.AppendLine("- 로컬 체크: " + audit.passedCheckCount + " / " + audit.checkCount);
         builder.AppendLine("- 로컬 미해결 항목: " + audit.localBlockerCount);
-        builder.AppendLine("- 외부 필수 항목: " + audit.externalActionCount);
+        builder.AppendLine("- Steam 제출 전 필수 외부 항목: " + audit.externalActionCount);
+        builder.AppendLine("- 선택적 외부 검증 항목: " + audit.optionalExternalValidationCount);
         builder.AppendLine();
         builder.AppendLine("## 판정");
         builder.AppendLine();
@@ -8232,8 +8612,8 @@ public static class CareReviewProjectBuilder
             ? "- [x] 로컬 릴리즈 후보 산출물은 패키지/상점 사본/QA 증거 기준을 통과했다."
             : "- [ ] 로컬 릴리즈 후보 산출물에 미해결 항목이 있다.");
         builder.AppendLine(audit.steamPublicReleaseReady
-            ? "- [x] Steam 공개 제출 전 외부 필수 항목도 모두 완료됐다."
-            : "- [ ] Steam 공개 제출 전 외부 필수 항목이 남아 있다.");
+            ? "- [x] Steam 공개 제출 전 필수 외부 항목도 모두 완료됐다."
+            : "- [ ] Steam 공개 제출 전 필수 외부 항목이 남아 있다.");
         builder.AppendLine();
         AppendReleaseCandidateStorePresenceDraftStatus(builder);
         builder.AppendLine();
@@ -8251,7 +8631,7 @@ public static class CareReviewProjectBuilder
         }
 
         builder.AppendLine();
-        builder.AppendLine("## 외부 필수 항목");
+        builder.AppendLine("## Steam 제출 전 필수 외부 항목");
         builder.AppendLine();
         if (audit.externalActions.Count == 0)
         {
@@ -8260,6 +8640,21 @@ public static class CareReviewProjectBuilder
         else
         {
             foreach (string action in audit.externalActions)
+            {
+                builder.AppendLine("- [ ] " + action);
+            }
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("## 선택적 외부 검증 항목");
+        builder.AppendLine();
+        if (audit.optionalExternalValidations.Count == 0)
+        {
+            builder.AppendLine("- 없음");
+        }
+        else
+        {
+            foreach (string action in audit.optionalExternalValidations)
             {
                 builder.AppendLine("- [ ] " + action);
             }
@@ -8292,7 +8687,7 @@ public static class CareReviewProjectBuilder
         builder.AppendLine("- 증거 템플릿: `Evidence/_templates/STORE_PRESENCE.md`; `자체점검 TODO 요약 템플릿`; `Evidence/STORE_PRESENCE_EXAMPLE.md`; `Evidence/STORE_PRESENCE.md`");
         builder.AppendLine("- 증거 묶음: `STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY`; `checkCount=11`; `passedCheckCount=11`; `allPassed=true`");
         builder.AppendLine("- tracker 힌트: `EXTERNAL_RELEASE_GATE_TRACKER.csv`; `evidence_hint`; `actual_status=pending_external`");
-        builder.AppendLine("- 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`; `Evidence/STORE_PRESENCE.md`");
+        builder.AppendLine("- 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`; `Evidence/STORE_PRESENCE.md`");
         builder.AppendLine("- A/B 응답 회수 입력란: `screenshot_ab_loop_response_count=0`; `screenshot_ab_loop_not_collected_count=221`; `screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses`; `screenshot_ab_loop_understanding_comment_count=0`");
         builder.AppendLine("- A/B TODO 직접 매핑: `store_presence_ab_todo_mapping`; `post_external_collection_promotion_summary`; `main_menu_loop_entry`; `menu_campaign_briefing_weakness`; `achievement_career_copy_alignment`; `reward_loop_understanding`");
         builder.AppendLine("- upload manifest memberSummary 대조: `STEAMWORKS_UPLOAD_MANIFEST.txt`; `Store Presence evidence draft`; `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`");
@@ -8316,7 +8711,7 @@ public static class CareReviewProjectBuilder
             markdown.Contains("actual_status=pending_external", StringComparison.Ordinal) &&
             markdown.Contains("자체점검 TODO 요약", StringComparison.Ordinal) &&
             markdown.Contains("completion_todo=작성 완료 전 자체점검 TODO", StringComparison.Ordinal) &&
-            markdown.Contains("completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", StringComparison.Ordinal) &&
+            markdown.Contains("completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", StringComparison.Ordinal) &&
             markdown.Contains("A/B 응답 회수 입력란", StringComparison.Ordinal) &&
             markdown.Contains("upload manifest memberSummary 대조", StringComparison.Ordinal) &&
             markdown.Contains("STEAMWORKS_UPLOAD_MANIFEST.txt", StringComparison.Ordinal) &&
@@ -8384,11 +8779,11 @@ public static class CareReviewProjectBuilder
         return markdown.Contains("## Store Presence 실제 증거 초안 상태", StringComparison.Ordinal) &&
             markdown.Contains("자체점검 TODO 요약", StringComparison.Ordinal) &&
             markdown.Contains("completion_todo=작성 완료 전 자체점검 TODO", StringComparison.Ordinal) &&
-            markdown.Contains("completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", StringComparison.Ordinal) &&
+            markdown.Contains("completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", StringComparison.Ordinal) &&
             note.Contains("## Store Presence 실제 증거 초안 상태", StringComparison.Ordinal) &&
             note.Contains("자체점검 TODO 요약", StringComparison.Ordinal) &&
             note.Contains("completion_todo=작성 완료 전 자체점검 TODO", StringComparison.Ordinal) &&
-            note.Contains("completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수", StringComparison.Ordinal);
+            note.Contains("completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수", StringComparison.Ordinal);
     }
 
     private static void AppendReleaseCandidateEvidenceBundleRow(StringBuilder builder, ReleaseCandidateAudit audit, string label)
@@ -8533,13 +8928,13 @@ public static class CareReviewProjectBuilder
             "첫 확인 항목\n" +
             "- Store Presence 증거 초안: `pending_external`; `Evidence/STORE_PRESENCE.md`; `status: draft_not_evidence`\n" +
             "- Store Presence A/B 응답 회수 입력란: `screenshot_ab_loop_response_count=0`; `screenshot_ab_loop_not_collected_count=221`; `screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses`\n" +
-            "- 결정 감사 코칭 보조 후보: `14_case_archive_decision_audit_coaching_focus.png`; `코칭 W-207`; `decision_audit_coaching_candidate_evidence`; `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`; `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`; `" + DecisionAuditCoachingHudStoreCandidateSummary + "`\n" +
+            "- 판단 복기 보조 후보: `14_case_archive_decision_audit_coaching_focus.png`; `복기 W-207`; `decision_audit_coaching_candidate_evidence`; `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`; `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`; `" + DecisionAuditCoachingHudStoreCandidateSummary + "`\n" +
             "- 브리핑 회고 후보 입력란: `" + StorePresenceBriefingRetrospectiveCandidateSummary + "`\n" +
-            "- 결정 감사 코칭 패턴 분포 Store/QA handoff: `" + BuildDecisionAuditCoachingAggregateHandoffSummary() + "`\n" +
+            "- 판단 복기 패턴 분포 Store/QA handoff: `" + BuildDecisionAuditCoachingAggregateHandoffSummary() + "`\n" +
             "- release candidate JSON memberSummary 확인: `care_review_release_candidate_audit.json`; `storePresenceEvidenceBundle`; `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`\n" +
             "- 예시 노트: `Evidence/STORE_PRESENCE_EXAMPLE.md`; `status: example_not_evidence`; 통과 증거가 아님\n" +
             "- Steamworks README 첫 섹션 대조: `README_STEAMWORKS_KR.txt`; `Store Presence 증거 묶음 상태`; `STEAM_SUBMISSION_PREFLIGHT_KO.md` 최상단 판정 요약\n" +
-            "- handoff TODO 첫 확인: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`; `Evidence/STORE_PRESENCE.md`; `README_STEAMWORKS_KR.txt`; `제출 전 TODO 첫 확인`\n" +
+            "- handoff TODO 첫 확인: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`; `Evidence/STORE_PRESENCE.md`; `README_STEAMWORKS_KR.txt`; `제출 전 TODO 첫 확인`\n" +
             "- preflight 최상단 외부 액션 memberSummary 대조: `STEAM_SUBMISSION_PREFLIGHT_KO.md`; `Store Presence 외부 액션 연결`; `release candidate JSON memberSummary 확인`; `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`\n" +
             "- 실제 Steamworks URL/화면 캡처와 `STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY`를 채운 뒤에만 status 값을 passed로 바꿉니다.\n\n" +
             "- EXTERNAL_RELEASE_HANDOFF_KO.md: 전체 진행 순서와 판정 기준\n" +
@@ -8558,11 +8953,11 @@ public static class CareReviewProjectBuilder
             "2. `SCREENSHOT_CANDIDATE_AB_TEST_KO.md`의 `recommended_candidate`와 `STORE_PRESENCE_SELECTION_KO.md`의 `screenshot_ab_recommended_candidate`가 같은 후보인지 확인합니다.\n" +
             "3. `STORE_PAGE_SUBMISSION_DRAFT_KO.md`의 `보정 후보 결과 확인`, `STEAM_SUBMISSION_PREFLIGHT_KO.md`의 `상점 보정 후보 결과 수동 확인 단계`, `STORE_PRESENCE_SELECTION_KO.md`의 `appeal_triage_qa_evidence`가 같은 검수 흐름인지 대조합니다.\n" +
             "4. `STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256`로 `12_career_record_next_objective.png`, `13_case_archive_appeal_remedy_history.png`, `14_case_archive_decision_audit_coaching_focus.png` 후보 캡처 해시를 확인합니다.\n" +
-            "5. `STORE_PRESENCE_SELECTION_KO.md`와 `STORE_PRESENCE_QA_CARD_KO.md`의 `decision_audit_coaching_candidate_evidence`, `decision_audit_coaching_hud_evidence`, `decision_audit_coaching_hud_terms`가 `14_case_archive_decision_audit_coaching_focus.png`, `코칭 W-207`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`, `" + DecisionAuditCoachingHudStoreCandidateSummary + "`를 같은 보조 후보 근거로 가리키는지 확인합니다.\n" +
+            "5. `STORE_PRESENCE_SELECTION_KO.md`와 `STORE_PRESENCE_QA_CARD_KO.md`의 `decision_audit_coaching_candidate_evidence`, `decision_audit_coaching_hud_evidence`, `decision_audit_coaching_hud_terms`가 `14_case_archive_decision_audit_coaching_focus.png`, `복기 W-207`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`, `" + DecisionAuditCoachingHudStoreCandidateSummary + "`를 같은 보조 후보 근거로 가리키는지 확인합니다.\n" +
             "6. `care_review_career_record_smoke_result.json`의 `storeCandidateMentionsBriefingRetrospective=true`와 12번 후보 설명의 `브리핑 회고`, `예고 위험`, `실제 결과`를 `Evidence/STORE_PRESENCE.md`의 `briefing_retrospective_candidate_*` 입력란으로 옮깁니다.\n" +
-            "7. `care_review_playtest_aggregate.json`과 `care_review_playtest_aggregate.md`의 `결정 감사 코칭 패턴 분포`, `decisionAuditCoachingSessionCount`, `decisionAuditCoachingPatternCounts`를 확인해 Store/QA handoff 판단에 연결합니다.\n" +
+            "7. `care_review_playtest_aggregate.json`과 `care_review_playtest_aggregate.md`의 `판단 복기 패턴 분포`, `decisionAuditCoachingSessionCount`, `decisionAuditCoachingPatternCounts`를 확인해 Store/QA handoff 판단에 연결합니다.\n" +
             "8. `ACHIEVEMENT_TOAST_UI_CAPTURE.md`로 성과 해금 토스트가 `ready: true`, `readable: true`, `성과 기록에서 다음 목표와 기록 보상 확인` 상태인지 확인합니다.\n" +
-            "9. Steamworks Store Presence 입력 후 `Evidence/STORE_PRESENCE.md`에 상점, 스크린샷, 캡슐, 트레일러, SHA, `screenshot_ab_loop_response_count`, `screenshot_ab_loop_not_collected_count`, `screenshot_ab_loop_collection_status`, 결정 감사 코칭 패턴 분포, 14번 결정 감사 코칭 보조 후보, 결정 감사 코칭 진행 HUD, 브리핑 회고 후보, 토스트 UI 캡처, `selected_upload_set`, `promoted_candidate` 증거를 기록합니다.\n";
+            "9. Steamworks Store Presence 입력 후 `Evidence/STORE_PRESENCE.md`에 상점, 스크린샷, 캡슐, 트레일러, SHA, `screenshot_ab_loop_response_count`, `screenshot_ab_loop_not_collected_count`, `screenshot_ab_loop_collection_status`, 판단 복기 패턴 분포, 14번 판단 복기 보조 후보, 판단 복기 진행 HUD, 브리핑 회고 후보, 토스트 UI 캡처, `selected_upload_set`, `promoted_candidate` 증거를 기록합니다.\n";
     }
 
     private static string BuildExternalReleaseHandoffMarkdown(ReleaseCandidateAudit audit)
@@ -8593,10 +8988,10 @@ public static class CareReviewProjectBuilder
         builder.AppendLine("- 초안 파일: `Evidence/STORE_PRESENCE.md`; `status: draft_not_evidence`");
         builder.AppendLine("- 예시 파일: `Evidence/STORE_PRESENCE_EXAMPLE.md`; `status: example_not_evidence`; 통과 증거가 아님");
         builder.AppendLine("- Steamworks README 첫 섹션 상호참조: `README_STEAMWORKS_KR.txt`; `Store Presence 증거 묶음 상태`; `pending_external`");
-        builder.AppendLine("- 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`; `README_KO.txt`; `handoff TODO 첫 확인`; `README_STEAMWORKS_KR.txt`; `제출 전 TODO 첫 확인`");
+        builder.AppendLine("- 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`; `README_KO.txt`; `handoff TODO 첫 확인`; `README_STEAMWORKS_KR.txt`; `제출 전 TODO 첫 확인`");
         builder.AppendLine("- A/B 응답 회수 입력란: `screenshot_ab_loop_response_count=0`; `screenshot_ab_loop_not_collected_count=221`; `screenshot_ab_loop_collection_status=waiting_for_screenshot_ab_loop_responses`");
         builder.AppendLine("- 브리핑 회고 후보 입력란: `" + StorePresenceBriefingRetrospectiveCandidateSummary + "`");
-        builder.AppendLine("- 결정 감사 코칭 패턴 분포 Store/QA handoff: `" + BuildDecisionAuditCoachingAggregateHandoffSummary() + "`");
+        builder.AppendLine("- 판단 복기 패턴 분포 Store/QA handoff: `" + BuildDecisionAuditCoachingAggregateHandoffSummary() + "`");
         builder.AppendLine("- 묶음 확인: `STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY`; 실제 Steamworks URL/화면 캡처 입력 후에만 status 값을 passed로 변경");
         builder.AppendLine();
         builder.AppendLine("## 배포할 파일");
@@ -8631,7 +9026,7 @@ public static class CareReviewProjectBuilder
         builder.AppendLine("- 10달러 상용화 담당 화면 작업표: `Builds/Handoff/v0.3.0/PLAYTEST_COMMERCIAL_TRIAGE_ACTIONS.csv`");
         builder.AppendLine("- 상점 후보 캡처 SHA manifest: `Builds/Handoff/v0.3.0/STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256`");
         builder.AppendLine("- Store Presence 입력 QA 카드: `Builds/Handoff/v0.3.0/STORE_PRESENCE_QA_CARD_KO.md`");
-        builder.AppendLine("- 결정 감사 코칭 패턴 분포 집계: `Builds/QA/v0.3.0/playtest_packet/care_review_playtest_aggregate.json`, `Builds/QA/v0.3.0/playtest_packet/care_review_playtest_aggregate.md`");
+        builder.AppendLine("- 판단 복기 패턴 분포 집계: `Builds/QA/v0.3.0/playtest_packet/care_review_playtest_aggregate.json`, `Builds/QA/v0.3.0/playtest_packet/care_review_playtest_aggregate.md`");
         builder.AppendLine("- Steam 제출 전 자체점검: `Builds/Steamworks/v0.3.0/STEAM_SUBMISSION_PREFLIGHT_KO.md`");
         builder.AppendLine("- 외부 게이트 트래커: `Builds/Handoff/v0.3.0/EXTERNAL_RELEASE_GATE_TRACKER.csv`");
         builder.AppendLine("- 외부 게이트 증거 노트: `Builds/Handoff/v0.3.0/Evidence/<GATE_ID>.md`");
@@ -8699,7 +9094,7 @@ public static class CareReviewProjectBuilder
         builder.AppendLine("- 요약: `checkCount=" + labels.Length + "`, `passedCheckCount=" + passedCount + "`, `allPassed=" + BoolJson(passedCount == labels.Length) + "`");
         builder.AppendLine("- CSV 확인: `STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY`, `store_presence_bundle_member`, `store_presence_bundle_summary`");
         builder.AppendLine("- 우선순위 배지 수동 회수 컬럼: `triage_priority_badge_id`, `triage_priority_badge_status`, `triage_priority_badge_evidence`; `triage_priority_badge_reward_loop_candidate/P0_WAIT_EXTERNAL_AB`; `triage_priority_badge_main_menu_baseline/P1_BASELINE_GUARD`; `triage_priority_badge_copy_alignment/P1_COPY_ALIGNMENT_COLLECT`");
-        builder.AppendLine("- 결정 감사 코칭 패턴 분포 Store/QA handoff: `" + BuildDecisionAuditCoachingAggregateHandoffSummary() + "`");
+        builder.AppendLine("- 판단 복기 패턴 분포 Store/QA handoff: `" + BuildDecisionAuditCoachingAggregateHandoffSummary() + "`");
         builder.AppendLine("- 성과 토스트 UI 캡처 요약: `" + BuildStorePresenceToastUiCaptureEvidenceSummary() + "`");
         builder.AppendLine("- 실제 입력 증거는 예시 `Evidence/STORE_PRESENCE_EXAMPLE.md`를 참고해 `Evidence/STORE_PRESENCE.md`에 작성한다.");
         builder.AppendLine();
@@ -8757,7 +9152,7 @@ public static class CareReviewProjectBuilder
         AppendExternalGateRow(builder, "STEAMCMD_PREVIEW", "steamworks", "pending_external", "SteamCMD output log in Builds/Steamworks/v0.3.0/output", "Preview=1 run completes without blocking errors", "upload_preview_steamcmd.ps1 실행 후 경고/누락 파일 확인");
         AppendExternalGateRow(builder, "PRIVATE_BRANCH", "steamworks", "pending_external", "Steamworks private branch install note", "private branch install launches game from Steam client", "SetLive 비워둔 채 비공개 브랜치에 먼저 배포");
         AppendExternalGateRow(builder, "STEAM_CLIENT_REINSTALL", "steamworks", "pending_external", "Steam client install/delete/reinstall QA note", "install, launch, delete, reinstall, launch all pass", "비공개 브랜치에서 실제 Steam 클라이언트 설치 흐름 검증");
-        AppendExternalGateRow(builder, "STORE_PRESENCE", "steamworks", "pending_external", "STORE_PRESENCE_QA_CARD_KO.md + STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256 + Steamworks Store Presence draft", "store text, screenshots, capsules, trailer uploaded, SHA manifest checked", "store_page 자료와 Marketing 산출물을 웹 콘솔에 입력하고 후보 SHA manifest와 A/B 응답 회수 입력란까지 확인", "draft=Evidence/STORE_PRESENCE.md; draft_status=status: draft_not_evidence; example=Evidence/STORE_PRESENCE_EXAMPLE.md; bundle=STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY; actual_status=pending_external; completion_todo=작성 완료 전 자체점검 TODO; completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수; audit_csv=care_review_external_gate_audit.csv; audit_json=care_review_external_gate_audit_summary.json; audit_field=store_presence_draft_status_summary/storePresenceDraftStatusSummary; release_candidate_json=care_review_release_candidate_audit.json; memberSummary=storePresenceEvidenceBundle.checks.memberSummary; " + StorePresenceAfterCollectionTrackerHint + "; " + screenshotAbLoopHint);
+        AppendExternalGateRow(builder, "STORE_PRESENCE", "steamworks", "pending_external", "STORE_PRESENCE_QA_CARD_KO.md + STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256 + Steamworks Store Presence draft", "store text, screenshots, capsules, trailer uploaded, SHA manifest checked", "store_page 자료와 Marketing 산출물을 웹 콘솔에 입력하고 후보 SHA manifest와 A/B 응답 회수 입력란까지 확인", "draft=Evidence/STORE_PRESENCE.md; draft_status=status: draft_not_evidence; example=Evidence/STORE_PRESENCE_EXAMPLE.md; bundle=STORE_PRESENCE_EVIDENCE_BUNDLE_SUMMARY; actual_status=pending_external; completion_todo=작성 완료 전 자체점검 TODO; completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수; audit_csv=care_review_external_gate_audit.csv; audit_json=care_review_external_gate_audit_summary.json; audit_field=store_presence_draft_status_summary/storePresenceDraftStatusSummary; release_candidate_json=care_review_release_candidate_audit.json; memberSummary=storePresenceEvidenceBundle.checks.memberSummary; " + StorePresenceAfterCollectionTrackerHint + "; " + screenshotAbLoopHint);
         AppendExternalGateRow(builder, "ACHIEVEMENTS", "steamworks", "pending_external", "Steamworks Achievements page", "10 API names created and hidden/default states checked", "ACHIEVEMENT_CANDIDATES.csv의 API Name 입력");
         AppendExternalGateRow(builder, "LOW_SPEC_PC", "external_qa", "pending_external", "playtest session/support bundle from integrated graphics or low spec notebook", "game launches, one campaign playable, diagnostic saved, support bundle works", "실제 내장 그래픽 PC에서 1280x720 저사양 모드로 실행");
         return builder.ToString();
@@ -8854,15 +9249,15 @@ public static class CareReviewProjectBuilder
         return
             "# Steam Store Presence 입력 QA 카드\n\n" +
             "## 준비\n\n" +
-            "- 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 코칭 후보|브리핑 회고 후보|A/B 응답 회수`; `EXTERNAL_RELEASE_HANDOFF_KO.md`; `자체점검 TODO 요약`; `README_KO.txt`; `handoff TODO 첫 확인`\n\n" +
+            "- 자체점검 TODO 요약: `completion_todo=작성 완료 전 자체점검 TODO`; `completion_todo_items=Steamworks URL/화면 캡처|SHA 확인|14번 복기 후보|브리핑 회고 후보|A/B 응답 회수`; `EXTERNAL_RELEASE_HANDOFF_KO.md`; `자체점검 TODO 요약`; `README_KO.txt`; `handoff TODO 첫 확인`\n\n" +
             "1. `Builds/Steamworks/v0.3.0/store_page/STORE_PRESENCE_SELECTION_KO.md`가 `store_presence_ready_for_manual_input: yes`인지 확인한다.\n" +
             "2. `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_UPLOAD_APPLICATION_KO.md`에서 공식 8장 적용 상태가 `ready_for_store_presence_upload: yes`인지 확인한다.\n" +
             "3. `Builds/Steamworks/v0.3.0/store_page/SCREENSHOT_CANDIDATE_AB_TEST_KO.md`, `SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md`, `SCREENSHOT_UPLOAD_SELECTION_KO.md`에서 A/B 판정, `selected_upload_set`, `promoted_candidate`를 확인한다.\n" +
             "4. A/B 추천 후보 일치: `SCREENSHOT_CANDIDATE_AB_TEST_KO.md`의 `recommended_candidate`와 `STORE_PRESENCE_SELECTION_KO.md`의 `screenshot_ab_recommended_candidate`가 모두 `12_career_record_next_objective.png`인지 확인한다.\n" +
-            "5. 결정 감사 코칭 보조 후보: `STORE_PRESENCE_SELECTION_KO.md`의 `decision_audit_coaching_candidate_evidence`가 `14_case_archive_decision_audit_coaching_focus.png`, `코칭 W-207`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`, `" + DecisionAuditCoachingHudStoreCandidateSummary + "`를 가리키는지 확인한다.\n" +
+            "5. 판단 복기 보조 후보: `STORE_PRESENCE_SELECTION_KO.md`의 `decision_audit_coaching_candidate_evidence`가 `14_case_archive_decision_audit_coaching_focus.png`, `복기 W-207`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`, `" + DecisionAuditCoachingHudStoreCandidateSummary + "`를 가리키는지 확인한다.\n" +
             "6. 성과-캠페인 루프 A/B 질문 회수 체크: `PLAYTEST_REQUEST_TEMPLATE_KO.md`가 `10_achievement_next_goal.png` vs `12_career_record_next_objective.png` 질문, `main_menu_loop_entry`/`01_main_menu.png` 메인 메뉴 기준 화면 질문, `menu_campaign_briefing_weakness` 추천 회차 브리핑/직전 약점 보정 초점 질문, `achievement_career_copy_alignment` 성과 목표 힌트/기록 다음 목표 문구 일치 질문과 `triage_priority_badge_reward_loop_candidate`/`P0_WAIT_EXTERNAL_AB`, `triage_priority_badge_main_menu_baseline`/`P1_BASELINE_GUARD`, `triage_priority_badge_copy_alignment`/`P1_COPY_ALIGNMENT_COLLECT` 회수 목적을 포함하고, `PLAYTEST_SESSION_INDEX_TEMPLATE.csv`와 `care_review_playtest_sessions_index.csv`에 `screenshot_ab_loop_question_id`, `screenshot_ab_loop_preferred_candidate`, `screenshot_ab_loop_understanding_comment`, `triage_priority_badge_id`, `triage_priority_badge_status`, `triage_priority_badge_evidence` 컬럼이 있으며 집계 스모크가 `csvHasScreenshotAbLoopQuestionColumns=true`, `csvHasTriagePriorityBadgeColumns=true`, `csvHasRewardLoopPriorityBadge=true`, `csvHasMainMenuPriorityBadge=true`, `csvHasCopyAlignmentPriorityBadge=true`, `csvHasMainMenuAbBaselineQuestion=true`, `csvHasAchievementCareerCopyAlignmentQuestion=true`, `csvHasMenuBriefingWeaknessQuestion=true`인지 확인한다.\n" +
             "7. A/B 응답 회수 수치: `SCREENSHOT_CANDIDATE_AB_TEST_KO.md`의 `screenshot_ab_loop_response_count: " + responseCount + "`, `screenshot_ab_loop_not_collected_count: " + notCollectedCount + "`, `screenshot_ab_loop_collection_status: " + collectionStatus + "`, `screenshot_ab_loop_understanding_comment_count: " + understandingCommentCount + "`를 확인하고 `Evidence/STORE_PRESENCE.md`의 `screenshot_ab_loop_response_count`, `screenshot_ab_loop_not_collected_count`, `screenshot_ab_loop_collection_status`, `screenshot_ab_loop_understanding_comment_count` 입력란으로 옮긴다. release candidate JSON memberSummary 확인: `care_review_release_candidate_audit.json`; `storePresenceEvidenceBundle`; `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`.\n" +
-            "8. 결정 감사 코칭 패턴 분포 Store/QA handoff: `care_review_playtest_aggregate.json`의 `decisionAuditCoachingSessionCount`, `decisionAuditCoachingPatternCounts`, `decisionAuditCoachingMandateCounts`와 Markdown `결정 감사 코칭 패턴 분포`를 확인한다. 현재 요약: `" + BuildDecisionAuditCoachingAggregateHandoffSummary() + "`.\n" +
+            "8. 판단 복기 패턴 분포 Store/QA handoff: `care_review_playtest_aggregate.json`의 `decisionAuditCoachingSessionCount`, `decisionAuditCoachingPatternCounts`, `decisionAuditCoachingMandateCounts`와 Markdown `판단 복기 패턴 분포`를 확인한다. 현재 요약: `" + BuildDecisionAuditCoachingAggregateHandoffSummary() + "`.\n" +
             "9. 브리핑 회고 상점 후보 근거: `care_review_career_record_smoke_result.json`의 `storeCandidateMentionsBriefingRetrospective=true`와 `12_career_record_next_objective.png` 후보 설명의 `브리핑 회고`, `예고 위험`, `실제 결과`를 확인하고 `Evidence/STORE_PRESENCE.md`의 `briefing_retrospective_candidate_evidence`, `briefing_retrospective_candidate_file`, `briefing_retrospective_candidate_terms`, `briefing_retrospective_candidate_smoke` 입력란으로 옮긴다.\n" +
             "10. 보정 후보 결과 / 자체점검 일치: `STORE_PAGE_SUBMISSION_DRAFT_KO.md`의 `보정 후보 결과 확인`, `STEAM_SUBMISSION_PREFLIGHT_KO.md`의 `상점 보정 후보 결과 수동 확인 단계`, `STORE_PRESENCE_SELECTION_KO.md`의 `appeal_triage_qa_evidence`가 같은 검수 흐름인지 확인한다.\n" +
             "11. `Builds/Handoff/v0.3.0/STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256`와 `Builds/Steamworks/v0.3.0/STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256`를 열어 `08_career_record_filter.png`, `12_career_record_next_objective.png`, `13_case_archive_appeal_remedy_history.png`, `14_case_archive_decision_audit_coaching_focus.png` 해시가 있는지 확인한다.\n\n" +
@@ -8880,37 +9275,37 @@ public static class CareReviewProjectBuilder
             "| --- | --- | --- | --- | --- |\n" +
             "| `triage_priority_badge_reward_loop_candidate` | `P0_WAIT_EXTERNAL_AB` | `selected_upload_set`, `promoted_candidate`, `post_external_collection_promotion_summary` | `external_5_and_ab_loop_5_and_understanding_5` | `12_career_record_next_objective.png` 후보 유지, 회수 충족 후 승격 검토 |\n" +
             "| `triage_priority_badge_main_menu_baseline` | `P1_BASELINE_GUARD` | `01_main_menu.png`, `main_menu_loop_entry`, `menu_campaign_briefing_weakness`, `STORE_PRESENCE_SELECTION_KO.md` | `main_menu_loop_entry_response_collected`; `menu_campaign_briefing_weakness_response_collected` | 기준 화면 유지/교체 판단과 추천 회차 브리핑/직전 약점 보정 초점 이해도를 A/B 응답과 대조 |\n" +
-            "| `triage_priority_badge_copy_alignment` | `P1_COPY_ALIGNMENT_COLLECT` | `achievement_career_copy_alignment`, `lowResolutionStoreCandidateCopyAlignmentReadable`, `careerRecordActionHintReadable`, `storeCandidateMentionsBriefingRetrospective=true` | `copy_alignment_comment_collected` | 성과 목표 힌트와 캠페인 기록 다음 목표/브리핑 회고 문구 일치 여부를 수동 기록 |\n\n" +
+            "| `triage_priority_badge_copy_alignment` | `P1_COPY_ALIGNMENT_COLLECT` | `achievement_career_copy_alignment`, `lowResolutionReleaseCopyAlignmentReadable`, `careerRecordActionHintReadable`, `storeCandidateMentionsBriefingRetrospective=true` | `copy_alignment_comment_collected` | 성과 목표 힌트와 캠페인 기록 다음 목표/브리핑 회고 문구 일치 여부를 수동 기록 |\n\n" +
             BuildStorePresencePriorityBadgeAfterCollectionStatusMarkdown() +
             BuildStorePresenceAbTodoMappingMarkdown() +
             "## 입력 절차\n\n" +
             "1. Steamworks Store Presence에 상점 문구와 공식 스크린샷 8장을 입력한다.\n" +
             "2. 캡슐 이미지와 트레일러 업로드 파일이 `Builds/Steamworks/v0.3.0/store_page`의 선택 manifest와 일치하는지 확인한다.\n" +
             "3. 후보 스크린샷은 바로 업로드하지 않고, `SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md`와 SHA manifest 기준으로 비교 검수만 한다.\n" +
-            "4. 입력 후 `Evidence/STORE_PRESENCE.md`에 상점, 스크린샷, 캡슐, 트레일러, SHA manifest, A/B 판정, 결정 감사 코칭 패턴 분포, 결정 감사 코칭 진행 HUD, 브리핑 회고 후보 입력란, 토스트 UI 캡처, `selected_upload_set`, `promoted_candidate` 확인 증거를 남긴다.\n\n" +
+            "4. 입력 후 `Evidence/STORE_PRESENCE.md`에 상점, 스크린샷, 캡슐, 트레일러, SHA manifest, A/B 판정, 판단 복기 패턴 분포, 판단 복기 진행 HUD, 브리핑 회고 후보 입력란, 토스트 UI 캡처, `selected_upload_set`, `promoted_candidate` 확인 증거를 남긴다.\n\n" +
             "## STORE_PRESENCE.md 작성 완료 전 자체점검\n\n" +
             "| 항목 | STORE_PRESENCE.md 입력란 | 완료 기준 |\n" +
             "| --- | --- | --- |\n" +
             "| Steamworks URL/화면 캡처 | `Steamworks URL/화면 캡처` | 실제 Store Presence 화면 캡처 경로를 적는다. |\n" +
             "| SHA 확인 | `SHA 확인` | `STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256` 확인 결과를 적는다. |\n" +
             "| 공식/승격 후보 | `selected_upload_set`, `promoted_candidate` | 현재 공식 8장 또는 승격 후보 상태를 적는다. |\n" +
-            "| 14번 코칭 후보 | `decision_audit_coaching_candidate_file`, `decision_audit_coaching_candidate_case`, `decision_audit_coaching_candidate_round_trip`, `decision_audit_coaching_hud_evidence`, `decision_audit_coaching_hud_terms` | 14번 파일명, `코칭 W-207`, 왕복 QA 키, `care_review_decision_audit_coaching_hud_smoke_result.json`, `reviewHudUpdatesAfterDecision=true`를 적는다. |\n" +
+            "| 14번 복기 후보 | `decision_audit_coaching_candidate_file`, `decision_audit_coaching_candidate_case`, `decision_audit_coaching_candidate_round_trip`, `decision_audit_coaching_hud_evidence`, `decision_audit_coaching_hud_terms` | 14번 파일명, `복기 W-207`, 왕복 QA 키, `care_review_decision_audit_coaching_hud_smoke_result.json`, `reviewHudUpdatesAfterDecision=true`를 적는다. |\n" +
             "| 브리핑 회고 후보 | `briefing_retrospective_candidate_file`, `briefing_retrospective_candidate_terms`, `briefing_retrospective_candidate_smoke` | 12번 파일명, `브리핑 회고`/`예고 위험`/`실제 결과`, smoke 키를 적는다. |\n" +
             "| 토스트 UI 캡처 | `성과 토스트 UI 캡처` | `ACHIEVEMENT_TOAST_UI_CAPTURE.md` 확인 결과를 적는다. |\n" +
             "| A/B 응답 회수 | `screenshot_ab_loop_response_count`, `screenshot_ab_loop_not_collected_count`, `screenshot_ab_loop_collection_status`, `screenshot_ab_loop_understanding_comment_count` | 회수 수치와 보류 상태, 루프 이해 코멘트 수를 적는다. |\n\n" +
             "## 통과 기준\n\n" +
             "- Store Presence 입력 세트가 제출안과 `STORE_PRESENCE_SELECTION_KO.md`에 일치한다.\n" +
             "- A/B 판정 manifest와 Store Presence 통합 선택 manifest의 추천 후보가 같은 파일명으로 일치한다.\n" +
-            "- 결정 감사 코칭 보조 후보는 `decision_audit_coaching_candidate_evidence`, `14_case_archive_decision_audit_coaching_focus.png`, `코칭 W-207`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`, `" + DecisionAuditCoachingHudStoreCandidateSummary + "`로 추적된다.\n" +
+            "- 판단 복기 보조 후보는 `decision_audit_coaching_candidate_evidence`, `14_case_archive_decision_audit_coaching_focus.png`, `복기 W-207`, `caseArchiveDecisionAuditCoachingButtonOpensFirstUseCase=true`, `caseArchiveDecisionAuditCoachingReturnOpensCareerRecord=true`, `" + DecisionAuditCoachingHudStoreCandidateSummary + "`로 추적된다.\n" +
             "- 성과-캠페인 루프 A/B 질문은 플레이테스트 요청서, 수동 회수 인덱스 템플릿, 자동 집계 CSV에 같은 `screenshot_ab_loop_*` 축으로 연결되어 있고 `achievement_career_copy_alignment` 문구 일치 질문과 `menu_campaign_briefing_weakness` 추천 회차 브리핑/직전 약점 보정 초점 질문을 포함한다.\n" +
             "- 브리핑 회고 상점 후보 근거는 `briefing_retrospective_candidate_evidence`, `briefing_retrospective_candidate_file`, `briefing_retrospective_candidate_terms`, `briefing_retrospective_candidate_smoke`, `storeCandidateMentionsBriefingRetrospective=true`, `브리핑 회고`, `예고 위험`, `실제 결과`, `12_career_record_next_objective.png`로 Store Presence 입력 전 확인하고 `Evidence/STORE_PRESENCE.md`에 별도 기록한다.\n" +
             "- A/B 응답 회수 수치와 승격 보류 사유는 Store Presence 입력 전 `waiting_for_screenshot_ab_loop_responses` 상태로 확인되고 `Evidence/STORE_PRESENCE.md` 입력란과 release candidate JSON `memberSummary=storePresenceEvidenceBundle.checks.memberSummary`에 같은 축으로 기록된다.\n" +
-            "- 결정 감사 코칭 패턴 분포는 `care_review_playtest_aggregate.json`/Markdown과 Store/QA handoff 요약에 함께 연결되어 있다.\n" +
+            "- 판단 복기 패턴 분포는 `care_review_playtest_aggregate.json`/Markdown과 Store/QA handoff 요약에 함께 연결되어 있다.\n" +
             "- 보정 후보 결과 확인 단계가 상점 제출안, 제출 전 자체점검, Store Presence 통합 선택 manifest에 모두 연결되어 있다.\n" +
             "- `STORE_CANDIDATE_CAPTURE_SYNC_HASHES.sha256`가 handoff와 Steamworks 루트에 있고 후보 PNG 파일명이 모두 있다.\n" +
             "- `ACHIEVEMENT_TOAST_UI_CAPTURE.md`가 handoff와 Steamworks 루트에 있고 성과 토스트 UI 캡처가 읽을 수 있는 상태다.\n" +
             "- 후보 이미지 승격은 실제 사람 회수/A/B 기준 충족 전까지 보류한다.\n" +
-            "- 증거 노트에는 필수 키워드 `상점`, `스크린샷`, `캡슐`, `트레일러`, `SHA`, `A/B`, `결정 감사 코칭 패턴 분포`, `토스트 UI 캡처`, `selected_upload_set`, `promoted_candidate`가 포함된다.\n";
+            "- 증거 노트에는 필수 키워드 `상점`, `스크린샷`, `캡슐`, `트레일러`, `SHA`, `A/B`, `판단 복기 패턴 분포`, `토스트 UI 캡처`, `selected_upload_set`, `promoted_candidate`가 포함된다.\n";
     }
 
     private static string BuildDecisionAuditCoachingAggregateHandoffSummary()
@@ -8947,8 +9342,8 @@ public static class CareReviewProjectBuilder
                 "긴축 감사") &&
             FileContainsAll(
                 aggregateMarkdownPath,
-                "결정 감사 코칭 패턴 분포",
-                "코칭 생성 세션",
+                "판단 복기 패턴 분포",
+                "복기 생성 세션",
                 "고비용 지원",
                 "긴축 감사");
     }
@@ -10150,7 +10545,7 @@ public static class CareReviewProjectBuilder
 
         if (action.area == "반복 가치 세부: 캠페인 기록 다음 목표")
         {
-            return "low_resolution_ui/care_review_low_resolution_ui_smoke_result.json: careerRecordActionHintReadable=true, lowResolutionStoreCandidateCopyAlignmentReadable=true; care_review_career_record_smoke_result.json: careerRecordActionHintSummarizesButtons=true";
+            return "low_resolution_ui/care_review_low_resolution_ui_smoke_result.json: careerRecordActionHintReadable=true, lowResolutionReleaseCopyAlignmentReadable=true; care_review_career_record_smoke_result.json: careerRecordActionHintSummarizesButtons=true";
         }
 
         if (action.area == "반복 가치 세부: 상점 후보 루프 이해")
@@ -10170,7 +10565,7 @@ public static class CareReviewProjectBuilder
 
         if (action.area == "우선순위 배지: 성과-캠페인 문구 일치")
         {
-            return "SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md: triage_priority_badge_copy_alignment, P1_COPY_ALIGNMENT_COLLECT; PLAYTEST_SESSION_INDEX_TEMPLATE.csv: achievement_career_copy_alignment; low_resolution_ui/care_review_low_resolution_ui_smoke_result.json: lowResolutionStoreCandidateCopyAlignmentReadable=true";
+            return "SCREENSHOT_CANDIDATE_DECISION_MATRIX_KO.md: triage_priority_badge_copy_alignment, P1_COPY_ALIGNMENT_COLLECT; PLAYTEST_SESSION_INDEX_TEMPLATE.csv: achievement_career_copy_alignment; low_resolution_ui/care_review_low_resolution_ui_smoke_result.json: lowResolutionReleaseCopyAlignmentReadable=true";
         }
 
         if (action.ownerScreen != null && action.ownerScreen.Contains("상점"))
@@ -10369,7 +10764,7 @@ public static class CareReviewProjectBuilder
             "반복 가치 세부: 상점 후보 루프 이해",
             "achievementReplayRewardPanelMentionsRecordLinkHint=true",
             "careerRecordActionHintReadable=true",
-            "lowResolutionStoreCandidateCopyAlignmentReadable=true",
+            "lowResolutionReleaseCopyAlignmentReadable=true",
             "achievement_career_copy_alignment",
             "main_menu_loop_entry",
             "menu_campaign_briefing_weakness");
@@ -10611,6 +11006,1374 @@ public static class CareReviewProjectBuilder
         foreach (string pattern in patterns)
         {
             if (ContainsOrdinalIgnoreCase(text, pattern))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ReleasePlayerPackageExcludesQaArtifacts()
+    {
+        return DirectoryFileNamesExcludeArtifacts(WindowsBuildPath) &&
+            DirectoryFileNamesExcludeArtifacts(Path.Combine(ReleaseRootPath, ReleasePackageName)) &&
+            DirectoryFileNamesExcludeArtifacts(SteamworksContentPath) &&
+            ZipEntryNamesExcludeArtifacts(Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip")) &&
+            ZipSubdirectoryEntryNamesExcludeArtifacts(SteamworksZipPath, "v0.3.0/content_windows/");
+    }
+
+    private static bool ReleasePlayerPackageExcludesProjectSourceFiles()
+    {
+        return DirectoryFileNamesExcludeProjectSourceFiles(WindowsBuildPath) &&
+            DirectoryFileNamesExcludeProjectSourceFiles(Path.Combine(ReleaseRootPath, ReleasePackageName)) &&
+            DirectoryFileNamesExcludeProjectSourceFiles(SteamworksContentPath) &&
+            ZipEntryNamesExcludeProjectSourceFiles(Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip")) &&
+            ZipSubdirectoryEntryNamesExcludeProjectSourceFiles(SteamworksZipPath, "v0.3.0/content_windows/");
+    }
+
+    private static bool ReleasePlayerPackagesExcludeCrashHandler()
+    {
+        string[] forbiddenTerms = { "UnityCrashHandler64.exe" };
+        return DirectoryFileNamesExcludeTerms(WindowsBuildPath, forbiddenTerms) &&
+            DirectoryFileNamesExcludeTerms(Path.Combine(ReleaseRootPath, ReleasePackageName), forbiddenTerms) &&
+            DirectoryFileNamesExcludeTerms(SteamworksContentPath, forbiddenTerms) &&
+            ZipEntryNamesExcludeTerms(Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip"), forbiddenTerms) &&
+            ZipEntryNamesExcludeTerms(SteamworksZipPath, forbiddenTerms);
+    }
+
+    private static bool ReleasePlayerPackagesExcludeNonGameplayManagedModules()
+    {
+        string releaseZipPath = Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip");
+        return DirectoryFileNamesExcludeTerms(WindowsBuildPath, NonGameplayManagedModuleFiles) &&
+            DirectoryFileNamesExcludeTerms(Path.Combine(ReleaseRootPath, ReleasePackageName), NonGameplayManagedModuleFiles) &&
+            DirectoryFileNamesExcludeTerms(SteamworksContentPath, NonGameplayManagedModuleFiles) &&
+            ZipEntryNamesExcludeTerms(releaseZipPath, NonGameplayManagedModuleFiles) &&
+            ZipEntryNamesExcludeTerms(SteamworksZipPath, NonGameplayManagedModuleFiles);
+    }
+
+    private static bool ReleasePlayerPackagesExcludeNonGameplayManagedLibraries()
+    {
+        string releaseZipPath = Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip");
+        return DirectoryFileNamesExcludeTerms(WindowsBuildPath, NonGameplayManagedLibraryFiles) &&
+            DirectoryFileNamesExcludeTerms(Path.Combine(ReleaseRootPath, ReleasePackageName), NonGameplayManagedLibraryFiles) &&
+            DirectoryFileNamesExcludeTerms(SteamworksContentPath, NonGameplayManagedLibraryFiles) &&
+            ZipEntryNamesExcludeTerms(releaseZipPath, NonGameplayManagedLibraryFiles) &&
+            ZipEntryNamesExcludeTerms(SteamworksZipPath, NonGameplayManagedLibraryFiles);
+    }
+
+    private static bool ReleasePlayerPackagesExcludeNonGameplayMonoWebRuntimeFiles()
+    {
+        string releaseZipPath = Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip");
+        return DirectoryFileNamesExcludeTerms(WindowsBuildPath, NonGameplayMonoWebRuntimeFiles) &&
+            DirectoryFileNamesExcludeTerms(Path.Combine(ReleaseRootPath, ReleasePackageName), NonGameplayMonoWebRuntimeFiles) &&
+            DirectoryFileNamesExcludeTerms(SteamworksContentPath, NonGameplayMonoWebRuntimeFiles) &&
+            ZipEntryNamesExcludeTerms(releaseZipPath, NonGameplayMonoWebRuntimeFiles) &&
+            ZipEntryNamesExcludeTerms(SteamworksZipPath, NonGameplayMonoWebRuntimeFiles);
+    }
+
+    private static bool ReleasePlayerPackagesExcludeNonGameplayMonoRuntimeFiles()
+    {
+        string releaseZipPath = Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip");
+        return DirectoryRelativeFilesDoNotExist(WindowsBuildPath, NonGameplayMonoRuntimeRelativeFiles) &&
+            DirectoryRelativeFilesDoNotExist(Path.Combine(ReleaseRootPath, ReleasePackageName), NonGameplayMonoRuntimeRelativeFiles) &&
+            DirectoryRelativeFilesDoNotExist(SteamworksContentPath, NonGameplayMonoRuntimeRelativeFiles) &&
+            ZipRelativeEntriesDoNotExist(releaseZipPath, "", NonGameplayMonoRuntimeRelativeFiles) &&
+            ZipRelativeEntriesDoNotExist(SteamworksZipPath, "v" + ReleaseVersion + "/content_windows", NonGameplayMonoRuntimeRelativeFiles);
+    }
+
+    private static bool ReleasePlayerPackagesIncludeRequiredRuntimeDependencyFiles()
+    {
+        string releaseZipPath = Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip");
+        return PackageDirectoryContainsRequiredRuntimeDependencyFiles(WindowsBuildPath) &&
+            PackageDirectoryContainsRequiredRuntimeDependencyFiles(Path.Combine(ReleaseRootPath, ReleasePackageName)) &&
+            PackageDirectoryContainsRequiredRuntimeDependencyFiles(SteamworksContentPath) &&
+            ZipEntryBytesExist(releaseZipPath, "UnityPlayer.dll") &&
+            ZipEntryBytesExist(releaseZipPath, "D3D12/D3D12Core.dll") &&
+            ZipEntryBytesExist(releaseZipPath, "dstorage.dll") &&
+            ZipEntryBytesExist(releaseZipPath, "dstoragecore.dll") &&
+            ZipEntryBytesExist(SteamworksZipPath, "v0.3.0/content_windows/UnityPlayer.dll") &&
+            ZipEntryBytesExist(SteamworksZipPath, "v0.3.0/content_windows/D3D12/D3D12Core.dll") &&
+            ZipEntryBytesExist(SteamworksZipPath, "v0.3.0/content_windows/dstorage.dll") &&
+            ZipEntryBytesExist(SteamworksZipPath, "v0.3.0/content_windows/dstoragecore.dll");
+    }
+
+    private static bool PackageDirectoryContainsRequiredRuntimeDependencyFiles(string directoryPath)
+    {
+        return File.Exists(Path.Combine(directoryPath, "UnityPlayer.dll")) &&
+            File.Exists(Path.Combine(directoryPath, "D3D12", "D3D12Core.dll")) &&
+            File.Exists(Path.Combine(directoryPath, "dstorage.dll")) &&
+            File.Exists(Path.Combine(directoryPath, "dstoragecore.dll"));
+    }
+
+    private static bool ReleaseLaunchDependencySmokePassed()
+    {
+        return FileContainsAll(
+            ReleaseLaunchDependencySmokeResultPath,
+            "\"completed\": true",
+            "\"executableExists\": true",
+            "\"processStarted\": true",
+            "\"logExists\": true",
+            "\"engineInitialized\": true",
+            "\"rendererInitialized\": true",
+            "\"dependencyErrorDetected\": false",
+            "\"wasRunningAfterWait\": true");
+    }
+
+    private static ReleaseLaunchDependencySmokeResult BuildReleaseLaunchDependencySmoke()
+    {
+        Directory.CreateDirectory(ReleaseCandidateAuditPath);
+        Directory.CreateDirectory("Logs");
+
+        string releaseDirectoryPath = Path.Combine(ReleaseRootPath, ReleasePackageName);
+        string executablePath = Path.Combine(releaseDirectoryPath, "CareReviewOffice.exe");
+        string logPath = Path.Combine("Logs", "runtime_release_launch_dependency_" + DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture) + ".log");
+        ReleaseLaunchDependencySmokeResult result = new()
+        {
+            generatedAt = DateTime.Now.ToString("s"),
+            executablePath = executablePath.Replace('\\', '/'),
+            workingDirectory = releaseDirectoryPath.Replace('\\', '/'),
+            logPath = logPath.Replace('\\', '/'),
+            waitMilliseconds = ReleaseLaunchDependencySmokeWaitMilliseconds,
+            executableExists = File.Exists(executablePath),
+            processStartError = ""
+        };
+
+        if (result.executableExists)
+        {
+            KillReleasePlayerProcesses(executablePath);
+            System.Diagnostics.Process process = null;
+            try
+            {
+                System.Diagnostics.ProcessStartInfo startInfo = new()
+                {
+                    FileName = Path.GetFullPath(executablePath),
+                    WorkingDirectory = Path.GetFullPath(releaseDirectoryPath),
+                    Arguments = "-batchmode -logFile " + QuoteCommandLineArgument(Path.GetFullPath(logPath)),
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                process = System.Diagnostics.Process.Start(startInfo);
+                result.processStarted = process != null;
+                if (process != null)
+                {
+                    result.processExited = process.WaitForExit(ReleaseLaunchDependencySmokeWaitMilliseconds);
+                    result.wasRunningAfterWait = !result.processExited;
+                    if (result.processExited)
+                    {
+                        result.exitCode = process.ExitCode;
+                    }
+                    else
+                    {
+                        result.killedAfterWait = true;
+                        process.Kill();
+                        process.WaitForExit(3000);
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                result.processStartError = exception.Message;
+            }
+            finally
+            {
+                process?.Dispose();
+                KillReleasePlayerProcesses(executablePath);
+            }
+        }
+
+        string logText = SafeReadAllText(logPath);
+        result.logExists = File.Exists(logPath);
+        result.engineInitialized = logText.Contains("Initialize engine version", StringComparison.Ordinal);
+        result.rendererInitialized = logText.Contains("Renderer:", StringComparison.Ordinal);
+        result.dependencyErrorDetected = ContainsAnyOrdinalIgnoreCase(logText, ReleaseLaunchDependencyErrorTerms) ||
+            ContainsAnyOrdinalIgnoreCase(result.processStartError ?? "", ReleaseLaunchDependencyErrorTerms);
+        result.completed = result.executableExists &&
+            result.processStarted &&
+            result.logExists &&
+            result.engineInitialized &&
+            result.rendererInitialized &&
+            result.wasRunningAfterWait &&
+            !result.dependencyErrorDetected;
+
+        File.WriteAllText(ReleaseLaunchDependencySmokeResultPath, BuildReleaseLaunchDependencySmokeJson(result), new UTF8Encoding(false));
+        return result;
+    }
+
+    private static void KillReleasePlayerProcesses(string executablePath)
+    {
+        string fullExecutablePath = Path.GetFullPath(executablePath);
+        foreach (System.Diagnostics.Process process in System.Diagnostics.Process.GetProcessesByName("CareReviewOffice"))
+        {
+            try
+            {
+                string processPath = process.MainModule?.FileName ?? "";
+                if (string.Equals(processPath, fullExecutablePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    process.Kill();
+                    process.WaitForExit(3000);
+                }
+            }
+            catch (Exception)
+            {
+                // Process may exit between enumeration and inspection.
+            }
+            finally
+            {
+                process.Dispose();
+            }
+        }
+    }
+
+    private static string BuildReleaseLaunchDependencySmokeJson(ReleaseLaunchDependencySmokeResult result)
+    {
+        StringBuilder builder = new();
+        builder.AppendLine("{");
+        builder.AppendLine("  \"completed\": " + BoolJson(result.completed) + ",");
+        builder.AppendLine("  \"generatedAt\": \"" + EscapeJson(result.generatedAt) + "\",");
+        builder.AppendLine("  \"executablePath\": \"" + EscapeJson(result.executablePath) + "\",");
+        builder.AppendLine("  \"workingDirectory\": \"" + EscapeJson(result.workingDirectory) + "\",");
+        builder.AppendLine("  \"logPath\": \"" + EscapeJson(result.logPath) + "\",");
+        builder.AppendLine("  \"waitMilliseconds\": " + result.waitMilliseconds + ",");
+        builder.AppendLine("  \"executableExists\": " + BoolJson(result.executableExists) + ",");
+        builder.AppendLine("  \"processStarted\": " + BoolJson(result.processStarted) + ",");
+        builder.AppendLine("  \"processExited\": " + BoolJson(result.processExited) + ",");
+        builder.AppendLine("  \"wasRunningAfterWait\": " + BoolJson(result.wasRunningAfterWait) + ",");
+        builder.AppendLine("  \"killedAfterWait\": " + BoolJson(result.killedAfterWait) + ",");
+        builder.AppendLine("  \"exitCode\": " + result.exitCode + ",");
+        builder.AppendLine("  \"logExists\": " + BoolJson(result.logExists) + ",");
+        builder.AppendLine("  \"engineInitialized\": " + BoolJson(result.engineInitialized) + ",");
+        builder.AppendLine("  \"rendererInitialized\": " + BoolJson(result.rendererInitialized) + ",");
+        builder.AppendLine("  \"dependencyErrorDetected\": " + BoolJson(result.dependencyErrorDetected) + ",");
+        builder.AppendLine("  \"processStartError\": \"" + EscapeJson(result.processStartError) + "\",");
+        builder.AppendLine("  \"checkedDependencyErrorTerms\": [");
+        for (int i = 0; i < ReleaseLaunchDependencyErrorTerms.Length; i++)
+        {
+            builder.Append("    \"").Append(EscapeJson(ReleaseLaunchDependencyErrorTerms[i])).Append("\"");
+            builder.AppendLine(i == ReleaseLaunchDependencyErrorTerms.Length - 1 ? "" : ",");
+        }
+
+        builder.AppendLine("  ]");
+        builder.AppendLine("}");
+        return builder.ToString();
+    }
+
+    private static string QuoteCommandLineArgument(string value)
+    {
+        return "\"" + (value ?? "").Replace("\"", "\\\"") + "\"";
+    }
+
+    private static bool ReleasePlayerMetadataUsesReleaseNames()
+    {
+        return string.Equals(PlayerSettings.companyName, ReleaseCompanyName, StringComparison.Ordinal) &&
+            string.Equals(PlayerSettings.productName, ReleaseProductName, StringComparison.Ordinal) &&
+            AppInfoUsesReleaseNames(Path.Combine(WindowsBuildPath, "CareReviewOffice_Data", "app.info")) &&
+            AppInfoUsesReleaseNames(Path.Combine(ReleaseRootPath, ReleasePackageName, "CareReviewOffice_Data", "app.info")) &&
+            AppInfoUsesReleaseNames(Path.Combine(SteamworksContentPath, "CareReviewOffice_Data", "app.info"));
+    }
+
+    private static bool ReleasePlayerCloudUploadSettingsDisabled()
+    {
+        return FileContainsAll(
+                "ProjectSettings/ProjectSettings.asset",
+                "  submitAnalytics: 0",
+                "  cloudProjectId: ",
+                "  cloudEnabled: 0") &&
+            FileContainsAll(
+                "ProjectSettings/UnityConnectSettings.asset",
+                "  m_Enabled: 0",
+                "    m_EngineDiagnosticsEnabled: 0",
+                "    m_EnableCloudDiagnosticsReporting: 0",
+                "    m_InitializeOnStartup: 0") &&
+            FileContainsAll(
+                "ProjectSettings/UnityConnectSettings.asset",
+                "  UnityAnalyticsSettings:",
+                "  UnityAdsSettings:",
+                "  PerformanceReportingSettings:") &&
+            !FileContainsAll("ProjectSettings/UnityConnectSettings.asset", "  m_Enabled: 1");
+    }
+
+    private static bool ReleasePlayerExcludesMultiplayerCenterPackage()
+    {
+        string[] multiplayerTerms =
+        {
+            "com.unity.multiplayer.center",
+            "Unity.Multiplayer.Center"
+        };
+
+        return FileTextExcludes("Packages/manifest.json", multiplayerTerms) &&
+            FileTextExcludes("Packages/packages-lock.json", multiplayerTerms) &&
+            FileTextExcludes(Path.Combine(WindowsBuildPath, "CareReviewOffice_Data", "ScriptingAssemblies.json"), multiplayerTerms) &&
+            FileTextExcludes(Path.Combine(ReleaseRootPath, ReleasePackageName, "CareReviewOffice_Data", "ScriptingAssemblies.json"), multiplayerTerms) &&
+            FileTextExcludes(Path.Combine(SteamworksContentPath, "CareReviewOffice_Data", "ScriptingAssemblies.json"), multiplayerTerms) &&
+            DirectoryFileNamesExcludeTerms(WindowsBuildPath, multiplayerTerms) &&
+            DirectoryFileNamesExcludeTerms(Path.Combine(ReleaseRootPath, ReleasePackageName), multiplayerTerms) &&
+            DirectoryFileNamesExcludeTerms(SteamworksContentPath, multiplayerTerms);
+    }
+
+    private static bool ReleaseManifestContainsOnlyNeededPlayerPackages()
+    {
+        string manifestText = SafeReadAllText("Packages/manifest.json");
+        string lockText = SafeReadAllText("Packages/packages-lock.json");
+        string[] requiredManifestPackages =
+        {
+            "com.unity.ugui",
+            "com.unity.modules.audio",
+            "com.unity.modules.imageconversion",
+            "com.unity.modules.jsonserialize",
+            "com.unity.modules.screencapture"
+        };
+        string[] allowedLockPackages =
+        {
+            "com.unity.ugui",
+            "com.unity.modules.audio",
+            "com.unity.modules.imageconversion",
+            "com.unity.modules.imgui",
+            "com.unity.modules.jsonserialize",
+            "com.unity.modules.screencapture",
+            "com.unity.modules.ui"
+        };
+        string[] removedPackages =
+        {
+            "com.unity.multiplayer.center",
+            "com.unity.modules.accessibility",
+            "com.unity.modules.adaptiveperformance",
+            "com.unity.modules.ai",
+            "com.unity.modules.androidjni",
+            "com.unity.modules.animation",
+            "com.unity.modules.assetbundle",
+            "com.unity.modules.cloth",
+            "com.unity.modules.director",
+            "com.unity.modules.particlesystem",
+            "com.unity.modules.physics",
+            "com.unity.modules.physics2d",
+            "com.unity.modules.terrain",
+            "com.unity.modules.terrainphysics",
+            "com.unity.modules.tilemap",
+            "com.unity.modules.uielements",
+            "com.unity.modules.umbra",
+            "com.unity.modules.unityanalytics",
+            "com.unity.modules.unitywebrequest",
+            "com.unity.modules.unitywebrequestassetbundle",
+            "com.unity.modules.unitywebrequestaudio",
+            "com.unity.modules.unitywebrequesttexture",
+            "com.unity.modules.unitywebrequestwww",
+            "com.unity.modules.vectorgraphics",
+            "com.unity.modules.vehicles",
+            "com.unity.modules.video",
+            "com.unity.modules.vr",
+            "com.unity.modules.wind",
+            "com.unity.modules.xr"
+        };
+
+        foreach (string packageName in requiredManifestPackages)
+        {
+            if (!ContainsOrdinalIgnoreCase(manifestText, "\"" + packageName + "\""))
+            {
+                return false;
+            }
+        }
+
+        foreach (string packageName in allowedLockPackages)
+        {
+            if (!ContainsOrdinalIgnoreCase(lockText, "\"" + packageName + "\""))
+            {
+                return false;
+            }
+        }
+
+        return !ContainsAnyOrdinalIgnoreCase(manifestText, removedPackages) &&
+            !ContainsAnyOrdinalIgnoreCase(lockText, removedPackages);
+    }
+
+    private static bool ReleaseResourcesExcludeDeprecatedFallbackArt()
+    {
+        string[] deprecatedResourceFiles =
+        {
+            "Assets/Resources/Art/documents_stamps_sheet.png",
+            "Assets/Resources/Art/family_portraits_sheet.png",
+            "Assets/Resources/Art/incident_cards_sheet.png",
+            "Assets/Resources/Art/ui_button_export_generated.png",
+            "Assets/Resources/Art/ui_chrome_sheet_generated_source.png",
+            "Assets/Resources/Art/ui_focus_frame_generated.png",
+            "Assets/Resources/Art/ui_panels_sheet.png"
+        };
+
+        foreach (string filePath in deprecatedResourceFiles)
+        {
+            if (File.Exists(filePath) || File.Exists(filePath + ".meta"))
+            {
+                return false;
+            }
+        }
+
+        return File.Exists("Assets/Resources/Art/documents_stamps_sheet_alpha.png") &&
+            File.Exists("Assets/Resources/Art/family_portraits_sheet_v2.png") &&
+            File.Exists("Assets/Resources/Art/incident_cards_sheet_v2.png") &&
+            File.Exists("Assets/Resources/Art/ui_panels_sheet_alpha.png");
+    }
+
+    private static bool ReleaseResourcesContainOnlyPlayerRuntimeAssets()
+    {
+        string[] allowedResourceFiles =
+        {
+            "Assets/Resources/Art/documents_stamps_sheet_alpha.png",
+            "Assets/Resources/Art/ending_vignettes_sheet.png",
+            "Assets/Resources/Art/evidence_cards_sheet_v2.png",
+            "Assets/Resources/Art/family_portraits_sheet_v2.png",
+            "Assets/Resources/Art/incident_cards_sheet_v2.png",
+            "Assets/Resources/Art/menu_keyart_background.png",
+            "Assets/Resources/Art/review_desk_background.png",
+            "Assets/Resources/Art/ui_action_rail_generated.png",
+            "Assets/Resources/Art/ui_button_analysis_generated.png",
+            "Assets/Resources/Art/ui_button_danger_generated.png",
+            "Assets/Resources/Art/ui_button_primary_generated.png",
+            "Assets/Resources/Art/ui_button_secondary_generated.png",
+            "Assets/Resources/Art/ui_button_tab_generated.png",
+            "Assets/Resources/Art/ui_button_utility_generated.png",
+            "Assets/Resources/Art/ui_hotkey_badge_generated.png",
+            "Assets/Resources/Art/ui_panel_modal_generated.png",
+            "Assets/Resources/Art/ui_panel_paper_generated.png",
+            "Assets/Resources/Art/ui_panels_sheet_alpha.png",
+            "Assets/Resources/Audio/Bgm/ending_quiet_room.wav",
+            "Assets/Resources/Audio/Bgm/menu_office_night.wav",
+            "Assets/Resources/Audio/Bgm/policy_pressure_loop.wav",
+            "Assets/Resources/Audio/Bgm/report_afterhours_loop.wav",
+            "Assets/Resources/Audio/Bgm/review_paperwork_loop.wav",
+            "Assets/Resources/Audio/Sfx/analysis_open.wav",
+            "Assets/Resources/Audio/Sfx/briefing_alert.wav",
+            "Assets/Resources/Audio/Sfx/decision_feedback.wav",
+            "Assets/Resources/Audio/Sfx/error_denied.wav",
+            "Assets/Resources/Audio/Sfx/incident_critical.wav",
+            "Assets/Resources/Audio/Sfx/incident_major.wav",
+            "Assets/Resources/Audio/Sfx/incident_minor.wav",
+            "Assets/Resources/Audio/Sfx/page_turn.wav",
+            "Assets/Resources/Audio/Sfx/paper_slide.wav",
+            "Assets/Resources/Audio/Sfx/policy_book_open.wav",
+            "Assets/Resources/Audio/Sfx/report_ready.wav",
+            "Assets/Resources/Audio/Sfx/save_confirm.wav",
+            "Assets/Resources/Audio/Sfx/stamp_approve.wav",
+            "Assets/Resources/Audio/Sfx/stamp_conditional.wav",
+            "Assets/Resources/Audio/Sfx/stamp_hold.wav",
+            "Assets/Resources/Audio/Sfx/stamp_investigate.wav",
+            "Assets/Resources/Audio/Sfx/stamp_reject.wav",
+            "Assets/Resources/Audio/Sfx/toast_unlock.wav",
+            "Assets/Resources/Audio/Sfx/ui_back.wav",
+            "Assets/Resources/Audio/Sfx/ui_click.wav",
+            "Assets/Resources/Data/agent_personas.json",
+            "Assets/Resources/Data/cases_day1.json",
+            "Assets/Resources/Data/cases_day2.json",
+            "Assets/Resources/Data/cases_day3.json",
+            "Assets/Resources/Data/cases_day4.json",
+            "Assets/Resources/Data/cases_day5.json",
+            "Assets/Resources/Fonts/Paperlogy-6SemiBold.ttf"
+        };
+
+        HashSet<string> allowed = new(allowedResourceFiles, StringComparer.Ordinal);
+        foreach (string expectedFile in allowed)
+        {
+            if (!File.Exists(expectedFile))
+            {
+                return false;
+            }
+        }
+
+        if (!Directory.Exists("Assets/Resources"))
+        {
+            return false;
+        }
+
+        foreach (string filePath in Directory.GetFiles("Assets/Resources", "*", SearchOption.AllDirectories))
+        {
+            string normalized = filePath.Replace('\\', '/');
+            if (normalized.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
+            {
+                string assetPath = normalized[..^5];
+                if (!allowed.Contains(assetPath) && !Directory.Exists(assetPath))
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (!allowed.Contains(normalized))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool PlayerRuntimeArtTextureImportsAreReleaseOptimized()
+    {
+        foreach (string path in PlayerRuntimeArtTextureFiles)
+        {
+            TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer == null)
+            {
+                return false;
+            }
+
+            if (importer.isReadable || importer.textureCompression == TextureImporterCompression.Uncompressed)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool PlayerRuntimeAudioImportsAreReleaseOptimized()
+    {
+        foreach (string path in Directory.GetFiles("Assets/Resources/Audio/Bgm", "*.wav", SearchOption.TopDirectoryOnly))
+        {
+            AudioImporter importer = AssetImporter.GetAtPath(path.Replace('\\', '/')) as AudioImporter;
+            if (importer == null)
+            {
+                return false;
+            }
+
+            AudioImporterSampleSettings settings = importer.defaultSampleSettings;
+            if (importer.forceToMono || !importer.loadInBackground ||
+                settings.loadType != AudioClipLoadType.Streaming ||
+                settings.compressionFormat != AudioCompressionFormat.Vorbis ||
+                settings.sampleRateSetting != AudioSampleRateSetting.OverrideSampleRate ||
+                settings.sampleRateOverride != 32000 ||
+                settings.preloadAudioData)
+            {
+                return false;
+            }
+        }
+
+        foreach (string path in Directory.GetFiles("Assets/Resources/Audio/Sfx", "*.wav", SearchOption.TopDirectoryOnly))
+        {
+            AudioImporter importer = AssetImporter.GetAtPath(path.Replace('\\', '/')) as AudioImporter;
+            if (importer == null)
+            {
+                return false;
+            }
+
+            AudioImporterSampleSettings settings = importer.defaultSampleSettings;
+            if (!importer.forceToMono ||
+                settings.loadType != AudioClipLoadType.DecompressOnLoad ||
+                settings.compressionFormat != AudioCompressionFormat.ADPCM ||
+                settings.sampleRateSetting != AudioSampleRateSetting.OverrideSampleRate ||
+                settings.sampleRateOverride != 22050 ||
+                settings.preloadAudioData)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ReleaseProjectExcludesDeprecatedResourceArchive()
+    {
+        return !Directory.Exists("Assets/Archive") &&
+            !Directory.Exists("Assets/Archive/DeprecatedResourceArt") &&
+            !File.Exists("Assets/Archive.meta") &&
+            !File.Exists("Assets/Archive/DeprecatedResourceArt.meta");
+    }
+
+    private static bool AppInfoUsesReleaseNames(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        string text = SafeReadAllText(path);
+        string[] lines = text.Replace("\r\n", "\n").Split('\n');
+        return lines.Length >= 2 &&
+            string.Equals(lines[0].Trim(), ReleaseCompanyName, StringComparison.Ordinal) &&
+            string.Equals(lines[1].Trim(), ReleaseProductName, StringComparison.Ordinal) &&
+            !ContainsAnyOrdinalIgnoreCase(text, "SNU", "Prototype", "Final Project");
+    }
+
+    private static bool ReleasePlayerPackageTopLevelEntriesAreExpected()
+    {
+        string[] allowedWindowsBuildEntries =
+        {
+            "CareReviewOffice.exe",
+            "CareReviewOffice_Data",
+            "D3D12",
+            "MonoBleedingEdge",
+            "dstorage.dll",
+            "dstoragecore.dll",
+            "UnityPlayer.dll"
+        };
+
+        string[] allowedTopLevelEntries =
+        {
+            "CareReviewOffice.exe",
+            "CareReviewOffice_Data",
+            "D3D12",
+            "MonoBleedingEdge",
+            "dstorage.dll",
+            "dstoragecore.dll",
+            "README_KR.txt",
+            "RELEASE_MANIFEST.txt",
+            "UnityPlayer.dll"
+        };
+
+        return DirectoryTopLevelEntriesMatch(WindowsBuildPath, allowedWindowsBuildEntries) &&
+            DirectoryTopLevelEntriesMatch(Path.Combine(ReleaseRootPath, ReleasePackageName), allowedTopLevelEntries) &&
+            DirectoryTopLevelEntriesMatch(SteamworksContentPath, allowedTopLevelEntries) &&
+            ZipTopLevelEntriesMatch(Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip"), allowedTopLevelEntries) &&
+            ZipSubdirectoryTopLevelEntriesMatch(SteamworksZipPath, "v0.3.0/content_windows/", allowedTopLevelEntries);
+    }
+
+    private static bool ReleasePlayerPackagesMirrorCurrentWindowsBuild()
+    {
+        string[] generatedPackageDocs =
+        {
+            "README_KR.txt",
+            "RELEASE_MANIFEST.txt"
+        };
+
+        Dictionary<string, string> windowsPayload = BuildDirectoryShaMap(WindowsBuildPath);
+        if (windowsPayload.Count == 0)
+        {
+            return false;
+        }
+
+        return PayloadShaMapsMatch(windowsPayload, BuildDirectoryShaMap(Path.Combine(ReleaseRootPath, ReleasePackageName), generatedPackageDocs)) &&
+            PayloadShaMapsMatch(windowsPayload, BuildDirectoryShaMap(SteamworksContentPath, generatedPackageDocs)) &&
+            PayloadShaMapsMatch(windowsPayload, BuildZipShaMap(Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip"), "", generatedPackageDocs)) &&
+            PayloadShaMapsMatch(windowsPayload, BuildZipShaMap(SteamworksZipPath, "v0.3.0/content_windows/", generatedPackageDocs));
+    }
+
+    private static bool ReleasePlayerPackageDocsMirrorAcrossTargets()
+    {
+        string[] generatedPackageDocs =
+        {
+            "README_KR.txt",
+            "RELEASE_MANIFEST.txt"
+        };
+
+        foreach (string documentName in generatedPackageDocs)
+        {
+            if (!PackageDocumentCopiesShareSha(documentName))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ReleasePlayerBootConfigUsesReleaseSettings()
+    {
+        string[] forbiddenTerms =
+        {
+            "development-player=1",
+            "wait-for-native-debugger=1",
+            "wait-for-managed-debugger=1"
+        };
+
+        string releaseZipPath = Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip");
+        return BootConfigTextUsesReleaseSettings(SafeReadAllText(Path.Combine(WindowsBuildPath, "CareReviewOffice_Data", "boot.config")), forbiddenTerms) &&
+            BootConfigTextUsesReleaseSettings(SafeReadAllText(Path.Combine(ReleaseRootPath, ReleasePackageName, "CareReviewOffice_Data", "boot.config")), forbiddenTerms) &&
+            BootConfigTextUsesReleaseSettings(SafeReadAllText(Path.Combine(SteamworksContentPath, "CareReviewOffice_Data", "boot.config")), forbiddenTerms) &&
+            BootConfigTextUsesReleaseSettings(ReadZipEntryText(releaseZipPath, "CareReviewOffice_Data/boot.config"), forbiddenTerms) &&
+            BootConfigTextUsesReleaseSettings(ReadZipEntryText(SteamworksZipPath, "v0.3.0/content_windows/CareReviewOffice_Data/boot.config"), forbiddenTerms);
+    }
+
+    private static bool BootConfigTextUsesReleaseSettings(string text, params string[] forbiddenTerms)
+    {
+        return !string.IsNullOrEmpty(text) &&
+            text.Contains("wait-for-native-debugger=0", StringComparison.Ordinal) &&
+            !ContainsAnyOrdinalIgnoreCase(text, forbiddenTerms);
+    }
+
+    private static bool PackageDocumentCopiesShareSha(string documentName)
+    {
+        string releaseZipPath = Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip");
+        byte[][] copies =
+        {
+            ReadFileBytes(Path.Combine(ReleaseRootPath, ReleasePackageName, documentName)),
+            ReadFileBytes(Path.Combine(SteamworksContentPath, documentName)),
+            ReadZipEntryBytes(releaseZipPath, documentName),
+            ReadZipEntryBytes(SteamworksZipPath, "v0.3.0/content_windows/" + documentName)
+        };
+
+        string expectedHash = "";
+        foreach (byte[] bytes in copies)
+        {
+            if (bytes == null || bytes.Length == 0)
+            {
+                return false;
+            }
+
+            string currentHash = ComputeSha256(bytes);
+            if (string.IsNullOrEmpty(expectedHash))
+            {
+                expectedHash = currentHash;
+            }
+            else if (!string.Equals(expectedHash, currentHash, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ReleaseRootContainsOnlyCurrentPlayerPackage()
+    {
+        if (!Directory.Exists(ReleaseRootPath))
+        {
+            return false;
+        }
+
+        string[] allowedEntries =
+        {
+            ReleasePackageName,
+            ReleasePackageName + ".zip",
+            ReleasePackageName + "_SHA256.txt"
+        };
+        HashSet<string> allowed = new(allowedEntries, StringComparer.Ordinal);
+
+        foreach (string directoryPath in Directory.GetDirectories(ReleaseRootPath, "CareReviewOffice_Windows_v*"))
+        {
+            if (!allowed.Contains(Path.GetFileName(directoryPath)))
+            {
+                return false;
+            }
+        }
+
+        foreach (string filePath in Directory.GetFiles(ReleaseRootPath, "CareReviewOffice_Windows_v*"))
+        {
+            if (!allowed.Contains(Path.GetFileName(filePath)))
+            {
+                return false;
+            }
+        }
+
+        return Directory.Exists(Path.Combine(ReleaseRootPath, ReleasePackageName)) &&
+            File.Exists(Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip")) &&
+            File.Exists(Path.Combine(ReleaseRootPath, ReleasePackageName + "_SHA256.txt"));
+    }
+
+    private static bool ReleasePlayerAssembliesExcludeInternalToolText()
+    {
+        return DirectoryBinariesExcludeText(
+                Path.Combine(ReleaseRootPath, ReleasePackageName),
+                "-careReview",
+                "playtest_packet",
+                "support_bundle",
+                "system_diagnostic",
+                "care_review_runtime_issues",
+                "ExportLog") &&
+            DirectoryBinariesExcludeText(
+                SteamworksContentPath,
+                "-careReview",
+                "playtest_packet",
+                "support_bundle",
+                "system_diagnostic",
+                "care_review_runtime_issues",
+                "ExportLog") &&
+            GameAssembliesExcludeInternalToolText(
+                "-careReview",
+                "playtest",
+                "playtest_packet",
+                "support_bundle",
+                "system_diagnostic",
+                "care_review_runtime_issues",
+                "ExportLog",
+                "survey",
+                "CSV",
+                "HTML",
+                "QA");
+    }
+
+    private static bool GameAssembliesExcludeInternalToolText(params string[] patterns)
+    {
+        string[] gameAssemblyPaths =
+        {
+            Path.Combine("Builds", "Windows", "CareReviewOffice_Data", "Managed", "Assembly-CSharp.dll"),
+            Path.Combine(ReleaseRootPath, ReleasePackageName, "CareReviewOffice_Data", "Managed", "Assembly-CSharp.dll"),
+            Path.Combine(SteamworksContentPath, "CareReviewOffice_Data", "Managed", "Assembly-CSharp.dll")
+        };
+
+        foreach (string assemblyPath in gameAssemblyPaths)
+        {
+            if (!FileBinaryTextExcludes(assemblyPath, patterns))
+            {
+                return false;
+            }
+        }
+
+        return ZipEntryBinaryTextExcludes(
+                Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip"),
+                "CareReviewOffice_Data/Managed/Assembly-CSharp.dll",
+                patterns) &&
+            ZipEntryBinaryTextExcludes(
+                SteamworksZipPath,
+                "v0.3.0/content_windows/CareReviewOffice_Data/Managed/Assembly-CSharp.dll",
+                patterns);
+    }
+
+    private static bool ReleasePlayerTextFilesExcludeInternalTerms()
+    {
+        string[] forbiddenTerms =
+        {
+            "-careReview",
+            "care_review",
+            "playtest",
+            "playtest_packet",
+            "support_bundle",
+            "system_diagnostic",
+            "runtime_issues",
+            "QA",
+            "smoke",
+            "debug",
+            "CSV",
+            "JSON",
+            "HTML",
+            "dashboard",
+            "플레이테스트",
+            "테스터",
+            "스모크",
+            "디버그",
+            "내부",
+            "지원 번들",
+            "환경 진단",
+            "로그 저장",
+            "로그 폴더",
+            "대시보드"
+        };
+
+        string releaseZipPath = Path.Combine(ReleaseRootPath, ReleasePackageName + ".zip");
+        return FileTextExcludes(Path.Combine(ReleaseRootPath, ReleasePackageName, "README_KR.txt"), forbiddenTerms) &&
+            FileTextExcludes(Path.Combine(ReleaseRootPath, ReleasePackageName, "RELEASE_MANIFEST.txt"), forbiddenTerms) &&
+            FileTextExcludes(Path.Combine(SteamworksContentPath, "README_KR.txt"), forbiddenTerms) &&
+            FileTextExcludes(Path.Combine(SteamworksContentPath, "RELEASE_MANIFEST.txt"), forbiddenTerms) &&
+            ZipEntryTextExcludes(releaseZipPath, "README_KR.txt", forbiddenTerms) &&
+            ZipEntryTextExcludes(releaseZipPath, "RELEASE_MANIFEST.txt", forbiddenTerms) &&
+            ZipEntryTextExcludes(SteamworksZipPath, "v0.3.0/content_windows/README_KR.txt", forbiddenTerms) &&
+            ZipEntryTextExcludes(SteamworksZipPath, "v0.3.0/content_windows/RELEASE_MANIFEST.txt", forbiddenTerms);
+    }
+
+    private static bool FileTextExcludes(string path, params string[] forbiddenTerms)
+    {
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        return !ContainsAnyOrdinalIgnoreCase(SafeReadAllText(path), forbiddenTerms);
+    }
+
+    private static bool ZipEntryTextExcludes(string zipPath, string entryName, params string[] forbiddenTerms)
+    {
+        string text = ReadZipEntryText(zipPath, entryName);
+        return !string.IsNullOrEmpty(text) && !ContainsAnyOrdinalIgnoreCase(text, forbiddenTerms);
+    }
+
+    private static bool DirectoryFileNamesExcludeArtifacts(string directoryPath)
+    {
+        if (!Directory.Exists(directoryPath))
+        {
+            return false;
+        }
+
+        foreach (string filePath in Directory.GetFiles(directoryPath, "*", SearchOption.AllDirectories))
+        {
+            string relativePath = filePath.Substring(directoryPath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string normalized = relativePath.Replace('\\', '/');
+            string fileName = Path.GetFileName(filePath);
+            if (EndsWithAnyOrdinalIgnoreCase(fileName, ".pdb", ".mdb", ".log", ".tmp") ||
+                ContainsAnyOrdinalIgnoreCase(normalized, "/qa/", "_qa", "qa_", "/smoke/", "_smoke", "smoke_", "playtest", "support_bundle", "system_diagnostic"))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool DirectoryFileNamesExcludeProjectSourceFiles(string directoryPath)
+    {
+        if (!Directory.Exists(directoryPath))
+        {
+            return false;
+        }
+
+        foreach (string filePath in Directory.GetFiles(directoryPath, "*", SearchOption.AllDirectories))
+        {
+            string relativePath = filePath.Substring(directoryPath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string normalized = relativePath.Replace('\\', '/');
+            if (!EntryNameExcludesPlayerProjectSourceFile(normalized))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool EntryNameExcludesPlayerQaArtifact(string normalizedEntryName)
+    {
+        string fileName = normalizedEntryName.Split('/').LastOrDefault() ?? "";
+        return !EndsWithAnyOrdinalIgnoreCase(fileName, ".pdb", ".mdb", ".log", ".tmp") &&
+            !ContainsAnyOrdinalIgnoreCase(normalizedEntryName, "/qa/", "_qa", "qa_", "/smoke/", "_smoke", "smoke_", "playtest", "support_bundle", "system_diagnostic");
+    }
+
+    private static bool EntryNameExcludesPlayerProjectSourceFile(string normalizedEntryName)
+    {
+        string normalized = normalizedEntryName.Replace('\\', '/').TrimStart('/');
+        string fileName = normalized.Split('/').LastOrDefault() ?? "";
+        return !EndsWithAnyOrdinalIgnoreCase(fileName, ".cs", ".meta", ".unity", ".asmdef", ".sln", ".csproj", ".user", ".bak", ".orig", ".old") &&
+            !StartsWithAnyOrdinalIgnoreCase(normalized, "Assets/", "Library/", "Logs/", "Packages/", "ProjectSettings/", "Temp/", "UserSettings/") &&
+            !ContainsAnyOrdinalIgnoreCase(normalized, "/Assets/", "/Library/", "/Logs/", "/Packages/", "/ProjectSettings/", "/Temp/", "/UserSettings/");
+    }
+
+    private static bool DirectoryFileNamesExcludeTerms(string directoryPath, params string[] forbiddenTerms)
+    {
+        if (!Directory.Exists(directoryPath))
+        {
+            return false;
+        }
+
+        foreach (string filePath in Directory.GetFiles(directoryPath, "*", SearchOption.AllDirectories))
+        {
+            string relativePath = filePath.Substring(directoryPath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string normalized = relativePath.Replace('\\', '/');
+            if (ContainsAnyOrdinalIgnoreCase(normalized, forbiddenTerms))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool DirectoryRelativeFilesDoNotExist(string directoryPath, params string[] relativePaths)
+    {
+        if (!Directory.Exists(directoryPath))
+        {
+            return false;
+        }
+
+        foreach (string relativePath in relativePaths)
+        {
+            string normalizedPath = relativePath.Replace('/', Path.DirectorySeparatorChar);
+            if (File.Exists(Path.Combine(directoryPath, normalizedPath)))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool DirectoryTopLevelEntriesMatch(string directoryPath, params string[] allowedEntries)
+    {
+        if (!Directory.Exists(directoryPath))
+        {
+            return false;
+        }
+
+        HashSet<string> allowed = new(allowedEntries, StringComparer.OrdinalIgnoreCase);
+        HashSet<string> found = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string path in Directory.GetFileSystemEntries(directoryPath))
+        {
+            string name = Path.GetFileName(path);
+            if (string.IsNullOrEmpty(name) || !allowed.Contains(name))
+            {
+                return false;
+            }
+
+            found.Add(name);
+        }
+
+        return found.SetEquals(allowed);
+    }
+
+    private static Dictionary<string, string> BuildDirectoryShaMap(string directoryPath, params string[] excludedRelativePaths)
+    {
+        Dictionary<string, string> map = new(StringComparer.OrdinalIgnoreCase);
+        if (!Directory.Exists(directoryPath))
+        {
+            return map;
+        }
+
+        HashSet<string> excluded = new(excludedRelativePaths.Select(path => path.Replace('\\', '/')), StringComparer.OrdinalIgnoreCase);
+        foreach (string filePath in Directory.GetFiles(directoryPath, "*", SearchOption.AllDirectories))
+        {
+            string relativePath = filePath.Substring(directoryPath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Replace('\\', '/');
+            if (excluded.Contains(relativePath))
+            {
+                continue;
+            }
+
+            map[relativePath] = ComputeSha256(filePath);
+        }
+
+        return map;
+    }
+
+    private static Dictionary<string, string> BuildZipShaMap(string zipPath, string subdirectoryPrefix, params string[] excludedRelativePaths)
+    {
+        Dictionary<string, string> map = new(StringComparer.OrdinalIgnoreCase);
+        if (!File.Exists(zipPath))
+        {
+            return map;
+        }
+
+        string normalizedPrefix = (subdirectoryPrefix ?? "").Replace('\\', '/').TrimStart('/');
+        if (!string.IsNullOrEmpty(normalizedPrefix) && !normalizedPrefix.EndsWith("/", StringComparison.Ordinal))
+        {
+            normalizedPrefix += "/";
+        }
+
+        HashSet<string> excluded = new(excludedRelativePaths.Select(path => path.Replace('\\', '/')), StringComparer.OrdinalIgnoreCase);
+        using ZipArchive archive = ZipFile.OpenRead(zipPath);
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            if (entry.FullName.EndsWith("/", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            string normalized = entry.FullName.Replace('\\', '/').TrimStart('/');
+            if (!string.IsNullOrEmpty(normalizedPrefix))
+            {
+                if (!normalized.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                normalized = normalized.Substring(normalizedPrefix.Length);
+            }
+
+            if (string.IsNullOrEmpty(normalized) || excluded.Contains(normalized))
+            {
+                continue;
+            }
+
+            using Stream stream = entry.Open();
+            using MemoryStream memory = new();
+            stream.CopyTo(memory);
+            map[normalized] = ComputeSha256(memory.ToArray());
+        }
+
+        return map;
+    }
+
+    private static bool PayloadShaMapsMatch(Dictionary<string, string> expected, Dictionary<string, string> actual)
+    {
+        if (expected.Count == 0 || actual.Count == 0 || expected.Count != actual.Count)
+        {
+            return false;
+        }
+
+        foreach (KeyValuePair<string, string> pair in expected)
+        {
+            if (!actual.TryGetValue(pair.Key, out string actualHash) ||
+                !string.Equals(pair.Value, actualHash, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ZipTopLevelEntriesMatch(string zipPath, params string[] allowedEntries)
+    {
+        if (!File.Exists(zipPath))
+        {
+            return false;
+        }
+
+        HashSet<string> found = new(StringComparer.OrdinalIgnoreCase);
+        using ZipArchive archive = ZipFile.OpenRead(zipPath);
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            string normalized = entry.FullName.Replace('\\', '/').Trim('/');
+            if (string.IsNullOrEmpty(normalized))
+            {
+                continue;
+            }
+
+            string topLevel = normalized.Split('/')[0];
+            found.Add(topLevel);
+        }
+
+        HashSet<string> allowed = new(allowedEntries, StringComparer.OrdinalIgnoreCase);
+        return found.SetEquals(allowed);
+    }
+
+    private static bool ZipSubdirectoryTopLevelEntriesMatch(string zipPath, string subdirectoryPrefix, params string[] allowedEntries)
+    {
+        if (!File.Exists(zipPath) || string.IsNullOrWhiteSpace(subdirectoryPrefix))
+        {
+            return false;
+        }
+
+        string normalizedPrefix = subdirectoryPrefix.Replace('\\', '/').TrimStart('/');
+        if (!normalizedPrefix.EndsWith("/", StringComparison.Ordinal))
+        {
+            normalizedPrefix += "/";
+        }
+
+        HashSet<string> found = new(StringComparer.OrdinalIgnoreCase);
+        using ZipArchive archive = ZipFile.OpenRead(zipPath);
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            string normalized = entry.FullName.Replace('\\', '/');
+            if (!normalized.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string relative = normalized.Substring(normalizedPrefix.Length).Trim('/');
+            if (string.IsNullOrEmpty(relative))
+            {
+                continue;
+            }
+
+            string topLevel = relative.Split('/')[0];
+            found.Add(topLevel);
+        }
+
+        HashSet<string> allowed = new(allowedEntries, StringComparer.OrdinalIgnoreCase);
+        return found.SetEquals(allowed);
+    }
+
+    private static bool ZipEntryNamesExcludeTerms(string zipPath, params string[] forbiddenTerms)
+    {
+        if (!File.Exists(zipPath))
+        {
+            return false;
+        }
+
+        using ZipArchive archive = ZipFile.OpenRead(zipPath);
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            string normalized = entry.FullName.Replace('\\', '/');
+            if (ContainsAnyOrdinalIgnoreCase(normalized, forbiddenTerms))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ZipRelativeEntriesDoNotExist(string zipPath, string subdirectoryPrefix, params string[] relativePaths)
+    {
+        if (!File.Exists(zipPath))
+        {
+            return false;
+        }
+
+        string normalizedPrefix = string.IsNullOrWhiteSpace(subdirectoryPrefix)
+            ? ""
+            : subdirectoryPrefix.Replace('\\', '/').Trim('/');
+        if (!string.IsNullOrEmpty(normalizedPrefix))
+        {
+            normalizedPrefix += "/";
+        }
+
+        HashSet<string> forbiddenEntries = new(
+            relativePaths.Select(relativePath => normalizedPrefix + relativePath.Replace('\\', '/').TrimStart('/')),
+            StringComparer.OrdinalIgnoreCase);
+
+        using ZipArchive archive = ZipFile.OpenRead(zipPath);
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            string normalized = entry.FullName.Replace('\\', '/').TrimStart('/');
+            if (forbiddenEntries.Contains(normalized))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ZipEntryNamesExcludeArtifacts(string zipPath)
+    {
+        if (!File.Exists(zipPath))
+        {
+            return false;
+        }
+
+        using ZipArchive archive = ZipFile.OpenRead(zipPath);
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            string normalized = entry.FullName.Replace('\\', '/');
+            if (!EntryNameExcludesPlayerQaArtifact(normalized))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ZipEntryNamesExcludeProjectSourceFiles(string zipPath)
+    {
+        if (!File.Exists(zipPath))
+        {
+            return false;
+        }
+
+        using ZipArchive archive = ZipFile.OpenRead(zipPath);
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            string normalized = entry.FullName.Replace('\\', '/');
+            if (!EntryNameExcludesPlayerProjectSourceFile(normalized))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ZipSubdirectoryEntryNamesExcludeArtifacts(string zipPath, string subdirectoryPrefix)
+    {
+        if (!File.Exists(zipPath) || string.IsNullOrWhiteSpace(subdirectoryPrefix))
+        {
+            return false;
+        }
+
+        string normalizedPrefix = subdirectoryPrefix.Replace('\\', '/').TrimStart('/');
+        if (!normalizedPrefix.EndsWith("/", StringComparison.Ordinal))
+        {
+            normalizedPrefix += "/";
+        }
+
+        bool foundEntry = false;
+        using ZipArchive archive = ZipFile.OpenRead(zipPath);
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            string normalized = entry.FullName.Replace('\\', '/');
+            if (!normalized.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foundEntry = true;
+            string relative = normalized.Substring(normalizedPrefix.Length);
+            if (!EntryNameExcludesPlayerQaArtifact(relative))
+            {
+                return false;
+            }
+        }
+
+        return foundEntry;
+    }
+
+    private static bool ZipSubdirectoryEntryNamesExcludeProjectSourceFiles(string zipPath, string subdirectoryPrefix)
+    {
+        if (!File.Exists(zipPath) || string.IsNullOrWhiteSpace(subdirectoryPrefix))
+        {
+            return false;
+        }
+
+        string normalizedPrefix = subdirectoryPrefix.Replace('\\', '/').TrimStart('/');
+        if (!normalizedPrefix.EndsWith("/", StringComparison.Ordinal))
+        {
+            normalizedPrefix += "/";
+        }
+
+        bool foundEntry = false;
+        using ZipArchive archive = ZipFile.OpenRead(zipPath);
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            string normalized = entry.FullName.Replace('\\', '/');
+            if (!normalized.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foundEntry = true;
+            string relative = normalized.Substring(normalizedPrefix.Length);
+            if (!EntryNameExcludesPlayerProjectSourceFile(relative))
+            {
+                return false;
+            }
+        }
+
+        return foundEntry;
+    }
+
+    private static bool DirectoryBinariesExcludeText(string directoryPath, params string[] patterns)
+    {
+        if (!Directory.Exists(directoryPath))
+        {
+            return false;
+        }
+
+        foreach (string filePath in Directory.GetFiles(directoryPath, "*", SearchOption.AllDirectories))
+        {
+            string extension = Path.GetExtension(filePath);
+            if (!string.Equals(extension, ".dll", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(extension, ".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string binaryText = Encoding.UTF8.GetString(File.ReadAllBytes(filePath));
+            if (ContainsAnyOrdinalIgnoreCase(binaryText, patterns))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool FileBinaryTextExcludes(string filePath, params string[] patterns)
+    {
+        if (!File.Exists(filePath))
+        {
+            return false;
+        }
+
+        string binaryText = Encoding.UTF8.GetString(File.ReadAllBytes(filePath));
+        return !ContainsAnyOrdinalIgnoreCase(binaryText, patterns);
+    }
+
+    private static bool ZipEntryBinaryTextExcludes(string zipPath, string entryName, params string[] patterns)
+    {
+        byte[] bytes = ReadZipEntryBytes(zipPath, entryName);
+        if (bytes.Length == 0)
+        {
+            return false;
+        }
+
+        string binaryText = Encoding.UTF8.GetString(bytes);
+        return !ContainsAnyOrdinalIgnoreCase(binaryText, patterns);
+    }
+
+    private static bool EndsWithAnyOrdinalIgnoreCase(string text, params string[] suffixes)
+    {
+        foreach (string suffix in suffixes)
+        {
+            if (text.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool StartsWithAnyOrdinalIgnoreCase(string text, params string[] prefixes)
+    {
+        foreach (string prefix in prefixes)
+        {
+            if (text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -10923,11 +12686,54 @@ public static class CareReviewProjectBuilder
 
         importer.textureType = TextureImporterType.Sprite;
         importer.spriteImportMode = SpriteImportMode.Single;
-        importer.isReadable = true;
+        importer.isReadable = false;
         importer.mipmapEnabled = false;
         importer.alphaIsTransparency = alpha;
         importer.maxTextureSize = 4096;
-        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.textureCompression = TextureImporterCompression.Compressed;
+        importer.compressionQuality = 70;
+        importer.SaveAndReimport();
+    }
+
+    private static void PrepareAudioAssets()
+    {
+        PrepareAudioDirectory("Assets/Resources/Audio/Bgm", true);
+        PrepareAudioDirectory("Assets/Resources/Audio/Sfx", false);
+    }
+
+    private static void PrepareAudioDirectory(string directoryPath, bool bgm)
+    {
+        if (!Directory.Exists(directoryPath))
+        {
+            Debug.LogWarning("Missing audio directory: " + directoryPath);
+            return;
+        }
+
+        foreach (string filePath in Directory.GetFiles(directoryPath, "*.wav", SearchOption.TopDirectoryOnly))
+        {
+            PrepareAudio(filePath.Replace('\\', '/'), bgm);
+        }
+    }
+
+    private static void PrepareAudio(string path, bool bgm)
+    {
+        AudioImporter importer = AssetImporter.GetAtPath(path) as AudioImporter;
+        if (importer == null)
+        {
+            Debug.LogWarning("Missing audio: " + path);
+            return;
+        }
+
+        AudioImporterSampleSettings settings = importer.defaultSampleSettings;
+        settings.loadType = bgm ? AudioClipLoadType.Streaming : AudioClipLoadType.DecompressOnLoad;
+        settings.compressionFormat = bgm ? AudioCompressionFormat.Vorbis : AudioCompressionFormat.ADPCM;
+        settings.quality = bgm ? 0.62f : 1f;
+        settings.sampleRateSetting = AudioSampleRateSetting.OverrideSampleRate;
+        settings.sampleRateOverride = bgm ? 32000u : 22050u;
+        settings.preloadAudioData = false;
+        importer.defaultSampleSettings = settings;
+        importer.forceToMono = !bgm;
+        importer.loadInBackground = bgm;
         importer.SaveAndReimport();
     }
 
@@ -11112,6 +12918,27 @@ public static class CareReviewProjectBuilder
         public string evidence;
     }
 
+    private sealed class ReleaseLaunchDependencySmokeResult
+    {
+        public string generatedAt;
+        public string executablePath;
+        public string workingDirectory;
+        public string logPath;
+        public int waitMilliseconds;
+        public bool completed;
+        public bool executableExists;
+        public bool processStarted;
+        public bool processExited;
+        public bool wasRunningAfterWait;
+        public bool killedAfterWait;
+        public int exitCode;
+        public bool logExists;
+        public bool engineInitialized;
+        public bool rendererInitialized;
+        public bool dependencyErrorDetected;
+        public string processStartError;
+    }
+
     private sealed class ReleaseCandidateAudit
     {
         public string generatedAt;
@@ -11122,8 +12949,10 @@ public static class CareReviewProjectBuilder
         public int passedCheckCount;
         public int localBlockerCount;
         public int externalActionCount;
+        public int optionalExternalValidationCount;
         public List<ReleaseCandidateCheck> checks;
         public List<string> externalActions;
+        public List<string> optionalExternalValidations;
     }
 
     private sealed class ReleaseCandidateCheck
