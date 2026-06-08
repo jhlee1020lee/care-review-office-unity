@@ -12648,8 +12648,8 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementReplayRewardPanel.Contains("W-207");
         bool achievementReplayRewardPanelMentionsRecordLinkHint =
             achievementRewardPanelAndHint.Contains("이동") &&
-            achievementRewardPanelAndHint.Contains("메뉴 성과") &&
-            achievementRewardPanelAndHint.Contains("하단 2·4·6회") &&
+            achievementRewardPanelAndHint.Contains("성과") &&
+            achievementRewardPanelAndHint.Contains("2·4·6회") &&
             achievementRewardPanelAndHint.Contains("캠페인 기록 필터");
         bool achievementReplayRewardPanelMentionsDecisionAuditCoachingFirstUse =
             achievementRewardPanelAndHint.Contains("복기") &&
@@ -12660,13 +12660,13 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementRecordLinkHintText != null &&
             achievementRecordLinkHintText.gameObject.activeInHierarchy &&
             achievementRecordLinkHint.Contains("이동") &&
-            achievementRecordLinkHint.Contains("메뉴 성과") &&
-            achievementRecordLinkHint.Contains("하단 2·4·6회") &&
+            achievementRecordLinkHint.Contains("성과") &&
+            achievementRecordLinkHint.Contains("2·4·6회") &&
             achievementRecordLinkHint.Contains("캠페인 기록 필터") &&
             achievementRecordLinkHintMaxDisplayLineWidth <= 72f;
         bool achievementRecordLinkHintMentionsMenuEntry =
-            achievementRecordLinkHint.Contains("메뉴 성과") &&
-            achievementRecordLinkHint.Contains("하단 2·4·6회");
+            achievementRecordLinkHint.Contains("성과") &&
+            achievementRecordLinkHint.Contains("2·4·6회");
         bool achievementCatalogMentionsReplayTierPlan = false;
         bool achievementCatalogIncludesGrowthAchievements = false;
         bool achievementCatalogIncludesAppealRemedyAchievement = false;
@@ -13873,7 +13873,6 @@ public sealed class CareReviewGame : MonoBehaviour
                 actionHintText.Contains(record.representativeCaseId) &&
                 actionHintText.Contains("조사") &&
                 actionHintText.Contains(record.investigationMemoCaseId) &&
-                actionHintText.Contains("보정 없음") &&
                 actionHintText.Contains("다음 목표");
             bool careerRecordActionHintMentionsCoachingRoundTrip =
                 record != null &&
@@ -15165,13 +15164,13 @@ public sealed class CareReviewGame : MonoBehaviour
                 achievementRoot != null &&
                 achievementRoot.gameObject.activeSelf &&
                 achievementRecordLinkHint.Contains("이동") &&
-                achievementRecordLinkHint.Contains("메뉴 성과") &&
-                achievementRecordLinkHint.Contains("하단 2·4·6회") &&
+                achievementRecordLinkHint.Contains("성과") &&
+                achievementRecordLinkHint.Contains("2·4·6회") &&
                 achievementRecordLinkHint.Contains("캠페인 기록 필터") &&
                 achievementHintWidth <= 72f;
             achievementRecordLinkHintMentionsMenuEntry &=
-                achievementRecordLinkHint.Contains("메뉴 성과") &&
-                achievementRecordLinkHint.Contains("하단 2·4·6회");
+                achievementRecordLinkHint.Contains("성과") &&
+                achievementRecordLinkHint.Contains("2·4·6회");
             achievementRecordLinkHintMentionsCoachingFirstUse &=
                 achievementRecordLinkHint.Contains("복기") &&
                 achievementRecordLinkHint.Contains("W-207") &&
@@ -22407,8 +22406,8 @@ public sealed class CareReviewGame : MonoBehaviour
 
         string coaching = BuildAchievementDecisionAuditCoachingHintSegment(LoadCareerRecordDatabase().records);
         achievementRecordLinkHintText.text = string.IsNullOrWhiteSpace(coaching)
-            ? "이동: 메뉴 성과→하단 2·4·6회→캠페인 기록 필터"
-            : "이동: 메뉴 성과→" + coaching.TrimStart(' ', '·') + " · 하단 2·4·6회→캠페인 기록 필터";
+            ? "이동: 성과→2·4·6회→캠페인 기록 필터"
+            : "이동: 성과→" + coaching.TrimStart(' ', '·') + " · 2·4·6회→캠페인 기록 필터";
     }
 
     private void UpdateAchievementReplayTierRecordButtons(int replayObjectiveCount)
@@ -22839,8 +22838,8 @@ public sealed class CareReviewGame : MonoBehaviour
             ? "조사 없음"
             : "조사 " + Shorten(record.investigationMemoCaseId, 12);
         string remedy = string.IsNullOrWhiteSpace(record.appealRemedyObjectiveCaseId)
-            ? "보정 없음"
-            : (!string.IsNullOrWhiteSpace(record.appealRemedyObjectiveTriageLabel)
+            ? ""
+            : " · " + (!string.IsNullOrWhiteSpace(record.appealRemedyObjectiveTriageLabel)
                 ? "보정 추천 " + Shorten(record.appealRemedyObjectiveCaseId, 12)
                 : "보정 " + Shorten(record.appealRemedyObjectiveCaseId, 12));
         string coaching = string.IsNullOrWhiteSpace(record.decisionAuditCoachingAppealCaseId)
@@ -22853,7 +22852,7 @@ public sealed class CareReviewGame : MonoBehaviour
             next = nextLabel == "목표 재시작" ? "다음 목표" : "다음 목표 " + nextLabel;
         }
 
-        careerRecordActionHintText.text = $"이동: {representative} · {investigation} · {remedy} · {next}{coaching}";
+        careerRecordActionHintText.text = $"이동: {representative} · {investigation}{remedy} · {next}{coaching}";
     }
 
     private static string CareerRecordNextObjectiveButtonLabel(CareerRecord record)
@@ -24166,15 +24165,17 @@ public sealed class CareReviewGame : MonoBehaviour
 
         StringBuilder builder = new();
         builder.AppendLine(focused ? "선택 회차 요약 · 엔딩 기록 연결" : "선택 회차 요약 · 최근 완료 회차");
-        builder.AppendLine($"회차 해석: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · 상세 회고는 [선택 상세] 탭");
-        builder.AppendLine($"판단: 지원 {record.supportCount} · 조사 {record.investigationCount} · 보류 {record.holdCount} · 거절 {record.rejectCount} · 권장 {record.matchedRecommendedCount}/{record.logCount} · 내 판단 기준 {FallbackText(record.closestAgentPersonaName, "기록 없음")}");
-        builder.AppendLine($"사례 링크: 대표 사례 {FallbackText(record.representativeCaseId, "없음")} · 조사 메모 {FallbackText(record.investigationMemoCaseId, "없음")} · 조사 타임라인 후속 반영/최종 지표");
-        builder.AppendLine($"동일 사례 회고: {FallbackText(record.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과 · 보정 전/후 그래프");
+        builder.AppendLine($"회차 해석: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · 상세 회고 [선택 상세]");
+        builder.AppendLine($"판단: 지원{record.supportCount} · 조사{record.investigationCount} · 보류{record.holdCount} · 거절{record.rejectCount} · 권장{record.matchedRecommendedCount}/{record.logCount} · 기준 {Shorten(FallbackText(record.closestAgentPersonaName, "기록 없음"), 8)}");
+        builder.AppendLine($"사례 링크: 대표 사례 {FallbackText(record.representativeCaseId, "없음")} · 조사 메모 {FallbackText(record.investigationMemoCaseId, "없음")}");
+        builder.AppendLine("조사 타임라인: 후속 반영 · 최종 지표");
+        builder.AppendLine($"동일 사례 회고: {FallbackText(record.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과");
+        builder.AppendLine("보정 전/후 그래프");
         builder.AppendLine("브리핑 회고: 예고 위험/예고 보상/실제 결과");
 
         if (record.appealReviewCount > 0)
         {
-            builder.AppendLine($"보정 액션 플랜: 이의제기 재도전 필요 · 다음 {FallbackText(record.appealRemedyObjectiveCaseId, "C-031")}");
+            builder.AppendLine($"보정 액션 플랜: 재도전 필요 · 다음 {FallbackText(record.appealRemedyObjectiveCaseId, "C-031")}");
         }
         string triageResultLine = BuildCareerRecordAppealRemedyTriageResultLine(record);
         if (!string.IsNullOrWhiteSpace(triageResultLine))
@@ -24185,7 +24186,9 @@ public sealed class CareReviewGame : MonoBehaviour
         string caseId = string.IsNullOrWhiteSpace(record.decisionAuditCoachingAppealCaseId)
             ? FallbackText(record.representativeCaseId, "대표 사례")
             : record.decisionAuditCoachingAppealCaseId;
-        builder.AppendLine($"판단 복기: 추천 운영 · 실행 규칙 · 검증 질문 · 기록 복귀 안내: 복기 사례 {caseId} 기록 복귀 · 처음 열 때 압박 패턴");
+        builder.AppendLine($"판단 복기: 추천 운영 · 실행 규칙 · 검증 질문");
+        builder.AppendLine($"기록 복귀 안내: 복기 사례 {caseId} · 기록 복귀");
+        builder.AppendLine("처음 열 때: 압박 패턴");
         return WrapCareerRecordDetailText(builder.ToString());
     }
 
@@ -24617,7 +24620,7 @@ public sealed class CareReviewGame : MonoBehaviour
         int decisionPracticeObjectiveCount = CountDecisionPracticeObjectiveRecords(records);
         string coaching = BuildAchievementDecisionAuditCoachingRewardSegment(records);
         return $"반복 보상 이력: {current} · {bronze} / {silver} / {gold} · {next}\n" +
-            $"보정 목표 {appealRemedyObjectiveCount}회 · {BuildAppealRemedyTriageAchievementRewardBarText(records)} · 비교 연습 {decisionPracticeObjectiveCount}회 · {BuildDecisionPracticeRewardHistorySegment(decisionPracticeObjectiveCount)} · {BuildAchievementGrowthProgressSegment()}{coaching}";
+            $"보정 {appealRemedyObjectiveCount}회 · {BuildAppealRemedyTriageAchievementRewardBarText(records)} · 비교 {decisionPracticeObjectiveCount}회 · {BuildDecisionPracticeRewardHistorySegment(decisionPracticeObjectiveCount)} · {BuildAchievementGrowthProgressSegment()}{coaching}";
     }
 
     private static string BuildAchievementDecisionAuditCoachingHintSegment(List<CareerRecord> records)
@@ -24645,7 +24648,7 @@ public sealed class CareReviewGame : MonoBehaviour
         string caseId = string.IsNullOrWhiteSpace(record.decisionAuditCoachingAppealCaseId)
             ? FallbackText(record.representativeCaseId, "대표")
             : record.decisionAuditCoachingAppealCaseId;
-        return $" · 복기 {Shorten(caseId, 8)} 기록 복귀";
+        return $" · 복기 {Shorten(caseId, 8)}";
     }
 
     private static CareerRecord LatestDecisionAuditCoachingRecord(List<CareerRecord> records)
@@ -24713,8 +24716,8 @@ public sealed class CareReviewGame : MonoBehaviour
     private static string BuildDecisionPracticeRewardHistorySegment(int practiceCount)
     {
         string next = practiceCount >= 6
-            ? "비교 최고 단계 유지"
-            : $"비교 다음 보상 {Mathf.Max(2, practiceCount >= 4 ? 6 : 4)}회";
+            ? "비교 최고 단계"
+            : $"다음 {Mathf.Max(2, practiceCount >= 4 ? 6 : 4)}회";
         return $"비교 연습 보상: 2/4/6회 · {next}";
     }
 
