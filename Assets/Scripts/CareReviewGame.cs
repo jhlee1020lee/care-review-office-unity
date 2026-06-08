@@ -1328,31 +1328,31 @@ public sealed class CareReviewGame : MonoBehaviour
         documentsText.alignByGeometry = false;
         documentsText.lineSpacing = 1.08f;
 
-        CreatePanel("Review Right Support Rail", reviewRoot, new Vector2(720, -50), new Vector2(392, 560), new Color32(9, 13, 14, 22));
+        CreatePanel("Review Right Support Rail", reviewRoot, new Vector2(720, -54), new Vector2(372, 520), new Color32(9, 13, 14, 16));
         CreateImage("Regulation Book", reviewRoot, GridSprite(uiPanelsSheet, 4, 3, 0, 0), new Vector2(710, 252), new Vector2(392, 244), Color.white).preserveAspect = true;
         regulationText = CreateTextBox(
             reviewRoot,
             "Regulation Text Box",
-            new Vector2(720, 132),
-            new Vector2(360, 172),
-            new Color32(19, 31, 32, 134),
+            new Vector2(720, 138),
+            new Vector2(360, 150),
+            new Color32(19, 31, 32, 112),
             16,
             "",
-            14,
+            13,
             TextAnchor.UpperLeft,
             new Color32(236, 224, 197, 255),
             FontStyle.Normal);
-        regulationText.lineSpacing = 0.94f;
+        regulationText.lineSpacing = 0.92f;
 
         metricsText = CreateTextBox(
             reviewRoot,
             "Metrics Box",
-            new Vector2(720, -178),
-            new Vector2(360, 84),
-            new Color32(19, 31, 32, 116),
+            new Vector2(720, -184),
+            new Vector2(340, 66),
+            new Color32(19, 31, 32, 96),
             12,
             "",
-            14,
+            13,
             TextAnchor.UpperLeft,
             new Color32(245, 233, 198, 255),
             FontStyle.Bold);
@@ -1360,12 +1360,12 @@ public sealed class CareReviewGame : MonoBehaviour
         metricDeltaText = CreateTextBox(
             reviewRoot,
             "Metric Delta Box",
-            new Vector2(720, -302),
-            new Vector2(360, 96),
-            new Color32(25, 35, 35, 124),
+            new Vector2(720, -296),
+            new Vector2(340, 78),
+            new Color32(25, 35, 35, 102),
             12,
             "",
-            14,
+            13,
             TextAnchor.UpperLeft,
             new Color32(236, 224, 197, 255),
             FontStyle.Bold);
@@ -1521,7 +1521,7 @@ public sealed class CareReviewGame : MonoBehaviour
         policyHandbookRoot = CreateChildRoot(reviewRoot, "Policy Handbook Root");
         Image dim = CreatePanel("Policy Handbook Dim", policyHandbookRoot, Vector2.zero, new Vector2(1920, 1080), new Color32(8, 10, 12, 172));
         dim.raycastTarget = true;
-        CreatePanel("Policy Handbook Paper", policyHandbookRoot, Vector2.zero, new Vector2(1520, 790), new Color32(246, 231, 198, 240));
+        CreatePanel("Policy Handbook Paper", policyHandbookRoot, new Vector2(0, 28), new Vector2(1520, 740), new Color32(246, 231, 198, 240));
         CreatePanel("Policy Handbook Header", policyHandbookRoot, new Vector2(0, 352), new Vector2(1360, 72), new Color32(33, 45, 46, 218));
 
         Text title = CreateText(policyHandbookRoot, "Policy Handbook Title", "심사 기준표", 38, TextAnchor.MiddleCenter, new Color32(246, 232, 202, 255), FontStyle.Bold);
@@ -1584,9 +1584,9 @@ public sealed class CareReviewGame : MonoBehaviour
         AddPolicySimulationVisualPanel();
 
         Text hint = CreateText(policyHandbookRoot, "Policy Handbook Hint", "P 키로 닫기 · 기준 비교는 현재 사례가 전체 운영 흐름에 미치는 영향입니다.", 14, TextAnchor.MiddleCenter, new Color32(79, 64, 48, 255), FontStyle.Normal);
-        SetRect(hint.rectTransform, new Vector2(0, -286), new Vector2(980, 28));
+        SetRect(hint.rectTransform, new Vector2(0, -266), new Vector2(980, 28));
 
-        CreateTextButton(policyHandbookRoot, "닫기", new Vector2(0, -334), new Vector2(210, 50), new Color32(116, 82, 50, 238), HidePolicyHandbook);
+        CreateTextButton(policyHandbookRoot, "닫기", new Vector2(0, -308), new Vector2(210, 46), new Color32(116, 82, 50, 238), HidePolicyHandbook);
         policyHandbookRoot.gameObject.SetActive(false);
     }
 
@@ -8343,6 +8343,7 @@ public sealed class CareReviewGame : MonoBehaviour
             "-careReviewCaptureDecisionFeedback",
             "-careReviewCaptureStoreScreenshots",
             "-careReviewCaptureTrailerFrames",
+            "-careReviewPolicySimulatorSmokeTest",
             "-careReviewLowResolutionSmokeTest",
             "-careReviewIncidentCardSmokeTest"
         };
@@ -26638,8 +26639,8 @@ public sealed class CareReviewGame : MonoBehaviour
         int averagePressure = dayCaseCount > 0 ? Mathf.RoundToInt(totalPressure / (float)dayCaseCount) : 0;
         return
             $"오늘 운영 초점 · 오늘 접수 {dayCaseCount} · 평균 압박 {averagePressure}/100\n" +
-            $"고위험 {highRiskCount} · 서류 {documentWeakCount} · 비용 {highCostCount} · {BuildCurrentDayProgressLine(day)}\n" +
-            "판단 순서: " + BuildNextDayFocusLine(highRiskCount, documentWeakCount, incomeExceptionCount, highCostCount, investigationRecommendedCount, averagePressure);
+            BuildCurrentDayProgressLine(day) + "\n" +
+            $"압박: 위험 {highRiskCount} · 서류 {documentWeakCount} · 비용 {highCostCount} · 순서 {Shorten(BuildNextDayFocusLine(highRiskCount, documentWeakCount, incomeExceptionCount, highCostCount, investigationRecommendedCount, averagePressure), 18)}";
     }
 
     private string BuildCurrentDayProgressLine(int day)
@@ -27935,10 +27936,8 @@ public sealed class CareReviewGame : MonoBehaviour
     private void UpdateMetrics()
     {
         metricsText.text =
-            $"예산 {budget}만\n" +
-            $"안정 {stability} · 형평 {equity}\n" +
-            $"누락 {missedRisk} · 민원 {complaints}\n" +
-            $"조사 {investigations}건";
+            $"예산 {budget}만 · 안정 {stability} · 형평 {equity}\n" +
+            $"누락 {missedRisk} · 민원 {complaints} · 조사 {investigations}";
     }
 
     private void ClearMetricDeltaFeedback()
@@ -27950,8 +27949,8 @@ public sealed class CareReviewGame : MonoBehaviour
 
         metricDeltaText.text =
             $"판단 근거: {CurrentDecisionRationaleName()}\n" +
-            $"{Shorten(CurrentDecisionRationaleDescription(), 42)}\n" +
-            "Q/근거로 변경 · 도장으로 확정";
+            $"{Shorten(CurrentDecisionRationaleDescription(), 34)}\n" +
+            "Q 변경 · 도장 확정";
     }
 
     private void ShowMetricDeltaFeedback(int budgetDelta, int stabilityDelta, int equityDelta, int missedRiskDelta, int complaintsDelta, string consequenceTitle)
@@ -29112,7 +29111,7 @@ public sealed class CareReviewGame : MonoBehaviour
             int shown = 0;
             foreach (DecisionLog log in highlightedLogs)
             {
-                builder.AppendLine($"{log.caseId} {ShortDecision(log.decision)}/{ShortDecision(log.recommendedDecision)} · {Shorten(DecisionReviewReason(log), 24)}");
+                builder.AppendLine($"{log.caseId} {ShortDecision(log.decision)}/{ShortDecision(log.recommendedDecision)} · {CompactReportReviewReason(log)}");
                 shown++;
                 if (shown >= 2)
                 {
@@ -29122,6 +29121,48 @@ public sealed class CareReviewGame : MonoBehaviour
         }
 
         return builder.ToString();
+    }
+
+    private static string CompactReportReviewReason(DecisionLog log)
+    {
+        List<string> labels = new();
+        if (!log.matchedRecommended)
+        {
+            labels.Add("권장 불일치");
+        }
+        if (IsDelayDecision(log.decision) && log.urgency >= 78)
+        {
+            labels.Add("고위험 지연");
+        }
+        if (IsSupportDecision(log.decision) && log.spentBudget >= 140)
+        {
+            labels.Add("고비용 지원");
+        }
+        if (!log.incomeEligible && IsSupportDecision(log.decision))
+        {
+            labels.Add("소득 예외");
+        }
+        if (!string.IsNullOrWhiteSpace(log.missingDocuments) && IsSupportDecision(log.decision))
+        {
+            labels.Add("서류 보강");
+        }
+
+        int riskDelta = Mathf.Max(0, log.missedRiskAfter - log.missedRiskBefore) + Mathf.Max(0, log.complaintsAfter - log.complaintsBefore);
+        if (riskDelta > 0)
+        {
+            labels.Add("위험 +" + riskDelta);
+        }
+        if (AppealReviewScore(log) >= 35)
+        {
+            labels.Add("이의제기");
+        }
+
+        if (labels.Count == 0)
+        {
+            return "대표 사례";
+        }
+
+        return string.Join(" · ", labels.GetRange(0, Mathf.Min(2, labels.Count)));
     }
 
     private List<DecisionLog> BuildRankedDecisionReviewLogs(int limit)
