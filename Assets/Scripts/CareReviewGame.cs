@@ -1598,9 +1598,9 @@ public sealed class CareReviewGame : MonoBehaviour
         AddPolicySimulationVisualPanel();
 
         Text hint = CreateText(policyHandbookRoot, "Policy Handbook Hint", "P 키로 닫기 · 기준 비교는 현재 사례가 전체 운영 흐름에 미치는 영향입니다.", 14, TextAnchor.MiddleCenter, new Color32(79, 64, 48, 255), FontStyle.Normal);
-        SetRect(hint.rectTransform, new Vector2(0, -266), new Vector2(980, 28));
+        SetRect(hint.rectTransform, new Vector2(0, -286), new Vector2(980, 28));
 
-        CreateTextButton(policyHandbookRoot, "닫기", new Vector2(0, -308), new Vector2(210, 46), new Color32(116, 82, 50, 238), HidePolicyHandbook);
+        CreateTextButton(policyHandbookRoot, "닫기", new Vector2(526, -222), new Vector2(124, 48), new Color32(116, 82, 50, 238), HidePolicyHandbook);
         policyHandbookRoot.gameObject.SetActive(false);
     }
 
@@ -1636,17 +1636,18 @@ public sealed class CareReviewGame : MonoBehaviour
         }
 
         string[] labels = { "위험 최소", "예산 안정", "권장 일치" };
+        CreatePanel("Policy Simulation Recommendation Rail", policyHandbookRoot, new Vector2(278, -222), new Vector2(780, 78), new Color32(33, 45, 46, 64));
         CreatePanel("Policy Simulation Flow Rail", policyHandbookRoot, new Vector2(278, -174), new Vector2(610, 28), new Color32(33, 45, 46, 104));
         policySimulationFlowText = CreateText(policyHandbookRoot, "Policy Simulation Flow Text", "오른쪽 기준 비교 -> 아래 추천 카드", 12, TextAnchor.MiddleCenter, new Color32(76, 58, 39, 255), FontStyle.Bold);
         SetRect(policySimulationFlowText.rectTransform, new Vector2(278, -174), new Vector2(580, 24));
 
         for (int i = 0; i < policySimulationRecommendationTexts.Length; i++)
         {
-            float x = 74f + i * 146f;
-            CreatePanel("Policy Simulation Recommendation Card " + labels[i], policyHandbookRoot, new Vector2(x, -218), new Vector2(126, 58), new Color32(33, 45, 46, 148));
+            float x = 70f + i * 144f;
+            CreatePanel("Policy Simulation Recommendation Card " + labels[i], policyHandbookRoot, new Vector2(x, -222), new Vector2(122, 52), new Color32(33, 45, 46, 128));
             policySimulationRecommendationTexts[i] = CreateText(policyHandbookRoot, "Policy Simulation Recommendation Text " + labels[i], labels[i], 12, TextAnchor.MiddleCenter, new Color32(246, 232, 202, 255), FontStyle.Bold);
             policySimulationRecommendationTexts[i].lineSpacing = 0.94f;
-            SetRect(policySimulationRecommendationTexts[i].rectTransform, new Vector2(x, -218), new Vector2(108, 46));
+            SetRect(policySimulationRecommendationTexts[i].rectTransform, new Vector2(x, -222), new Vector2(106, 42));
         }
     }
 
@@ -2005,14 +2006,16 @@ public sealed class CareReviewGame : MonoBehaviour
         achievementReplayTierRecordButtonTexts = new Text[tierThresholds.Length];
         achievementDecisionPracticeTierRecordButtons = new Button[tierThresholds.Length];
         achievementDecisionPracticeTierRecordButtonTexts = new Text[tierThresholds.Length];
+        CreatePanel("Achievement Tier Record Rail", achievementRoot, new Vector2(460, -296), new Vector2(374, 56), new Color32(32, 38, 38, 118));
         for (int i = 0; i < tierThresholds.Length; i++)
         {
             int threshold = tierThresholds[i];
+            float x = 336f + i * 124f;
             achievementReplayTierRecordButtons[i] = CreateTextButton(
                 achievementRoot,
-                threshold + "회",
-                new Vector2(366 + i * 104, -284),
-                new Vector2(88, 22),
+                "반복 " + threshold + "회",
+                new Vector2(x, -282),
+                new Vector2(108, 24),
                 new Color32(65, 82, 104, 226),
                 () => OpenAchievementReplayTierRecord(threshold));
             achievementReplayTierRecordButtonTexts[i] = achievementReplayTierRecordButtons[i].GetComponentInChildren<Text>(true);
@@ -2024,8 +2027,8 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementDecisionPracticeTierRecordButtons[i] = CreateTextButton(
                 achievementRoot,
                 "비교 " + threshold + "회",
-                new Vector2(366 + i * 104, -308),
-                new Vector2(88, 22),
+                new Vector2(x, -310),
+                new Vector2(108, 24),
                 new Color32(111, 91, 48, 226),
                 () => OpenAchievementDecisionPracticeTierRecord(threshold));
             achievementDecisionPracticeTierRecordButtonTexts[i] = achievementDecisionPracticeTierRecordButtons[i].GetComponentInChildren<Text>(true);
@@ -22416,8 +22419,8 @@ public sealed class CareReviewGame : MonoBehaviour
                 i < achievementReplayTierRecordButtonTexts.Length &&
                 achievementReplayTierRecordButtonTexts[i] != null)
             {
-                achievementReplayTierRecordButtonTexts[i].text = unlocked ? thresholds[i] + "회 열기" : thresholds[i] + "회 대기";
-                achievementReplayTierRecordButtonTexts[i].fontSize = 12;
+                achievementReplayTierRecordButtonTexts[i].text = unlocked ? "반복 " + thresholds[i] + "회" : thresholds[i] + "회 대기";
+                achievementReplayTierRecordButtonTexts[i].fontSize = 11;
             }
         }
     }
@@ -22509,7 +22512,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 i < achievementDecisionPracticeTierRecordButtonTexts.Length &&
                 achievementDecisionPracticeTierRecordButtonTexts[i] != null)
             {
-                achievementDecisionPracticeTierRecordButtonTexts[i].text = unlocked ? "비교 " + thresholds[i] + "회" : "비교" + thresholds[i] + " 대기";
+                achievementDecisionPracticeTierRecordButtonTexts[i].text = unlocked ? "비교 " + thresholds[i] + "회" : "비교 " + thresholds[i] + "대기";
                 achievementDecisionPracticeTierRecordButtonTexts[i].fontSize = 11;
             }
         }
@@ -22598,7 +22601,9 @@ public sealed class CareReviewGame : MonoBehaviour
         {
             careerRecordDetailText.text = careerRecordStoreCandidateCompactMode
                 ? BuildCareerRecordStoreCandidateDetailText(selectedRecord, focusedRecord != null, database.records)
-                : BuildCareerRecordDetailText(selectedRecord, focusedRecord != null, database.records);
+                : careerRecordViewMode == CareerRecordViewMode.Detail
+                    ? BuildCareerRecordDetailText(selectedRecord, focusedRecord != null, database.records)
+                    : BuildCareerRecordOverviewDetailText(selectedRecord, focusedRecord != null, database.records);
         }
         UpdateCareerRecordCaseLinkButtons(selectedRecord);
         UpdateCareerRecordNextObjectiveButton(selectedRecord);
@@ -23243,18 +23248,22 @@ public sealed class CareReviewGame : MonoBehaviour
         builder.AppendLine(BuildCareerRecordViewHeader(filterLabel, CareerRecordViewMode.Summary));
         builder.AppendLine(
             $"최근 캠페인 기록: {Shorten(latest.completedAt, 16)} · {latest.campaignGrade}{latest.campaignScore}점 · " +
-            $"엔딩 {latest.endingTitle} · 마지막 회차 세부 아래 패널 · 챌린지 {Shorten(latest.campaignChallengeTitle, 18)} · 조사 후속 {latest.investigationFollowUpCount}건 · 내 판단 기준 {FallbackText(latest.closestAgentPersonaName, "기록 없음")}");
+            $"엔딩 {latest.endingTitle} · 마지막 회차 세부 아래 패널");
         builder.AppendLine(
-            $"성장 비교: 직전/이전 최고/비교 초점 · {Shorten(BuildCareerRecordGrowthComparisonLine(records, latest), 42)} · " +
-            $"동일 사례 회고: {FallbackText(latest.representativeCaseId, "AG-349")} · 판단 변화 · 목표 재도전 결과 {Shorten(BuildCareerRecordObjectiveOutcome(latest), 24)}");
+            $"챌린지 {Shorten(latest.campaignChallengeTitle, 20)} · 조사 후속 {latest.investigationFollowUpCount}건 · " +
+            $"내 판단 기준 {FallbackText(latest.closestAgentPersonaName, "기록 없음")}");
         builder.AppendLine(
-            $"브리핑 회고: 예고 위험/예고 보상/실제 결과 · {Shorten(BuildCareerRecordBriefingRetrospectiveLine(latest), 58)}");
+            $"성장 비교: 직전/이전 최고/비교 초점 · 동일 사례 회고: {FallbackText(latest.representativeCaseId, "AG-349")} · " +
+            $"판단 변화 · 목표 재도전 결과 {Shorten(BuildCareerRecordObjectiveOutcome(latest), 20)}");
         builder.AppendLine(
-            $"성장 목표 요약: 목표 {Mathf.Max(1, growthCount)}회 · 후속 {Mathf.Max(1, growthFollowUpCount)}회 · {growthState} · " +
-            $"이의제기 누적: 즉시 재검토 {FallbackText(latest.appealReviewCaseId, "C-031")} · 보정 목표 요약 {appealRate} · 최근 미달 · 추천 {appealTriageCount}회 · {FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")}");
+            $"브리핑 회고: 예고 위험/예고 보상/실제 결과 · 성장 목표 요약: 목표 {Mathf.Max(1, growthCount)}회 · " +
+            $"후속 {Mathf.Max(1, growthFollowUpCount)}회 · {growthState}");
         builder.AppendLine(
-            Shorten(BuildCareerRecordDecisionPracticeObjectiveSummaryLine(records), 46) + " · " +
-            Shorten(BuildCareerRecordDecisionAuditCoachingLine(latest), 48) + " · 판단 복기 · 추천 운영 · 검증 질문");
+            $"이의제기 누적: 즉시 재검토 {FallbackText(latest.appealReviewCaseId, "C-031")} · 보정 목표 요약 {appealRate} · " +
+            $"최근 미달 · 추천 {appealTriageCount}회 · {FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")}");
+        builder.AppendLine(
+            $"판단 비교 연습 요약: {Shorten(BuildCareerRecordDecisionPracticeObjectiveSummaryLine(records), 28)} · " +
+            $"판단 복기 · 추천 운영 · 검증 질문");
         if (focusedRecord != null && !string.IsNullOrWhiteSpace(focusLabel))
         {
             builder.AppendLine($"▶ 포커스: {focusLabel} · {Shorten(latest.completedAt, 16)}");
@@ -24067,7 +24076,7 @@ public sealed class CareReviewGame : MonoBehaviour
 
         StringBuilder builder = new();
         builder.AppendLine(focused ? "선택 회차 상세 · 엔딩 기록에서 연결됨" : "선택 회차 상세 · 최근 완료 회차");
-        builder.AppendLine($"결과/회차 해석: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · {Shorten(record.campaignChallengeTitle, 24)} {(record.campaignChallengeSucceeded ? "성공" : "미달")} · {Shorten(FallbackText(record.careerDetailSummary, "세부 기록 없음"), 42)}");
+        builder.AppendLine($"회차 해석: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · {Shorten(record.campaignChallengeTitle, 24)} {(record.campaignChallengeSucceeded ? "성공" : "미달")}");
         builder.AppendLine($"판단: 지원 {record.supportCount} · 조사 {record.investigationCount} · 보류 {record.holdCount} · 거절 {record.rejectCount} · 권장 {record.matchedRecommendedCount}/{record.logCount} · 내 판단 기준 {FallbackText(record.closestAgentPersonaName, "기록 없음")}");
         string representativeNextStep = string.IsNullOrWhiteSpace(record.representativeCaseNextStep)
             ? ""
@@ -24075,16 +24084,16 @@ public sealed class CareReviewGame : MonoBehaviour
         string investigationSegment = string.IsNullOrWhiteSpace(record.investigationMemoCaseId) && string.IsNullOrWhiteSpace(record.investigationMemo)
             ? "조사 메모 없음"
             : $"조사 메모 {FallbackText(record.investigationMemoCaseId, "사례 없음")} · {Shorten(FallbackText(record.investigationMemo, "기록 없음"), 28)}";
-        builder.AppendLine($"사례 링크: 대표 사례 {FallbackText(record.representativeCaseId, "없음")} · {Shorten(FallbackText(record.representativeCaseReason, "대표 사례 없음"), 28)}{representativeNextStep} · {investigationSegment}");
+        builder.AppendLine($"사례 링크: 대표 사례 {FallbackText(record.representativeCaseId, "없음")} · {investigationSegment}{representativeNextStep}");
         builder.AppendLine(BuildCareerRecordDetailRepresentativeRetrospectiveLine(record, records));
-        builder.AppendLine(Shorten(BuildCareerRecordBriefingRetrospectiveLine(record), 88));
+        builder.AppendLine("브리핑 회고: 예고 위험/예고 보상/실제 결과 · " + Shorten(BuildCareerRecordBriefingRetrospectiveLine(record), 48));
 
         if (!string.IsNullOrWhiteSpace(record.investigationMemoCaseId) || !string.IsNullOrWhiteSpace(record.investigationMemo))
         {
             string investigationLine = "조사 타임라인: 후속 반영/최종 지표";
             if (!string.IsNullOrWhiteSpace(record.investigationMemoTimeline))
             {
-                investigationLine += $" · {Shorten(record.investigationMemoTimeline.Replace("\n", " / "), 54)}";
+                investigationLine += $" · {Shorten(record.investigationMemoTimeline.Replace("\n", " / "), 38)}";
             }
             builder.AppendLine(investigationLine);
         }
@@ -24121,9 +24130,41 @@ public sealed class CareReviewGame : MonoBehaviour
                 ? FallbackText(record.representativeCaseId, "대표 사례")
                 : record.decisionAuditCoachingAppealCaseId;
             builder.AppendLine(
-                Shorten(coachingLine, 70) +
+                Shorten(coachingLine, 54) +
                 $" · 기록 복귀 안내: 복기 사례 {caseId} 기록 복귀 · 처음 열 때: 압박 패턴, 추천 운영, 실행 규칙, 검증 질문");
         }
+        return WrapCareerRecordDetailText(builder.ToString());
+    }
+
+    private static string BuildCareerRecordOverviewDetailText(CareerRecord record, bool focused, List<CareerRecord> records)
+    {
+        if (record == null)
+        {
+            return "선택 회차 요약\n표시할 캠페인 기록이 없습니다.";
+        }
+
+        StringBuilder builder = new();
+        builder.AppendLine(focused ? "선택 회차 요약 · 엔딩 기록 연결" : "선택 회차 요약 · 최근 완료 회차");
+        builder.AppendLine($"회차 해석: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · 상세 회고는 [선택 상세] 탭");
+        builder.AppendLine($"판단: 지원 {record.supportCount} · 조사 {record.investigationCount} · 보류 {record.holdCount} · 거절 {record.rejectCount} · 권장 {record.matchedRecommendedCount}/{record.logCount} · 내 판단 기준 {FallbackText(record.closestAgentPersonaName, "기록 없음")}");
+        builder.AppendLine($"사례 링크: 대표 사례 {FallbackText(record.representativeCaseId, "없음")} · 조사 메모 {FallbackText(record.investigationMemoCaseId, "없음")} · 조사 타임라인 후속 반영/최종 지표");
+        builder.AppendLine($"동일 사례 회고: {FallbackText(record.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과 · 보정 전/후 그래프");
+        builder.AppendLine("브리핑 회고: 예고 위험/예고 보상/실제 결과");
+
+        if (record.appealReviewCount > 0)
+        {
+            builder.AppendLine($"보정 액션 플랜: 이의제기 재도전 필요 · 다음 {FallbackText(record.appealRemedyObjectiveCaseId, "C-031")}");
+        }
+        string triageResultLine = BuildCareerRecordAppealRemedyTriageResultLine(record);
+        if (!string.IsNullOrWhiteSpace(triageResultLine))
+        {
+            builder.AppendLine(Shorten(triageResultLine, 72));
+        }
+
+        string caseId = string.IsNullOrWhiteSpace(record.decisionAuditCoachingAppealCaseId)
+            ? FallbackText(record.representativeCaseId, "대표 사례")
+            : record.decisionAuditCoachingAppealCaseId;
+        builder.AppendLine($"판단 복기: 추천 운영 · 실행 규칙 · 검증 질문 · 기록 복귀 안내: 복기 사례 {caseId} 기록 복귀 · 처음 열 때 압박 패턴");
         return WrapCareerRecordDetailText(builder.ToString());
     }
 
