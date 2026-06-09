@@ -1443,23 +1443,23 @@ public sealed class CareReviewGame : MonoBehaviour
         Image dim = CreatePanel("Decision History Dim", decisionHistoryRoot, Vector2.zero, new Vector2(1920, 1080), new Color32(8, 10, 12, 168));
         dim.raycastTarget = true;
         CreatePanel("Decision History Paper", decisionHistoryRoot, Vector2.zero, new Vector2(1280, 760), new Color32(246, 231, 198, 238));
-        CreatePanel("Decision History Header", decisionHistoryRoot, new Vector2(0, 326), new Vector2(1130, 72), new Color32(33, 45, 46, 218));
+        CreatePanel("Decision History Header", decisionHistoryRoot, new Vector2(0, 326), new Vector2(1120, 62), new Color32(33, 45, 46, 196));
 
-        Text title = CreateText(decisionHistoryRoot, "Decision History Title", "심사 기록", 38, TextAnchor.MiddleCenter, new Color32(246, 232, 202, 255), FontStyle.Bold);
-        SetRect(title.rectTransform, new Vector2(0, 326), new Vector2(780, 56));
+        Text title = CreateText(decisionHistoryRoot, "Decision History Title", "심사 기록", 34, TextAnchor.MiddleCenter, new Color32(246, 232, 202, 255), FontStyle.Bold);
+        SetRect(title.rectTransform, new Vector2(0, 326), new Vector2(780, 48));
 
         decisionHistorySummaryText = CreateTextBox(
             decisionHistoryRoot,
             "Decision History Summary",
             new Vector2(0, 238),
             new Vector2(1120, 98),
-            new Color32(31, 42, 40, 196),
-            18,
+            new Color32(31, 42, 40, 178),
+            16,
             "",
             17,
             TextAnchor.UpperLeft,
             new Color32(246, 232, 202, 255),
-            FontStyle.Bold);
+            FontStyle.Normal);
 
         decisionHistoryBodyText = CreateTextBox(
             decisionHistoryRoot,
@@ -1474,7 +1474,7 @@ public sealed class CareReviewGame : MonoBehaviour
             new Color32(38, 30, 24, 255),
             FontStyle.Normal);
 
-        Text hint = CreateText(decisionHistoryRoot, "Decision History Hint", "최근 12건을 기준으로 표시합니다. Esc 키로 심사 화면으로 돌아갑니다.", 16, TextAnchor.MiddleCenter, new Color32(79, 64, 48, 255), FontStyle.Bold);
+        Text hint = CreateText(decisionHistoryRoot, "Decision History Hint", "최근 8건을 기준으로 표시합니다. Esc 키로 심사 화면으로 돌아갑니다.", 16, TextAnchor.MiddleCenter, new Color32(79, 64, 48, 255), FontStyle.Normal);
         SetRect(hint.rectTransform, new Vector2(0, -306), new Vector2(980, 34));
 
         CreateTextButton(decisionHistoryRoot, "닫기", new Vector2(0, -344), new Vector2(230, 58), new Color32(116, 82, 50, 238), HideDecisionHistory);
@@ -2324,25 +2324,25 @@ public sealed class CareReviewGame : MonoBehaviour
     {
         Image dim = CreateImage("First Run Notice Dim", firstRunNoticeRoot, null, Vector2.zero, new Vector2(1920, 1080), new Color32(10, 12, 14, 206));
         dim.raycastTarget = true;
-        CreatePanel("First Run Notice Paper", firstRunNoticeRoot, Vector2.zero, new Vector2(1040, 700), new Color32(246, 231, 198, 242));
-        CreatePanel("First Run Notice Header Strip", firstRunNoticeRoot, new Vector2(0, 276), new Vector2(880, 70), new Color32(33, 45, 46, 220));
+        CreatePanel("First Run Notice Paper", firstRunNoticeRoot, Vector2.zero, new Vector2(1040, 680), new Color32(246, 231, 198, 242));
+        CreatePanel("First Run Notice Header Strip", firstRunNoticeRoot, new Vector2(0, 268), new Vector2(820, 60), new Color32(33, 45, 46, 198));
 
-        Text title = CreateText(firstRunNoticeRoot, "First Run Notice Title", "시작 전 고지", 37, TextAnchor.MiddleCenter, new Color32(246, 232, 202, 255), FontStyle.Bold);
-        SetRect(title.rectTransform, new Vector2(0, 276), new Vector2(720, 58));
+        Text title = CreateText(firstRunNoticeRoot, "First Run Notice Title", "시작 전 확인", 33, TextAnchor.MiddleCenter, new Color32(246, 232, 202, 255), FontStyle.Bold);
+        SetRect(title.rectTransform, new Vector2(0, 268), new Vector2(700, 48));
 
         firstRunNoticeBodyText = CreateTextBox(
             firstRunNoticeRoot,
             "First Run Notice Body",
-            new Vector2(0, 24),
-            new Vector2(850, 390),
-            new Color32(246, 231, 198, 80),
-            18,
+            new Vector2(0, 18),
+            new Vector2(850, 382),
+            new Color32(246, 231, 198, 58),
+            16,
             BuildFirstRunNoticeText(),
-            19,
+            18,
             TextAnchor.UpperLeft,
             new Color32(38, 31, 25, 255),
-            FontStyle.Bold);
-        firstRunNoticeBodyText.lineSpacing = 1.08f;
+            FontStyle.Normal);
+        firstRunNoticeBodyText.lineSpacing = 1.12f;
 
         Text footer = CreateText(
             firstRunNoticeRoot,
@@ -2351,7 +2351,7 @@ public sealed class CareReviewGame : MonoBehaviour
             16,
             TextAnchor.MiddleCenter,
             new Color32(73, 58, 44, 255),
-            FontStyle.Bold);
+            FontStyle.Normal);
         SetRect(footer.rectTransform, new Vector2(0, -234), new Vector2(840, 34));
 
         CreateTextButton(firstRunNoticeRoot, "확인하고 시작", new Vector2(0, -298), new Vector2(290, 62), new Color32(47, 73, 74, 238), AcceptFirstRunNotice);
@@ -2361,12 +2361,14 @@ public sealed class CareReviewGame : MonoBehaviour
     {
         return
             "이 게임은 합성 사례를 바탕으로 만든 교육용 의사결정 시뮬레이션입니다.\n\n" +
-            "- 게임 속 가족, 기관, 지역, 예산, 사건은 실제 개인이나 실제 행정 기록이 아닙니다.\n" +
-            "- 실제 이름, 연락처, 주소, 식별번호, 상담 원문은 포함하지 않습니다.\n" +
+            "다음 내용을 확인해 주세요.\n\n" +
+            "- 가족, 기관, 지역, 예산, 사건은 실제 개인이나 실제 행정 기록이 아닙니다.\n" +
+            "- 실제 이름, 연락처, 주소, 식별번호, 상담 원문은 쓰지 않았습니다.\n" +
             "- 저장 파일과 플레이 기록은 이 PC의 로컬 저장소에만 남습니다.\n" +
-            "- 게임은 서버로 데이터를 자동 업로드하지 않습니다.\n" +
-            "- 설정에서 로컬 데이터 삭제를 실행할 수 있습니다.\n" +
-            "- 게임의 판단 기준은 실제 복지, 행정, 법률, 의료, 상담 판단을 대체하지 않습니다.\n\n" +
+            "- 서버 자동 업로드는 하지 않습니다.\n" +
+            "- 필요하면 설정에서 로컬 데이터 삭제를 실행할 수 있습니다.\n" +
+            "- 게임의 판단 기준은 실제 복지, 행정, 법률, 의료, 상담 판단을\n" +
+            "  대체하지 않습니다.\n\n" +
             "확인 후 메인 메뉴에서 첫 근무 시작을 누르면 4장 안내가 열립니다.";
     }
 
@@ -5250,12 +5252,12 @@ public sealed class CareReviewGame : MonoBehaviour
         }
 
         string currentCase = currentIndex < cases.Count
-            ? $"현재 사례: {cases[currentIndex].id} {Shorten(cases[currentIndex].name, 12)}"
-            : "현재 사례: 최종 리포트";
+            ? $"현재 {cases[currentIndex].id} {Shorten(cases[currentIndex].name, 12)}"
+            : "현재 최종 리포트";
 
         return
-            $"운영 기준: {CampaignMandateLabel(campaignMandate)} · 진행 {Mathf.Min(currentIndex + 1, cases.Count)}/{cases.Count} · 판단 {logs.Count}건 · {currentCase}\n" +
-            $"지원 {supportCount} · 추가조사 {investigationCount} · 지연/거절 {delayCount} · 권장 불일치 {mismatchCount} · 누적 지출 {totalSpent}만원 · 위험 증가 {totalRiskDelta}";
+            $"운영 기준 / {CampaignMandateLabel(campaignMandate)} · 진행 {Mathf.Min(currentIndex + 1, cases.Count)}/{cases.Count} · 판단 {logs.Count}건 · {currentCase}\n" +
+            $"지원 {supportCount} · 조사 {investigationCount} · 지연/거절 {delayCount} · 권장 불일치 {mismatchCount} · 지출 {totalSpent}만원 · 위험 +{totalRiskDelta}";
     }
 
     private string BuildDecisionHistoryBodyText()
@@ -5289,7 +5291,10 @@ public sealed class CareReviewGame : MonoBehaviour
             DecisionLog log = logs[i];
             string mark = log.matchedRecommended ? "일치" : "불일치";
             int riskDelta = Mathf.Max(0, log.missedRiskAfter - log.missedRiskBefore) + Mathf.Max(0, log.complaintsAfter - log.complaintsBefore);
-            builder.AppendLine($"{log.decisionIndex:00}. {log.caseId} D{log.day} {Shorten(log.caseName, 7)} · {ShortDecision(log.decision)}/{ShortDecision(log.recommendedDecision)} {mark} · 근거 {Shorten(DecisionRationaleLabelForLog(log), 7)} · 예산 {log.budgetBefore}->{log.budgetAfter} · 위험 +{riskDelta} · {Shorten(DecisionAuditFlags(log), 20)}");
+            builder.AppendLine($"{log.decisionIndex:00}. {log.caseId} / {log.day}일차 / {Shorten(log.caseName, 7)}");
+            builder.AppendLine($"    결정: {ShortDecision(log.decision)} 확정 · 권장 {mark}");
+            builder.AppendLine($"    근거: {Shorten(DecisionRationaleLabelForLog(log), 7)} · 예산 {log.budgetBefore} → {log.budgetAfter}만원 · 위험 +{riskDelta}");
+            builder.AppendLine($"    감사: {Shorten(DecisionAuditFlags(log), 14)}");
         }
 
         if (currentIndex < cases.Count)
@@ -8532,9 +8537,29 @@ public sealed class CareReviewGame : MonoBehaviour
         bool bodyMentionsCase = decisionHistoryBodyText != null && decisionHistoryBodyText.text.Contains(cases[0].id);
         bool bodyMentionsAuditFlags = decisionHistoryBodyText != null && decisionHistoryBodyText.text.Contains("위험 +");
         bool bodyMentionsBudget = decisionHistoryBodyText != null && decisionHistoryBodyText.text.Contains("예산");
+        bool bodyUsesReadableDayLabel = decisionHistoryBodyText != null &&
+            decisionHistoryBodyText.text.Contains("1일차") &&
+            !decisionHistoryBodyText.text.Contains(cases[0].id + " D1");
+        bool bodyUsesReadableDecisionLabel = decisionHistoryBodyText != null &&
+            decisionHistoryBodyText.text.Contains("결정:") &&
+            decisionHistoryBodyText.text.Contains("확정") &&
+            decisionHistoryBodyText.text.Contains("권장 ") &&
+            decisionHistoryBodyText.text.Contains("근거:") &&
+            decisionHistoryBodyText.text.Contains("만원");
+        float bodyMaxDisplayLineWidth = decisionHistoryBodyText != null ? MaxDisplayLineWidth(decisionHistoryBodyText.text) : 999f;
         HideDecisionHistory();
         bool closeReturnsReview = reviewRoot.gameObject.activeSelf && decisionHistoryRoot != null && !decisionHistoryRoot.gameObject.activeSelf;
-        bool completed = emptyStateVisible && historyRootActive && summaryMentionsCount && bodyMentionsCase && bodyMentionsAuditFlags && bodyMentionsBudget && closeReturnsReview;
+        bool completed =
+            emptyStateVisible &&
+            historyRootActive &&
+            summaryMentionsCount &&
+            bodyMentionsCase &&
+            bodyMentionsAuditFlags &&
+            bodyMentionsBudget &&
+            bodyUsesReadableDayLabel &&
+            bodyUsesReadableDecisionLabel &&
+            bodyMaxDisplayLineWidth <= 86f &&
+            closeReturnsReview;
 
         string resultPath = Path.Combine(Application.persistentDataPath, "care_review_decision_history_smoke_result.json");
         string resultJson =
@@ -8546,6 +8571,9 @@ public sealed class CareReviewGame : MonoBehaviour
             $"  \"bodyMentionsCase\": {(bodyMentionsCase ? "true" : "false")},\n" +
             $"  \"bodyMentionsAuditFlags\": {(bodyMentionsAuditFlags ? "true" : "false")},\n" +
             $"  \"bodyMentionsBudget\": {(bodyMentionsBudget ? "true" : "false")},\n" +
+            $"  \"bodyUsesReadableDayLabel\": {(bodyUsesReadableDayLabel ? "true" : "false")},\n" +
+            $"  \"bodyUsesReadableDecisionLabel\": {(bodyUsesReadableDecisionLabel ? "true" : "false")},\n" +
+            $"  \"bodyMaxDisplayLineWidth\": {bodyMaxDisplayLineWidth:0.0},\n" +
             $"  \"closeReturnsReview\": {(closeReturnsReview ? "true" : "false")},\n" +
             $"  \"logCount\": {logs.Count}\n" +
             "}\n";
@@ -14695,6 +14723,10 @@ public sealed class CareReviewGame : MonoBehaviour
             bool mentionsLocalDataDelete = body.Contains("로컬 데이터 삭제");
             bool mentionsNotAdvice = body.Contains("실제 복지") && body.Contains("대체하지 않습니다");
             bool mentionsFirstWorkStart = body.Contains("첫 근무 시작") && body.Contains("4장 안내");
+            bool usesPlayerFacingIntro = body.Contains("다음 내용을 확인해 주세요") &&
+                body.Contains("쓰지 않았습니다") &&
+                body.Contains("필요하면 설정에서");
+            float bodyMaxDisplayLineWidth = MaxDisplayLineWidth(body);
 
             AcceptFirstRunNotice();
             yield return null;
@@ -14705,7 +14737,7 @@ public sealed class CareReviewGame : MonoBehaviour
 
             string resultBody =
                 "{\n" +
-                $"  \"completed\": {(noticeActiveBeforeAccept && noticeBlocksUnderlyingInput && preferenceSaved && noticeHiddenAfterAccept && menuVisibleAfterAccept && mentionsSyntheticCases && mentionsNoPersonalData && mentionsLocalStorage && mentionsNoAutomaticUpload && omitsSupportBundle && mentionsLocalDataDelete && mentionsNotAdvice && mentionsFirstWorkStart ? "true" : "false")},\n" +
+                $"  \"completed\": {(noticeActiveBeforeAccept && noticeBlocksUnderlyingInput && preferenceSaved && noticeHiddenAfterAccept && menuVisibleAfterAccept && mentionsSyntheticCases && mentionsNoPersonalData && mentionsLocalStorage && mentionsNoAutomaticUpload && omitsSupportBundle && mentionsLocalDataDelete && mentionsNotAdvice && mentionsFirstWorkStart && usesPlayerFacingIntro && bodyMaxDisplayLineWidth <= 62f ? "true" : "false")},\n" +
                 $"  \"noticeActiveBeforeAccept\": {(noticeActiveBeforeAccept ? "true" : "false")},\n" +
                 $"  \"noticeBlocksUnderlyingInput\": {(noticeBlocksUnderlyingInput ? "true" : "false")},\n" +
                 $"  \"preferenceSaved\": {(preferenceSaved ? "true" : "false")},\n" +
@@ -14719,6 +14751,8 @@ public sealed class CareReviewGame : MonoBehaviour
                 $"  \"mentionsLocalDataDelete\": {(mentionsLocalDataDelete ? "true" : "false")},\n" +
                 $"  \"mentionsNotAdvice\": {(mentionsNotAdvice ? "true" : "false")},\n" +
                 $"  \"mentionsFirstWorkStart\": {(mentionsFirstWorkStart ? "true" : "false")},\n" +
+                $"  \"usesPlayerFacingIntro\": {(usesPlayerFacingIntro ? "true" : "false")},\n" +
+                $"  \"bodyMaxDisplayLineWidth\": {bodyMaxDisplayLineWidth:0.0},\n" +
                 $"  \"bodyLength\": {body.Length},\n";
             bool filesHaveNoLocalAbsolutePath = !ContainsLocalAbsolutePath(resultBody);
             string resultJson = resultBody +
@@ -14804,9 +14838,10 @@ public sealed class CareReviewGame : MonoBehaviour
             bool firstWorkButtonReady = newCampaignLabel.Contains("첫 근무 시작");
             bool menuGuidesFirstAction = menuStatus.Contains("처음이면") &&
                 menuStatus.Contains("첫 근무 시작") &&
-                menuStatus.Contains("4장 안내") &&
-                menuStatus.Contains("첫 신청서");
+                menuStatus.Contains("이어하기") &&
+                menuStatus.Contains("운영 기준");
             bool menuShowsTodayOrder = menuStatus.Contains("오늘 순서") &&
+                menuStatus.Contains("4장 안내") &&
                 menuStatus.Contains("문서 읽기") &&
                 menuStatus.Contains("기준 확인") &&
                 menuStatus.Contains("도장 선택");
@@ -15017,7 +15052,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 menuRoot != null &&
                 menuRoot.gameObject.activeSelf &&
                 menuFirstActionLine.Contains("처음이면") &&
-                menuFirstActionLine.Contains("새 캠페인") &&
+                (menuFirstActionLine.Contains("첫 근무") || menuFirstActionLine.Contains("새 캠페인")) &&
                 menuFirstActionLine.Contains("이어하기") &&
                 menuFirstActionLine.Contains("기준") &&
                 menuFirstActionWidth <= 54f;
@@ -20847,8 +20882,8 @@ public sealed class CareReviewGame : MonoBehaviour
         if (freshStartState)
         {
             menuStatusText.text =
-                "처음이면 N 새 캠페인 · C 이어하기 · D 운영 기준\n" +
-                "오늘 순서: 문서 -> 기준표 -> 도장 -> 리포트\n" +
+                "처음이면 N 첫 근무 시작 · C 이어하기 · D 운영 기준\n" +
+                "오늘 순서: 4장 안내 -> 문서 읽기 -> 기준 확인 -> 도장 선택\n" +
                 $"운영 기준: {CampaignMandateLabel(campaignMandate)} · 시작 예산 {StartingBudgetForMandate(campaignMandate)}만원\n" +
                 BuildMainMenuAchievementBadgeLine() + "\n" +
                 caseObjectiveLine;
