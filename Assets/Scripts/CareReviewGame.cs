@@ -2227,7 +2227,7 @@ public sealed class CareReviewGame : MonoBehaviour
             TextAnchor.UpperLeft,
             new Color32(244, 232, 205, 255),
             FontStyle.Normal);
-        careerRecordDetailText.lineSpacing = 1.0f;
+        careerRecordDetailText.lineSpacing = 0.92f;
 
         careerRecordActionHintText = CreateText(
             careerRecordRoot,
@@ -23282,16 +23282,17 @@ public sealed class CareReviewGame : MonoBehaviour
         builder.AppendLine(BuildCareerRecordViewHeader(filterLabel, CareerRecordViewMode.Summary));
         builder.AppendLine(
             $"최근 캠페인 기록: {Shorten(latest.completedAt, 16)} · {latest.campaignGrade}{latest.campaignScore}점 · " +
-            $"엔딩 {latest.endingTitle} · 마지막 회차 세부 아래");
+            $"엔딩 {latest.endingTitle}");
         builder.AppendLine(
-            $"챌린지: {Shorten(latest.campaignChallengeTitle, 14)} · 내 판단 기준 {Shorten(FallbackText(latest.closestAgentPersonaName, "기록 없음"), 8)} · " +
-            $"조사 후속 {latest.investigationFollowUpCount}건{replayRewardState}");
-        builder.AppendLine(
-            $"성장 비교: 직전/이전 최고/비교 초점 · 성장 목표 요약: 목표 {Mathf.Max(1, growthCount)}회/후속 {Mathf.Max(1, growthFollowUpCount)}회/{growthState}");
-        builder.AppendLine(
-            $"동일 사례 회고: {FallbackText(latest.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과 · 브리핑 회고: 예고 위험/예고 보상/실제 결과");
-        builder.AppendLine(
-            $"이의제기 누적: 즉시 재검토 {FallbackText(latest.appealReviewCaseId, "C-031")} · 보정 목표 요약: {appealRate}/최근 미달/{FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")} · 판단 복기/추천 운영/검증 질문");
+            $"마지막 회차 세부 아래 · 챌린지 {Shorten(latest.campaignChallengeTitle, 14)} · " +
+            $"내 판단 기준 {Shorten(FallbackText(latest.closestAgentPersonaName, "기록 없음"), 8)} · 조사 후속 {latest.investigationFollowUpCount}건{replayRewardState}");
+        builder.AppendLine("성장 비교: 직전 / 이전 최고 / 비교 초점");
+        builder.AppendLine($"성장 목표 요약: 목표 {Mathf.Max(1, growthCount)}회 · 후속 {Mathf.Max(1, growthFollowUpCount)}회 · {growthState}");
+        builder.AppendLine($"동일 사례 회고: {FallbackText(latest.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과");
+        builder.AppendLine("브리핑 회고: 예고 위험 · 예고 보상 · 실제 결과");
+        builder.AppendLine($"이의제기 누적: 즉시 재검토 {FallbackText(latest.appealReviewCaseId, "C-031")}");
+        builder.AppendLine($"보정 목표 요약: {appealRate} · 최근 미달 · {FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")}");
+        builder.AppendLine("판단 복기: 추천 운영 · 검증 질문");
         if (focusedRecord != null && !string.IsNullOrWhiteSpace(focusLabel))
         {
             builder.AppendLine($"▶ 포커스: {focusLabel} · {Shorten(latest.completedAt, 16)}");
@@ -24173,12 +24174,12 @@ public sealed class CareReviewGame : MonoBehaviour
 
         StringBuilder builder = new();
         builder.AppendLine(focused ? "선택 회차 요약 · 엔딩 기록 연결" : "선택 회차 요약 · 최근 완료 회차");
-        builder.AppendLine($"회차 해석: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · 상세 회고 [선택 상세]");
+        builder.AppendLine($"회차 해석: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · [선택 상세]");
         builder.AppendLine($"판단: 지원{record.supportCount} · 조사{record.investigationCount} · 보류{record.holdCount} · 거절{record.rejectCount} · 권장{record.matchedRecommendedCount}/{record.logCount} · 기준 {Shorten(FallbackText(record.closestAgentPersonaName, "기록 없음"), 8)}");
         builder.AppendLine($"사례 링크: 대표 사례 {FallbackText(record.representativeCaseId, "없음")} · 조사 메모 {FallbackText(record.investigationMemoCaseId, "없음")}");
         builder.AppendLine("조사 타임라인: 후속 반영 · 최종 지표");
         builder.AppendLine($"동일 사례 회고: {FallbackText(record.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과 · 보정 전/후 그래프");
-        builder.AppendLine("브리핑 회고: 예고 위험/예고 보상/실제 결과");
+        builder.AppendLine("브리핑 회고: 예고 위험 · 예고 보상 · 실제 결과");
 
         if (record.appealReviewCount > 0)
         {
@@ -24193,8 +24194,8 @@ public sealed class CareReviewGame : MonoBehaviour
         string caseId = string.IsNullOrWhiteSpace(record.decisionAuditCoachingAppealCaseId)
             ? FallbackText(record.representativeCaseId, "대표 사례")
             : record.decisionAuditCoachingAppealCaseId;
-        builder.AppendLine($"판단 복기: 추천 운영 · 실행 규칙 · 검증 질문");
-        builder.AppendLine($"기록 복귀 안내: 복기 사례 {caseId} · 기록 복귀 · 처음 열 때: 압박 패턴");
+        builder.AppendLine($"판단 복기: 추천 운영 · 검증 질문 · 기록 복귀 {caseId}");
+        builder.AppendLine($"기록 복귀 안내: 복기 사례 {caseId} · 실행 규칙 · 처음 열 때 압박 패턴");
         return WrapCareerRecordDetailText(builder.ToString());
     }
 
