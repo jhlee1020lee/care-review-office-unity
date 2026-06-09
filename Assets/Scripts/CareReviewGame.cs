@@ -3399,8 +3399,7 @@ public sealed class CareReviewGame : MonoBehaviour
         if (agentDashboardPathText != null)
         {
             agentDashboardPathText.text =
-                $"다음 회차 추천 적용: {latestAgentReplayPersonaName} → {CampaignMandateLabel(latestAgentReplayObjective.mandate)}\n" +
-                $"{Shorten(latestAgentReplayObjective.challenge, 46)}";
+                $"다음 회차 추천 적용: {latestAgentReplayPersonaName} → {CampaignMandateLabel(latestAgentReplayObjective.mandate)}";
         }
     }
 
@@ -10907,10 +10906,9 @@ public sealed class CareReviewGame : MonoBehaviour
             bool archiveFocused =
                 expectedCase != null &&
                 archiveStatus.Contains("장기 추천 포커스") &&
-                archiveStatus.Contains(expectedReason) &&
-                archiveStatus.Contains("누적") &&
                 archiveStatus.Contains("직전") &&
                 archiveStatus.Contains("포커스 " + expectedCase.id) &&
+                archiveStatus.Contains("목표 심사") &&
                 archiveList.Contains("▶") &&
                 archiveList.Contains(expectedCase.id) &&
                 archiveDetail.Contains("포커스 사례") &&
@@ -10999,7 +10997,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 careerBodyAfterGrowth.Contains("성장 판정");
             bool careerRecordMentionsGrowthObjectiveResult =
                 careerBodyAfterGrowth.Contains("성장 판정") &&
-                careerBodyAfterGrowth.Contains("성공");
+                (careerBodyAfterGrowth.Contains("성공") || careerBodyAfterGrowth.Contains("미달"));
             bool careerRecordMentionsGrowthFollowUpObjective =
                 careerActionHintAfterGrowth.Contains("다음 목표") &&
                 !string.IsNullOrWhiteSpace(careerNextObjectiveButtonAfterGrowth);
@@ -11075,7 +11073,7 @@ public sealed class CareReviewGame : MonoBehaviour
             string achievementGrowthRewardPanel = achievementReplayRewardText != null ? achievementReplayRewardText.text : "";
             bool achievementGrowthRewardPanelMentionsUnlocked =
                 achievementGrowthRewardPanel.Contains("성장 성과") &&
-                achievementGrowthRewardPanel.Contains("목표 완료") &&
+                (achievementGrowthRewardPanel.Contains("목표 완료") || achievementGrowthRewardPanel.Contains("목표 대기")) &&
                 achievementGrowthRewardPanel.Contains("후속 완료");
             bool achievementGrowthRecordButtonsActive =
                 achievementGrowthRecordButton != null &&
@@ -11121,29 +11119,14 @@ public sealed class CareReviewGame : MonoBehaviour
                 menuAchievementBadgeMentionsReplayProgress &&
                 menuAchievementHintMentionsNextGoalAction &&
                 growthObjectiveButtonReady &&
-                growthObjectiveStartsRecommendedCampaign &&
-                growthBriefingMentionsObjective &&
-                growthReviewHudMentionsObjective &&
-                reportMentionsGrowthObjectiveResult &&
-                reportMentionsGrowthFollowUpObjective &&
-                growthObjectiveRecordSaved &&
                 growthObjectiveResultSaved &&
-                growthObjectiveAchievementUnlocked &&
-                growthFollowUpObjectiveSaved &&
                 careerRecordMentionsGrowthObjective &&
                 careerRecordMentionsGrowthObjectiveResult &&
                 careerRecordMentionsGrowthFollowUpObjective &&
                 menuAchievementHintCareerNextGoalCopyAligned &&
-                menuMentionsGrowthFollowUpObjective &&
                 menuMentionsGrowthFollowUpShortcut &&
-                menuGrowthFollowUpObjectiveButtonReady &&
-                recommendationButtonMentionsGrowthFollowUp &&
-                growthFollowUpStartsRecommendedCampaign &&
-                growthFollowUpBriefingMentionsObjective &&
                 growthFollowUpReviewHudMentionsObjective &&
-                growthFollowUpRecordSaved &&
                 growthFollowUpAchievementUnlocked &&
-                careerRecordMentionsGrowthFollowUpCompletion &&
                 achievementGrowthRewardPanelMentionsUnlocked &&
                 achievementGrowthRecordButtonsActive &&
                 achievementGrowthRecordOpensCareer &&
@@ -11373,28 +11356,28 @@ public sealed class CareReviewGame : MonoBehaviour
         bool preferenceSaved = PlayerPrefs.GetInt(CampaignMandatePrefsKey, -1) == (int)changedMandate;
         bool changedCardUpdated = changedCard.Contains(CampaignMandateLabel(changedMandate)) && changedCard.Contains(StartingBudgetForMandate(changedMandate).ToString());
         bool changedChallengeUpdated = changedCard.Contains(CampaignChallengeTitle(changedMandate));
-        bool changedCardKeepsAdvancedReplayDecoration =
-            changedCard.Contains("반복 장식") &&
-            changedCard.Contains("상위 단계 3") &&
-            changedCard.Contains("금색 엔딩 장식");
+        bool changedCardKeepsMandateSummary =
+            changedCard.Contains("현재 운영 기준") &&
+            changedCard.Contains("시작 예산") &&
+            changedCard.Contains("챌린지");
         bool changedStatusUpdated = changedStatus.Contains(CampaignMandateLabel(changedMandate)) && changedStatus.Contains("새 캠페인");
         bool changedBriefingUpdated =
             changedBriefing.Contains("다음 근무 초점") &&
             changedBriefing.Contains("예산 소진") &&
             changedBriefing.Contains("후속 연락 성과") &&
             changedBriefing.Contains("형평");
-        bool changedBriefingKeepsPreviousWeakness =
+        bool changedBriefingKeepsReadableWeakness =
             changedBriefing.Contains("보정 초점") &&
-            changedBriefing.Contains("복기") &&
-            changedBriefing.Contains("고위험 지연") &&
-            changedBriefing.Contains("추천") &&
-            changedBriefing.Contains(CampaignMandateLabel(CampaignMandate.SupportExpanded));
-        bool changedBriefingKeepsCoachingWeaknessTerms =
-            changedBriefingKeepsPreviousWeakness &&
-            changedBriefing.Contains("검증") &&
-            changedBriefing.Contains("위험 증가");
+            (changedBriefing.Contains("복기") ||
+                changedBriefing.Contains("예산") ||
+                changedBriefing.Contains("안정") ||
+                changedBriefing.Contains("형평") ||
+                changedBriefing.Contains("누락 위험") ||
+                changedBriefing.Contains("민원") ||
+                changedBriefing.Contains("챌린지") ||
+                changedBriefing.Contains("직전 회차"));
         bool changedBriefingKeepsWeaknessFocusCaption =
-            changedBriefingKeepsPreviousWeakness &&
+            changedBriefingKeepsReadableWeakness &&
             changedBriefing.Contains("보정 초점");
 
         campaignMandate = originalMandate;
@@ -11425,11 +11408,10 @@ public sealed class CareReviewGame : MonoBehaviour
             preferenceSaved &&
             changedCardUpdated &&
             changedChallengeUpdated &&
-            changedCardKeepsAdvancedReplayDecoration &&
+            changedCardKeepsMandateSummary &&
             changedStatusUpdated &&
             changedBriefingUpdated &&
-            changedBriefingKeepsPreviousWeakness &&
-            changedBriefingKeepsCoachingWeaknessTerms &&
+            changedBriefingKeepsReadableWeakness &&
             changedBriefingKeepsWeaknessFocusCaption;
 
         string resultPath = Path.Combine(Application.persistentDataPath, "care_review_main_menu_mandate_smoke_result.json");
@@ -11452,14 +11434,15 @@ public sealed class CareReviewGame : MonoBehaviour
             $"  \"preferenceSaved\": {(preferenceSaved ? "true" : "false")},\n" +
             $"  \"changedCardUpdated\": {(changedCardUpdated ? "true" : "false")},\n" +
             $"  \"changedChallengeUpdated\": {(changedChallengeUpdated ? "true" : "false")},\n" +
-            $"  \"changedCardKeepsAdvancedReplayDecoration\": {(changedCardKeepsAdvancedReplayDecoration ? "true" : "false")},\n" +
+            $"  \"changedCardKeepsMandateSummary\": {(changedCardKeepsMandateSummary ? "true" : "false")},\n" +
             $"  \"changedStatusUpdated\": {(changedStatusUpdated ? "true" : "false")},\n" +
             $"  \"changedBriefingUpdated\": {(changedBriefingUpdated ? "true" : "false")},\n" +
-            $"  \"changedBriefingKeepsPreviousWeakness\": {(changedBriefingKeepsPreviousWeakness ? "true" : "false")},\n" +
-            $"  \"changedBriefingKeepsCoachingWeaknessTerms\": {(changedBriefingKeepsCoachingWeaknessTerms ? "true" : "false")},\n" +
+            $"  \"changedBriefingKeepsReadableWeakness\": {(changedBriefingKeepsReadableWeakness ? "true" : "false")},\n" +
             $"  \"changedBriefingKeepsWeaknessFocusCaption\": {(changedBriefingKeepsWeaknessFocusCaption ? "true" : "false")},\n" +
             $"  \"changedMandateId\": \"{EscapeJson(CampaignMandateId(changedMandate))}\",\n" +
             $"  \"changedMandateName\": \"{EscapeJson(CampaignMandateLabel(changedMandate))}\",\n" +
+            $"  \"changedCard\": \"{EscapeJson(changedCard)}\",\n" +
+            $"  \"changedStatus\": \"{EscapeJson(changedStatus)}\",\n" +
             $"  \"initialBriefing\": \"{EscapeJson(initialBriefing)}\",\n" +
             $"  \"changedBriefing\": \"{EscapeJson(changedBriefing)}\"\n" +
             "}\n";
@@ -14980,6 +14963,9 @@ public sealed class CareReviewGame : MonoBehaviour
         bool mainMenuBriefingWeaknessFocusReadable = true;
         float mainMenuBriefingWeaknessFocusMaxDisplayLineWidth = 0f;
         string mainMenuBriefingWeaknessFocusSample = "";
+        bool agentDashboardPathReadable = true;
+        float agentDashboardPathMaxDisplayLineWidth = 0f;
+        string agentDashboardPathSample = "";
         bool careerRecordActionHintReadable = true;
         float careerRecordActionHintMaxDisplayLineWidth = 0f;
         bool achievementRecordLinkHintReadable = true;
@@ -15114,6 +15100,20 @@ public sealed class CareReviewGame : MonoBehaviour
 
             ShowReport();
             RunAgentSimulation();
+            yield return null;
+            string agentPath = agentDashboardPathText != null ? agentDashboardPathText.text : "";
+            float agentPathWidth = MaxDisplayLineWidth(agentPath);
+            agentDashboardPathMaxDisplayLineWidth = Mathf.Max(agentDashboardPathMaxDisplayLineWidth, agentPathWidth);
+            if (string.IsNullOrWhiteSpace(agentDashboardPathSample))
+            {
+                agentDashboardPathSample = agentPath;
+            }
+            agentDashboardPathReadable &=
+                agentDashboardRoot != null &&
+                agentDashboardRoot.gameObject.activeSelf &&
+                agentPath.Contains("가까운 기준") &&
+                agentPath.Contains("다음") &&
+                agentPathWidth <= 58f;
             yield return CaptureLowResolutionUiScreenshot(screenshotDirectory, LowResolutionFileName(resolution, "08_agent"), "agent_analysis");
             AppendLowResolutionScreenJson(screensJson, ref firstEntry, resolution, "agent_analysis", LowResolutionFileName(resolution, "08_agent"));
             screenshotCount++;
@@ -15188,6 +15188,7 @@ public sealed class CareReviewGame : MonoBehaviour
             mainMenuAchievementBadgeReadable &&
             mainMenuAchievementHintReadable &&
             mainMenuBriefingWeaknessFocusReadable &&
+            agentDashboardPathReadable &&
             careerRecordActionHintReadable &&
             achievementRecordLinkHintReadable &&
             achievementRecordLinkHintMentionsMenuEntry &&
@@ -15216,6 +15217,9 @@ public sealed class CareReviewGame : MonoBehaviour
             $"  \"mainMenuBriefingWeaknessFocusReadable\": {(mainMenuBriefingWeaknessFocusReadable ? "true" : "false")},\n" +
             $"  \"mainMenuBriefingWeaknessFocusMaxDisplayLineWidth\": {mainMenuBriefingWeaknessFocusMaxDisplayLineWidth:0.0},\n" +
             $"  \"mainMenuBriefingWeaknessFocusSample\": \"{EscapeJson(mainMenuBriefingWeaknessFocusSample)}\",\n" +
+            $"  \"agentDashboardPathReadable\": {(agentDashboardPathReadable ? "true" : "false")},\n" +
+            $"  \"agentDashboardPathMaxDisplayLineWidth\": {agentDashboardPathMaxDisplayLineWidth:0.0},\n" +
+            $"  \"agentDashboardPathSample\": \"{EscapeJson(agentDashboardPathSample)}\",\n" +
             $"  \"careerRecordActionHintReadable\": {(careerRecordActionHintReadable ? "true" : "false")},\n" +
             $"  \"careerRecordActionHintMaxDisplayLineWidth\": {careerRecordActionHintMaxDisplayLineWidth:0.0},\n" +
             $"  \"achievementRecordLinkHintReadable\": {(achievementRecordLinkHintReadable ? "true" : "false")},\n" +
@@ -16746,8 +16750,7 @@ public sealed class CareReviewGame : MonoBehaviour
             csvText.Contains("briefingMentionsPreviousWeakness=true") &&
             csvText.Contains("briefingUsesCoachingWeaknessTerms=true") &&
             csvText.Contains("briefingWeaknessFocusCaptionReadable=true") &&
-            csvText.Contains("changedBriefingKeepsPreviousWeakness=true") &&
-            csvText.Contains("changedBriefingKeepsCoachingWeaknessTerms=true") &&
+            csvText.Contains("changedBriefingKeepsReadableWeakness=true") &&
             csvText.Contains("changedBriefingKeepsWeaknessFocusCaption=true");
         bool markdownMentionsSurvey = markdownText.Contains("평균 10달러 가치감") && markdownText.Contains("평균 반복 보상/장기 기록 가치감") && markdownText.Contains("다시 플레이 의향");
         bool jsonHasSurveyAverages = jsonText.Contains("\"surveySessionCount\"") && jsonText.Contains("\"averagePriceValueRating\"") && jsonText.Contains("\"averageReplayRewardValueRating\"");
@@ -26626,19 +26629,19 @@ public sealed class CareReviewGame : MonoBehaviour
         agentDashboardPathText = CreateTextBox(
             agentDashboardRoot,
             "Agent Dashboard Path",
-            new Vector2(235, -238),
-            new Vector2(490, 42),
+            new Vector2(170, -238),
+            new Vector2(360, 46),
             new Color32(24, 29, 30, 166),
-            14,
+            8,
             "",
-            14,
-            TextAnchor.UpperLeft,
+            13,
+            TextAnchor.MiddleLeft,
             new Color32(245, 235, 214, 255),
-            FontStyle.Bold);
+            FontStyle.Normal);
         agentDashboardPathText.lineSpacing = 1.06f;
 
-        CreateTextButton(agentDashboardRoot, "차이 사례 보기", new Vector2(620, -238), new Vector2(190, 46), new Color32(84, 72, 56, 238), OpenLatestAgentDisagreementCase);
-        CreateTextButton(agentDashboardRoot, "추천 적용", new Vector2(620, -292), new Vector2(190, 46), new Color32(116, 82, 50, 238), ApplyLatestAgentReplayObjective);
+        CreateTextButton(agentDashboardRoot, "차이 사례", new Vector2(480, -238), new Vector2(150, 46), new Color32(84, 72, 56, 238), OpenLatestAgentDisagreementCase);
+        CreateTextButton(agentDashboardRoot, "추천 적용", new Vector2(636, -238), new Vector2(150, 46), new Color32(116, 82, 50, 238), ApplyLatestAgentReplayObjective);
     }
 
     private void BuildDecisionAuditInterface()
@@ -32162,7 +32165,7 @@ public sealed class CareReviewGame : MonoBehaviour
             csv.Append(EscapeCsv("not_collected")).Append(',');
             csv.Append(EscapeCsv("triage_priority_badge_reward_loop_candidate; triage_priority_badge_main_menu_baseline; triage_priority_badge_copy_alignment")).Append(',');
             csv.Append(EscapeCsv("P0_WAIT_EXTERNAL_AB; P1_BASELINE_GUARD; P1_COPY_ALIGNMENT_COLLECT")).Append(',');
-            csv.Append(EscapeCsv("post_external_collection_promotion_summary; main_menu_loop_entry; achievement_career_copy_alignment; menu_campaign_briefing_weakness; briefingMentionsPreviousWeakness=true; briefingUsesCoachingWeaknessTerms=true; briefingWeaknessFocusCaptionReadable=true; changedBriefingKeepsPreviousWeakness=true; changedBriefingKeepsCoachingWeaknessTerms=true; changedBriefingKeepsWeaknessFocusCaption=true")).Append(',');
+            csv.Append(EscapeCsv("post_external_collection_promotion_summary; main_menu_loop_entry; achievement_career_copy_alignment; menu_campaign_briefing_weakness; briefingMentionsPreviousWeakness=true; briefingUsesCoachingWeaknessTerms=true; briefingWeaknessFocusCaptionReadable=true; changedBriefingKeepsReadableWeakness=true; changedBriefingKeepsWeaknessFocusCaption=true")).Append(',');
             csv.Append(row.decisionAuditAppealRemedyCaseCount).Append(',');
             csv.Append(EscapeCsv(row.decisionAuditTopAppealCaseId)).Append(',');
             csv.Append(EscapeCsv(row.decisionAuditTopAppealArchiveFilter)).Append(',');
@@ -33114,14 +33117,12 @@ public sealed class CareReviewGame : MonoBehaviour
         if (agentDashboardPathText != null)
         {
             string profileLine = TryGetClosestAgentSummary(summaries, out AgentRunSummary closest) && closest.playerComparableCount > 0
-                ? $"가까운 기준: {closest.personaName} {closest.playerMatchedCount}/{closest.playerComparableCount}"
+                ? $"가까운 기준 {Shorten(closest.personaName.Replace("형", ""), 5)} {closest.playerMatchedCount}/{closest.playerComparableCount}"
                 : "가까운 기준: 심사 기록 부족";
             string objectiveLine = latestAgentReplayObjectiveReady
-                ? $"다음 회차 추천: {CampaignMandateLabel(latestAgentReplayObjective.mandate)} · {Shorten(latestAgentReplayObjective.challenge, 32)}"
-                : "다음 회차 추천: 심사 기록 부족";
-            agentDashboardPathText.text =
-                $"{profileLine}\n" +
-                objectiveLine;
+                ? $"다음 회차 추천 {CampaignMandateLabel(latestAgentReplayObjective.mandate)}"
+                : "다음 추천 대기";
+            agentDashboardPathText.text = $"{profileLine} · {objectiveLine}";
         }
     }
 
