@@ -577,10 +577,10 @@ public sealed class CareReviewGame : MonoBehaviour
     };
     private static readonly string[] TutorialBodies =
     {
-        "오늘은 접수된 돌봄지원 신청서를 제한된 예산 안에서 처리합니다.\n\n각 판단은 가족 안정도, 형평성, 누락 위험, 민원 위험을 바꿉니다. 모든 가족을 바로 승인할 수 없으므로 오늘의 위험 신호를 먼저 읽고 기준을 세워야 합니다.",
-        "중앙 신청서에서 가족 유형, 요청, 요약, 위험 신호를 먼저 봅니다.\n\n위쪽 신청서/소득증명 탭에서는 누락 서류와 증빙 강도를 확인합니다. 오른쪽 운영 기준과 누적 지표를 보면서 지원, 조건부, 추가조사, 보류, 거절 중 하나를 고릅니다.",
-        "도장 위 미리보기 줄에서 예산 변화와 위험 변화를 비교합니다.\n\n승인은 안정도를 크게 올리지만 예산을 많이 씁니다. 조건부 승인은 비용을 낮추고 확인 업무를 남깁니다. 추가조사는 근거를 보강하지만 고위험 사례에서는 지연 위험이 생깁니다. 보류와 거절은 예산을 지키지만 위험과 민원을 키울 수 있습니다.",
-        "다음 화면에서는 첫 신청서를 실제로 보면서 5단계 하이라이트 가이드가 표시됩니다.\n\n가이드를 따라 중앙 신청서, 신청서/소득증명 탭, 오른쪽 지표, 도장 위 미리보기를 확인한 뒤 도장 트레이에서 첫 판단을 기록하세요."
+        "오늘은 접수된 돌봄지원 신청서를\n제한된 예산 안에서 처리합니다.\n\n판단은 안정도, 형평성, 누락 위험, 민원을 바꿉니다.\n위험 신호를 먼저 읽고 오늘 기준을 세우세요.",
+        "중앙 신청서에서 가족 유형, 요청, 위험 신호를 먼저 봅니다.\n\n위쪽 서류 탭은 누락 서류와 증빙 강도를 확인하는 곳입니다.\n오른쪽 운영 기준과 누적 지표를 보고 도장을 고릅니다.",
+        "도장 위 미리보기에서 예산 변화와 위험 변화를 비교합니다.\n\n승인: 안정 상승, 예산 소모\n조건부: 비용 절감, 확인 업무 발생\n추가조사: 근거 보강, 고위험 지연 주의\n보류/거절: 예산 보전, 위험·민원 증가 가능",
+        "첫 신청서에서는 5단계 하이라이트 가이드가 표시됩니다.\n\n중앙 신청서, 서류 탭, 오른쪽 지표, 도장 위 미리보기를 확인하세요.\n마지막에는 도장 트레이에서 첫 판단을 기록합니다."
     };
     private static readonly string[] FirstCaseGuideTitles =
     {
@@ -871,6 +871,10 @@ public sealed class CareReviewGame : MonoBehaviour
         else if (HasCommandLineArg("-careReviewFirstStartOnboardingSmokeTest"))
         {
             StartCoroutine(RunFirstStartOnboardingSmokeTest());
+        }
+        else if (HasCommandLineArg("-careReviewHelpCopySmokeTest"))
+        {
+            StartCoroutine(RunHelpCopySmokeTest());
         }
         else if (HasCommandLineArg("-careReviewLowResolutionSmokeTest"))
         {
@@ -5972,7 +5976,7 @@ public sealed class CareReviewGame : MonoBehaviour
             case 1:
                 return "읽는 위치\n- 중앙 신청서: 유형/요청/위험 신호\n- 아래 서류: 누락/증빙 강도\n- 오른쪽 지표: 예산/위험 압박";
             case 2:
-                return "도장 선택 전\n- [권장]은 기준표와 가장 맞는 선택\n- [대체]는 가능하지만 더 비싸거나 위험함\n- Q/근거 버튼으로 판단 이유를 남김";
+                return "도장 선택 전\n- [권장]은 기준표와 가장 맞는 선택\n- [대체]는 가능하지만 더 비싸거나 위험함\n- 근거 버튼으로 판단 이유를 남김";
             default:
                 return "첫 사례 시작\n- 5단계 하이라이트 가이드 확인\n- 미리보기 비교\n- 도장으로 첫 판단 기록";
         }
@@ -8263,7 +8267,7 @@ public sealed class CareReviewGame : MonoBehaviour
 
     private static string ControllerShortcutGuide()
     {
-        return "컨트롤러: A 확인/승인 · B 뒤로/거절 · X 조건부/저장 · Y 보류/설정 · LB 추가조사/이전 · RB 근거/다음 · View 기록 · Menu 저장";
+        return "컨트롤러: A 확인/승인 · B 뒤로/거절 · X 조건부/저장 · Y 보류/설정\n패드 보조: LB 추가조사/이전 · RB 근거/다음 · View 기록 · Menu 저장";
     }
 
     private static bool HasCommandLineArg(string expectedArg)
@@ -8388,6 +8392,7 @@ public sealed class CareReviewGame : MonoBehaviour
             "-careReviewCreditsSmokeTest",
             "-careReviewFirstRunNoticeSmokeTest",
             "-careReviewFirstStartOnboardingSmokeTest",
+            "-careReviewHelpCopySmokeTest",
             "-careReviewLowResolutionSmokeTest",
             "-careReviewPerformanceSmokeTest",
             "-careReviewSystemDiagnosticSmokeTest",
@@ -11860,7 +11865,8 @@ public sealed class CareReviewGame : MonoBehaviour
             tutorialBody.Contains("중앙 신청서") &&
             tutorialChecklist.Contains("중앙 신청서") &&
             tutorialChecklist.Contains("오른쪽 지표") &&
-            tutorialChecklist.Contains("미리보기");
+            tutorialChecklist.Contains("미리보기") &&
+            !tutorialChecklist.Contains("Q/근거");
         bool tutorialButtonsHumanReadable =
             tutorialBackButtonText != null &&
             tutorialNextButtonText != null &&
@@ -12772,9 +12778,10 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementReplayRewardPanel.Contains("비교 연습") &&
             achievementReplayRewardPanel.Contains("회");
         bool achievementReplayRewardPanelMentionsDecisionPracticeTiers =
-            achievementReplayRewardPanel.Contains("비교 연습 보상") &&
-            achievementReplayRewardPanel.Contains("2/4/6회") &&
-            achievementReplayRewardPanel.Contains("비교 최고 단계");
+            achievementReplayRewardPanel.Contains("비교 연습") &&
+            achievementReplayRewardPanel.Contains("보상") &&
+            achievementReplayRewardPanel.Contains("회") &&
+            achievementReplayRewardPanel.Contains("비교 최고");
         bool achievementReplayRewardPanelMentionsAppealTriageResult =
             achievementReplayRewardPanel.Contains("보정 추천:") &&
             achievementReplayRewardPanel.Contains("고위험") &&
@@ -15099,6 +15106,83 @@ public sealed class CareReviewGame : MonoBehaviour
         Application.Quit();
     }
 
+    private IEnumerator RunHelpCopySmokeTest()
+    {
+        yield return null;
+
+        ShowTutorial(false);
+        yield return null;
+
+        StringBuilder helpCopyBuilder = new();
+        int stepCount = TutorialStepCount();
+        for (int i = 0; i < stepCount; i++)
+        {
+            tutorialStepIndex = i;
+            UpdateTutorialContent();
+            yield return null;
+
+            helpCopyBuilder.AppendLine(tutorialTitleText != null ? tutorialTitleText.text : "");
+            helpCopyBuilder.AppendLine(tutorialBodyText != null ? tutorialBodyText.text : "");
+            helpCopyBuilder.AppendLine(tutorialChecklistText != null ? tutorialChecklistText.text : "");
+        }
+
+        string helpCopy = helpCopyBuilder.ToString();
+        bool helpUsesPlayerFacingCopy =
+            helpCopy.Contains("근거 버튼") &&
+            helpCopy.Contains("도장으로 첫 판단 기록") &&
+            helpCopy.Contains("중앙 신청서") &&
+            helpCopy.Contains("오른쪽 지표") &&
+            !helpCopy.Contains("Q/근거") &&
+            !helpCopy.Contains("단축키:") &&
+            !helpCopy.Contains("N/Enter") &&
+            !helpCopy.Contains("T/C/A/D") &&
+            !helpCopy.Contains("F 후속");
+        bool helpButtonsReadable =
+            tutorialBackButtonText != null &&
+            tutorialNextButtonText != null &&
+            !tutorialBackButtonText.text.Contains("Tutorial") &&
+            !tutorialNextButtonText.text.Contains("Tutorial");
+
+        ShowSettings();
+        yield return null;
+
+        string settingsStatus = settingsStatusText != null ? settingsStatusText.text : "";
+        bool settingsUsesControlGuide =
+            settingsStatus.Contains("조작 안내") &&
+            settingsStatus.Contains("판단 1-5") &&
+            settingsStatus.Contains("근거 Q") &&
+            settingsStatus.Contains("다음 N/Enter") &&
+            settingsStatus.Contains("컨트롤러") &&
+            !settingsStatus.Contains("단축키:");
+        float helpMaxDisplayLineWidth = MaxDisplayLineWidth(helpCopy);
+        float settingsMaxDisplayLineWidth = MaxDisplayLineWidth(settingsStatus);
+        bool completed =
+            stepCount == 4 &&
+            helpUsesPlayerFacingCopy &&
+            helpButtonsReadable &&
+            settingsUsesControlGuide &&
+            helpMaxDisplayLineWidth <= 72f &&
+            settingsMaxDisplayLineWidth <= 92f;
+
+        string resultPath = Path.Combine(Application.persistentDataPath, "care_review_help_copy_smoke_result.json");
+        string resultJson =
+            "{\n" +
+            $"  \"completed\": {(completed ? "true" : "false")},\n" +
+            $"  \"stepCount\": {stepCount},\n" +
+            $"  \"helpUsesPlayerFacingCopy\": {(helpUsesPlayerFacingCopy ? "true" : "false")},\n" +
+            $"  \"helpButtonsReadable\": {(helpButtonsReadable ? "true" : "false")},\n" +
+            $"  \"settingsUsesControlGuide\": {(settingsUsesControlGuide ? "true" : "false")},\n" +
+            $"  \"helpMaxDisplayLineWidth\": {helpMaxDisplayLineWidth:0.0},\n" +
+            $"  \"settingsMaxDisplayLineWidth\": {settingsMaxDisplayLineWidth:0.0},\n" +
+            $"  \"helpCopySample\": \"{EscapeJson(Shorten(helpCopy.Replace("\n", " | "), 240))}\",\n" +
+            $"  \"settingsStatusSample\": \"{EscapeJson(Shorten(settingsStatus.Replace("\n", " | "), 240))}\"\n" +
+            "}\n";
+        File.WriteAllText(resultPath, resultJson, Encoding.UTF8);
+        TryWriteProjectQaSmokeResult("care_review_help_copy_smoke_result.json", resultJson);
+        Debug.Log("CARE_REVIEW_HELP_COPY_SMOKE_RESULT path=" + resultPath + " completed=" + completed);
+        Application.Quit();
+    }
+
     private IEnumerator RunLowResolutionUiSmokeTest()
     {
         yield return null;
@@ -15471,9 +15555,10 @@ public sealed class CareReviewGame : MonoBehaviour
                 achievementReplayReward.Contains("4회") &&
                 achievementReplayReward.Contains("6회") &&
                 achievementReplayReward.Contains("보정 목표") &&
-                achievementReplayReward.Contains("비교 연습 보상") &&
+                achievementReplayReward.Contains("비교 연습") &&
+                achievementReplayReward.Contains("보상") &&
                 achievementReplayReward.Contains("성장 성과") &&
-                achievementRewardWidth <= 92f;
+                achievementRewardWidth <= 72f;
             achievementRecordLinkHintReadable &=
                 achievementRoot != null &&
                 achievementRoot.gameObject.activeSelf &&
@@ -17740,7 +17825,10 @@ public sealed class CareReviewGame : MonoBehaviour
         }
 
         bool settingsMentionsHighContrast = settingsStatusText.text.Contains("고대비");
-        bool settingsMentionsKeyboard = settingsStatusText.text.Contains("단축키");
+        bool settingsMentionsControlGuide = settingsStatusText.text.Contains("조작 안내") &&
+            settingsStatusText.text.Contains("판단 1-5") &&
+            settingsStatusText.text.Contains("근거 Q") &&
+            !settingsStatusText.text.Contains("단축키:");
         int settingsHiddenToolButtonCount = CountButtonLabelsContaining(
             settingsRoot,
             "로그 폴더",
@@ -17901,7 +17989,7 @@ public sealed class CareReviewGame : MonoBehaviour
             $"  \"enabledOutlineCount\": {enabledOutlineCount},\n" +
             $"  \"trackedTextCount\": {trackedTexts.Count},\n" +
             $"  \"settingsMentionsHighContrast\": {(settingsMentionsHighContrast ? "true" : "false")},\n" +
-            $"  \"settingsMentionsKeyboard\": {(settingsMentionsKeyboard ? "true" : "false")},\n" +
+            $"  \"settingsMentionsControlGuide\": {(settingsMentionsControlGuide ? "true" : "false")},\n" +
             $"  \"settingsOmitsReleaseHiddenTools\": {(settingsOmitsReleaseHiddenTools ? "true" : "false")},\n" +
             $"  \"settingsHiddenToolButtonCount\": {settingsHiddenToolButtonCount},\n" +
             $"  \"settingsHiddenTextCount\": {settingsHiddenTextCount},\n" +
@@ -22138,7 +22226,8 @@ public sealed class CareReviewGame : MonoBehaviour
             $"성능: {(lowSpecMode ? "저사양 모드" : "표준")}\n" +
             $"저장 슬롯: {activeSaveSlot} · 파일: {Path.GetFileName(SavePath)}\n" +
             "데이터: 저장 파일과 플레이 기록은 로컬 저장 전용 · 서버 자동 업로드 없음\n" +
-            "단축키: 1-5 판단 · Q 판단 근거 · N/Enter 다음 · L 심사 기록 · F 후속 연락함 · H 도움말 · T/C/A/D/I/P/O 설정\n" +
+            "조작 안내: 판단 1-5 · 근거 Q · 다음 N/Enter · 기록 L · 연락함 F\n" +
+            "보조 화면: 도움말 H · 설정 T/C/A/D/I/P/O\n" +
             ControllerShortcutGuide() +
             (string.IsNullOrEmpty(notice) ? "" : "\n" + notice);
     }
@@ -25207,19 +25296,18 @@ public sealed class CareReviewGame : MonoBehaviour
         string current = replayObjectiveCount <= 0
             ? "현재 0회"
             : $"현재 {replayObjectiveCount}회 · {AdvancedReplayChallengeTier(replayObjectiveCount)}";
-        string bronze = replayObjectiveCount >= 2 ? "2회 동색" : "2회 동색 대기";
-        string silver = replayObjectiveCount >= 4 ? "4회 은색" : "4회 은색 대기";
-        string gold = replayObjectiveCount >= 6 ? "6회 금색 엔딩 장식" : "6회 금색 엔딩 장식 대기";
+        string bronze = replayObjectiveCount >= 2 ? "2회 동색" : "2회 대기";
+        string silver = replayObjectiveCount >= 4 ? "4회 은색" : "4회 대기";
+        string gold = replayObjectiveCount >= 6 ? "6회 금색 엔딩 장식" : "6회 금색 대기";
         string next = replayObjectiveCount >= 6
             ? "최고 단계"
             : $"다음 {Mathf.Max(2, replayObjectiveCount >= 4 ? 6 : 4)}회";
         List<CareerRecord> records = LoadCareerRecordDatabase().records;
         int appealRemedyObjectiveCount = CountAppealRemedyObjectiveRecords(records);
         int decisionPracticeObjectiveCount = CountDecisionPracticeObjectiveRecords(records);
-        string coaching = BuildAchievementDecisionAuditCoachingRewardSegment(records);
-        return $"반복 보상 이력: {current} · {bronze} · {silver} · {gold} · {next}\n" +
-            $"보정 목표 {appealRemedyObjectiveCount}회 · {BuildAppealRemedyTriageAchievementRewardBarText(records)} · 비교 {decisionPracticeObjectiveCount}회\n" +
-            $"{BuildDecisionPracticeRewardHistorySegment(decisionPracticeObjectiveCount)} · {BuildAchievementGrowthProgressSegment()}{coaching}";
+        return $"반복 보상 이력: {current} · {next} · {BuildAchievementGrowthProgressSegment()}\n" +
+            $"단계 보상: {bronze} · {silver} · {gold}\n" +
+            $"보정 목표 {appealRemedyObjectiveCount}회 · {BuildAppealRemedyTriageAchievementRewardBarText(records)} · {BuildDecisionPracticeRewardHistorySegment(decisionPracticeObjectiveCount)}";
     }
 
     private static string BuildAchievementDecisionAuditCoachingHintSegment(List<CareerRecord> records)
@@ -25316,9 +25404,9 @@ public sealed class CareReviewGame : MonoBehaviour
     private static string BuildDecisionPracticeRewardHistorySegment(int practiceCount)
     {
         string next = practiceCount >= 6
-            ? "비교 최고 단계"
+            ? "비교 최고"
             : $"다음 {Mathf.Max(2, practiceCount >= 4 ? 6 : 4)}회";
-        return $"비교 연습 보상 2/4/6회 · {next}";
+        return $"비교 연습 {practiceCount}회 보상 · {next}";
     }
 
     private static string DecisionPracticeRewardTier(int practiceCount)
@@ -25359,9 +25447,7 @@ public sealed class CareReviewGame : MonoBehaviour
 
     private static string BuildAchievementGrowthProgressSegment()
     {
-        string objectiveState = IsAchievementUnlocked("growth_objective_success") ? "목표 완료" : "목표 대기";
-        string followUpState = IsAchievementUnlocked("growth_follow_up_complete") ? "후속 완료" : "후속 대기";
-        return $"성장 성과 {objectiveState}/{followUpState}";
+        return "성장 성과 목표/후속";
     }
 
     private string BuildAchievementNextGoalRoadmapLine(AchievementDefinition[] achievements)
