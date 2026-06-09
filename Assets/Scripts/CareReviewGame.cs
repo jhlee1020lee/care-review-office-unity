@@ -12650,7 +12650,7 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementRewardPanelAndHint.Contains("이동") &&
             achievementRewardPanelAndHint.Contains("성과") &&
             achievementRewardPanelAndHint.Contains("2·4·6회") &&
-            achievementRewardPanelAndHint.Contains("캠페인 기록 필터");
+            achievementRewardPanelAndHint.Contains("기록 보기");
         bool achievementReplayRewardPanelMentionsDecisionAuditCoachingFirstUse =
             achievementRewardPanelAndHint.Contains("복기") &&
             achievementRewardPanelAndHint.Contains("기록 복귀") &&
@@ -12662,7 +12662,7 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementRecordLinkHint.Contains("이동") &&
             achievementRecordLinkHint.Contains("성과") &&
             achievementRecordLinkHint.Contains("2·4·6회") &&
-            achievementRecordLinkHint.Contains("캠페인 기록 필터") &&
+            achievementRecordLinkHint.Contains("기록 보기") &&
             achievementRecordLinkHintMaxDisplayLineWidth <= 72f;
         bool achievementRecordLinkHintMentionsMenuEntry =
             achievementRecordLinkHint.Contains("성과") &&
@@ -13945,7 +13945,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 careerRecordBodyPanel != null &&
                 careerRecordBodyPanel.sizeDelta.y >= 280f;
             bool careerRecordRecentTabSwitchesBody =
-                recentTabBody.Contains("[최근 회차]") &&
+                recentTabBody.Contains("현재 보기: 최근 회차") &&
                 recentTabBody.Contains("완료일") &&
                 recentTabBody.Contains("다음 목표") &&
                 recentTabBody.Contains(record != null ? record.endingTitle : "");
@@ -13953,7 +13953,7 @@ public sealed class CareReviewGame : MonoBehaviour
             yield return new WaitForEndOfFrame();
             string detailTabBody = careerRecordBodyText != null ? careerRecordBodyText.text : "";
             bool careerRecordDetailTabSwitchesBody =
-                detailTabBody.Contains("[선택 상세]") &&
+                detailTabBody.Contains("현재 보기: 선택 상세") &&
                 detailTabBody.Contains("선택 회차 세부") &&
                 detailTabBody.Contains("대표 사례") &&
                 detailTabBody.Contains("판단 복기");
@@ -13962,7 +13962,7 @@ public sealed class CareReviewGame : MonoBehaviour
             string summaryTabBody = careerRecordBodyText != null ? careerRecordBodyText.text : "";
             string summaryTabBodyAndChips = summaryTabBody + "\n" + CareerRecordSummaryChipTextForSmoke();
             bool careerRecordSummaryTabRestoresBody =
-                summaryTabBody.Contains("[요약]") &&
+                summaryTabBody.Contains("현재 보기: 요약") &&
                 summaryTabBodyAndChips.Contains("장기 추세 패널") &&
                 summaryTabBody.Contains("마지막 회차 세부");
             string expectedFilterLabel = record != null ? CareerRecordMandateFilterLabel(record.campaignMandateId) : "";
@@ -15160,7 +15160,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 achievementRecordLinkHint.Contains("이동") &&
                 achievementRecordLinkHint.Contains("성과") &&
                 achievementRecordLinkHint.Contains("2·4·6회") &&
-                achievementRecordLinkHint.Contains("캠페인 기록 필터") &&
+                achievementRecordLinkHint.Contains("기록 보기") &&
                 achievementHintWidth <= 72f;
             achievementRecordLinkHintMentionsMenuEntry &=
                 achievementRecordLinkHint.Contains("성과") &&
@@ -15173,7 +15173,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 menuAchievementHint.Contains("성과 보기 목표") &&
                 careerActionHint.Contains("다음 목표") &&
                 achievementRecordLinkHint.Contains("이동") &&
-                achievementRecordLinkHint.Contains("캠페인 기록 필터") &&
+                achievementRecordLinkHint.Contains("기록 보기") &&
                 menuAchievementHintWidth <= 42f &&
                 actionHintWidth <= 74f &&
                 achievementHintWidth <= 72f;
@@ -20913,11 +20913,11 @@ public sealed class CareReviewGame : MonoBehaviour
         int replayCount = CountReplayObjectiveRecords(LoadCareerRecordDatabase().records);
         if (replayCount >= 2)
         {
-            string badgeTitle = AdvancedReplayChallengeBadgeTitle(replayCount).Replace("반복 ", "");
+            string badgeTitle = AdvancedReplayChallengeBadgeTitle(replayCount).Replace("반복 ", "").Replace("목표 ", "");
             return $"성과 배지 · 다음 성과 {badgeTitle} · 반복 {replayCount}/6 · A 성과 보기";
         }
 
-        return $"성과 배지 · 다음 성과 {Shorten(next, 14)} · 반복 {replayCount}/6 · A 성과 보기";
+        return $"성과 배지 · 다음 성과 {Shorten(next.Replace("목표 ", "").Replace(" 목표", ""), 14)} · 반복 {replayCount}/6 · A 성과 보기";
     }
 
     private void UpdateMenuAchievementHint()
@@ -21035,7 +21035,7 @@ public sealed class CareReviewGame : MonoBehaviour
         int weakestScore = matchScore;
         string note = $"권장 일치 {matchScore}% · 기준표·선택 근거 재확인";
 
-        ConsiderMenuBriefingWeakness("예산", budgetScore, $"예산 {latest.finalBudget}만원 · 고비용 지원 순서 점검", ref label, ref weakestScore, ref note);
+        ConsiderMenuBriefingWeakness("예산", budgetScore, "예산 압박 · 고비용 지원 순서 점검", ref label, ref weakestScore, ref note);
         ConsiderMenuBriefingWeakness("안정", stabilityScore, $"안정 {latest.finalStability}점 · 조사/조건부로 급락 완충", ref label, ref weakestScore, ref note);
         ConsiderMenuBriefingWeakness("형평", equityScore, $"형평 {latest.finalEquity}점 · 소외 가구 후속 확인", ref label, ref weakestScore, ref note);
         ConsiderMenuBriefingWeakness("누락 위험", safetyScore, $"누락 위험 {latest.finalMissedRisk} · 고위험 보류/거절 재검토", ref label, ref weakestScore, ref note);
@@ -22420,8 +22420,8 @@ public sealed class CareReviewGame : MonoBehaviour
 
         string coaching = BuildAchievementDecisionAuditCoachingHintSegment(LoadCareerRecordDatabase().records);
         achievementRecordLinkHintText.text = string.IsNullOrWhiteSpace(coaching)
-            ? "이동 성과 · 2·4·6회 캠페인 기록 필터"
-            : "이동 성과 · " + coaching.TrimStart(' ', '·') + " · 2·4·6회 캠페인 기록 필터";
+            ? "이동 성과 · 2·4·6회 기록 보기"
+            : "이동 성과 · " + coaching.TrimStart(' ', '·') + " · 2·4·6회 기록 보기";
     }
 
     private void UpdateAchievementReplayTierRecordButtons(int replayObjectiveCount)
@@ -23382,10 +23382,13 @@ public sealed class CareReviewGame : MonoBehaviour
 
     private static string BuildCareerRecordViewHeader(string filterLabel, CareerRecordViewMode viewMode)
     {
-        string summary = viewMode == CareerRecordViewMode.Summary ? "[요약]" : "요약";
-        string recent = viewMode == CareerRecordViewMode.Recent ? "[최근 회차]" : "최근 회차";
-        string detail = viewMode == CareerRecordViewMode.Detail ? "[선택 상세]" : "선택 상세";
-        string header = $"최근 캠페인 기록 · 보기: {summary} / {recent} / {detail}";
+        string currentView = viewMode switch
+        {
+            CareerRecordViewMode.Recent => "최근 회차",
+            CareerRecordViewMode.Detail => "선택 상세",
+            _ => "요약"
+        };
+        string header = $"최근 캠페인 기록 · 현재 보기: {currentView} · 요약 / 최근 회차 / 선택 상세";
         if (!string.IsNullOrWhiteSpace(filterLabel))
         {
             header += $" · 기준 필터: {filterLabel}";
@@ -24174,7 +24177,7 @@ public sealed class CareReviewGame : MonoBehaviour
 
         StringBuilder builder = new();
         builder.AppendLine(focused ? "선택 회차 요약 · 엔딩 기록 연결" : "선택 회차 요약 · 최근 완료 회차");
-        builder.AppendLine($"회차 해석: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · [선택 상세]");
+        builder.AppendLine($"회차 해석: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · 선택 상세 참고");
         builder.AppendLine($"판단: 지원{record.supportCount} · 조사{record.investigationCount} · 보류{record.holdCount} · 거절{record.rejectCount} · 권장{record.matchedRecommendedCount}/{record.logCount} · 기준 {Shorten(FallbackText(record.closestAgentPersonaName, "기록 없음"), 8)}");
         builder.AppendLine($"사례 링크: 대표 사례 {FallbackText(record.representativeCaseId, "없음")} · 조사 메모 {FallbackText(record.investigationMemoCaseId, "없음")}");
         builder.AppendLine("조사 타임라인: 후속 반영 · 최종 지표");
