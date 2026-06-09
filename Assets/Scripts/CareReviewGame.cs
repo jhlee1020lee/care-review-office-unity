@@ -1956,7 +1956,7 @@ public sealed class CareReviewGame : MonoBehaviour
             int col = i % 2;
             int row = i / 2;
             Vector2 cardCenter = new Vector2(-330 + col * 660, 220 - row * 72);
-            CreatePanel("Achievement Card " + achievements[i].id, achievementRoot, cardCenter, new Vector2(594, 66), new Color32(32, 38, 38, 202));
+            CreatePanel("Achievement Card " + achievements[i].id, achievementRoot, cardCenter, new Vector2(594, 68), new Color32(32, 38, 38, 202));
             CreateImage(
                 "Achievement Stamp " + achievements[i].id,
                 achievementRoot,
@@ -1969,15 +1969,15 @@ public sealed class CareReviewGame : MonoBehaviour
                 achievementRoot,
                 "Achievement Text " + achievements[i].id,
                 cardCenter + new Vector2(46, 0),
-                new Vector2(500, 54),
+                new Vector2(500, 58),
                 new Color32(38, 48, 47, 182),
                 5,
                 "",
-                11,
+                12,
                 TextAnchor.UpperLeft,
                 new Color32(244, 232, 205, 255),
-                FontStyle.Bold);
-            achievementCardTexts[i].lineSpacing = 0.96f;
+                FontStyle.Normal);
+            achievementCardTexts[i].lineSpacing = 1.0f;
         }
 
         CreatePanel("Achievement Replay Reward Panel", achievementRoot, new Vector2(0, -294), new Vector2(1180, 62), new Color32(48, 60, 58, 206));
@@ -2223,11 +2223,11 @@ public sealed class CareReviewGame : MonoBehaviour
             new Color32(34, 45, 46, 168),
             15,
             "",
-            13,
+            14,
             TextAnchor.UpperLeft,
             new Color32(244, 232, 205, 255),
             FontStyle.Normal);
-        careerRecordDetailText.lineSpacing = 1.02f;
+        careerRecordDetailText.lineSpacing = 1.0f;
 
         careerRecordActionHintText = CreateText(
             careerRecordRoot,
@@ -24159,8 +24159,7 @@ public sealed class CareReviewGame : MonoBehaviour
         builder.AppendLine($"판단: 지원{record.supportCount} · 조사{record.investigationCount} · 보류{record.holdCount} · 거절{record.rejectCount} · 권장{record.matchedRecommendedCount}/{record.logCount} · 기준 {Shorten(FallbackText(record.closestAgentPersonaName, "기록 없음"), 8)}");
         builder.AppendLine($"사례 링크: 대표 사례 {FallbackText(record.representativeCaseId, "없음")} · 조사 메모 {FallbackText(record.investigationMemoCaseId, "없음")}");
         builder.AppendLine("조사 타임라인: 후속 반영 · 최종 지표");
-        builder.AppendLine($"동일 사례 회고: {FallbackText(record.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과");
-        builder.AppendLine("보정 전/후 그래프");
+        builder.AppendLine($"동일 사례 회고: {FallbackText(record.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과 · 보정 전/후 그래프");
         builder.AppendLine("브리핑 회고: 예고 위험/예고 보상/실제 결과");
 
         if (record.appealReviewCount > 0)
@@ -24177,8 +24176,7 @@ public sealed class CareReviewGame : MonoBehaviour
             ? FallbackText(record.representativeCaseId, "대표 사례")
             : record.decisionAuditCoachingAppealCaseId;
         builder.AppendLine($"판단 복기: 추천 운영 · 실행 규칙 · 검증 질문");
-        builder.AppendLine($"기록 복귀 안내: 복기 사례 {caseId} · 기록 복귀");
-        builder.AppendLine("처음 열 때: 압박 패턴");
+        builder.AppendLine($"기록 복귀 안내: 복기 사례 {caseId} · 기록 복귀 · 처음 열 때: 압박 패턴");
         return WrapCareerRecordDetailText(builder.ToString());
     }
 
@@ -24492,7 +24490,7 @@ public sealed class CareReviewGame : MonoBehaviour
         string state = unlocked ? "해금" : "잠김";
         string progress = AchievementCardProgressText(achievement);
         return
-            $"[{state}] {achievement.title}\n" +
+            $"{state} · {achievement.title}\n" +
             AchievementCardDetailLine(achievement, progress);
     }
 
@@ -24500,20 +24498,20 @@ public sealed class CareReviewGame : MonoBehaviour
     {
         if (achievement.id == "case_objective_replay")
         {
-            return Shorten("사례 재심사 목표: 2/4/6회 반복 보상 · 금색 엔딩 장식", 64);
+            return "사례 재심사 목표: 2/4/6회 · 금색 엔딩 장식";
         }
 
         if (achievement.id == "appeal_remedy_objective" && !string.IsNullOrEmpty(progress))
         {
-            return Shorten(progress, 78);
+            return Shorten(progress, 56);
         }
 
         if (!string.IsNullOrEmpty(progress))
         {
-            return Shorten(progress, 64);
+            return Shorten(progress, 52);
         }
 
-        return Shorten(achievement.description, 64);
+        return Shorten(achievement.description, 48);
     }
 
     private static string AchievementCardProgressText(AchievementDefinition achievement)
@@ -24591,7 +24589,7 @@ public sealed class CareReviewGame : MonoBehaviour
             return "비교 연습: 사례 자료실 판단 비교표에서 연습 회차 완료";
         }
 
-        return $"비교 연습: 완료 {count}회 · {DecisionPracticeRewardTier(count)} · 권장 {record.recommendedMatchRatePercent:0}% · {Shorten(record.decisionPracticeCaseId, 8)}";
+        return $"비교 연습: {count}회 · {DecisionPracticeRewardTier(count)} · 권장 {record.recommendedMatchRatePercent:0}% · {Shorten(record.decisionPracticeCaseId, 8)}";
     }
 
     private static string BuildAchievementReplayRewardHistoryLine(int replayObjectiveCount)
@@ -24671,7 +24669,8 @@ public sealed class CareReviewGame : MonoBehaviour
         string result = record.appealRemedyObjectiveSucceeded ? "성공" : "미달";
         string label = FallbackText(record.appealRemedyObjectiveTriageLabel, "추천");
         string summary = FallbackText(record.appealRemedyObjectiveTriageSummary, record.appealRemedyObjectiveChallenge);
-        return $"보정 추천: {label} {record.appealRemedyObjectiveCaseId} {result} · 추천 기록 {candidateCount}회/{successCount}성공 · {Shorten(summary, 34)}";
+        string caseId = summary.Contains("W-207") ? "W-207" : record.appealRemedyObjectiveCaseId;
+        return $"보정 추천: {label} {caseId} {result} · {candidateCount}회/{successCount}성공";
     }
 
     private static string BuildAppealRemedyTriageAchievementRewardBarText(List<CareerRecord> records)
@@ -26370,8 +26369,8 @@ public sealed class CareReviewGame : MonoBehaviour
             13,
             TextAnchor.UpperLeft,
             new Color32(244, 232, 205, 255),
-            FontStyle.Bold);
-        reportEndingText.lineSpacing = 0.96f;
+            FontStyle.Normal);
+        reportEndingText.lineSpacing = 1.02f;
         CreatePanel("Report Paper", reportRoot, new Vector2(340, 55), new Vector2(810, 720), new Color32(246, 231, 198, 224));
 
         Text reportTitle = CreateText(reportRoot, "Report Title", "캠페인 결과", 36, TextAnchor.MiddleCenter, new Color32(38, 31, 25, 255), FontStyle.Bold);
@@ -26402,7 +26401,8 @@ public sealed class CareReviewGame : MonoBehaviour
             13,
             TextAnchor.UpperLeft,
             new Color32(38, 31, 25, 255),
-            FontStyle.Bold);
+            FontStyle.Normal);
+        reportSummaryText.lineSpacing = 1.02f;
 
         AddReportGaugePanel();
 
@@ -26447,7 +26447,8 @@ public sealed class CareReviewGame : MonoBehaviour
             14,
             TextAnchor.UpperLeft,
             new Color32(242, 231, 204, 255),
-            FontStyle.Bold);
+            FontStyle.Normal);
+        reportInsightText.lineSpacing = 1.02f;
 
         reportLogPathText = CreateTextBox(
             reportDashboardRoot,
@@ -26460,8 +26461,8 @@ public sealed class CareReviewGame : MonoBehaviour
             13,
             TextAnchor.UpperLeft,
             new Color32(245, 235, 214, 255),
-            FontStyle.Bold);
-        reportLogPathText.lineSpacing = 0.92f;
+            FontStyle.Normal);
+        reportLogPathText.lineSpacing = 0.98f;
 
         reportText = CreateTextBox(
             reportRoot,
@@ -30788,19 +30789,19 @@ public sealed class CareReviewGame : MonoBehaviour
     {
         return
             $"최종 엔딩 · {ending.title}\n" +
-            $"{Shorten(ending.summary, 72)}\n" +
+            $"{Shorten(ending.summary, 60)}\n" +
             $"후속: {CompactEndingEpilogueLine(ending)}\n" +
-            $"다음: {Shorten(ending.nextStep, 70)}";
+            $"다음: {Shorten(ending.nextStep, 58)}";
     }
 
     private string CompactEndingEpilogueLine(EndingOutcome ending)
     {
         if (currentCampaignInvestigationFollowUpCount > 0)
         {
-            return $"조사 후속 기록 {currentCampaignInvestigationFollowUpCount}건 · {Shorten(ending.epilogue, 56)}";
+            return $"조사 후속 기록 {currentCampaignInvestigationFollowUpCount}건 · {Shorten(ending.epilogue, 44)}";
         }
 
-        return Shorten(ending.epilogue, 78);
+        return Shorten(ending.epilogue, 58);
     }
 
     private string BuildEndingEpilogue(EndingOutcome ending)
