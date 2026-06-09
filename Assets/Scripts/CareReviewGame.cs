@@ -20907,7 +20907,6 @@ public sealed class CareReviewGame : MonoBehaviour
     private string BuildMainMenuAchievementBadgeLine()
     {
         AchievementDefinition[] achievements = BuildAchievementCatalog();
-        int unlocked = UnlockedAchievementCount(achievements);
         string next = TryGetNextLockedAchievement(achievements, out AchievementDefinition achievement)
             ? achievement.title
             : "전체 완료";
@@ -20915,10 +20914,10 @@ public sealed class CareReviewGame : MonoBehaviour
         if (replayCount >= 2)
         {
             string badgeTitle = AdvancedReplayChallengeBadgeTitle(replayCount).Replace("반복 ", "");
-            return $"성과 배지 {unlocked}/{achievements.Length} · 다음 성과 {badgeTitle} · 반복 {replayCount}/6 · A 성과 보기";
+            return $"성과 배지 · 다음 성과 {badgeTitle} · 반복 {replayCount}/6 · A 성과 보기";
         }
 
-        return $"성과 배지 {unlocked}/{achievements.Length} · 다음 성과 {Shorten(next, 14)} · 반복 {replayCount}/6 · A 성과 보기";
+        return $"성과 배지 · 다음 성과 {Shorten(next, 14)} · 반복 {replayCount}/6 · A 성과 보기";
     }
 
     private void UpdateMenuAchievementHint()
@@ -21006,7 +21005,7 @@ public sealed class CareReviewGame : MonoBehaviour
             $"목표: {Shorten(objective, 44)}\n" +
             $"주의: {risk}\n" +
             $"보상: {reward}\n" +
-            $"보정 초점: {Shorten(weakness, 46)}\n" +
+            $"보정 초점 {Shorten(weakness, 46)}\n" +
             $"근거: {Shorten(reason, 48)}";
     }
 
@@ -21034,13 +21033,13 @@ public sealed class CareReviewGame : MonoBehaviour
 
         string label = "권장 일치";
         int weakestScore = matchScore;
-        string note = $"권장 일치 {matchScore}% · 기준표와 선택 근거 재확인";
+        string note = $"권장 일치 {matchScore}% · 기준표·선택 근거 재확인";
 
-        ConsiderMenuBriefingWeakness("예산", budgetScore, $"예산 {latest.finalBudget}만원 · 고비용 지원 우선순위 점검", ref label, ref weakestScore, ref note);
-        ConsiderMenuBriefingWeakness("안정", stabilityScore, $"안정 {latest.finalStability}점 · 조사/조건부 판단으로 급락 완충", ref label, ref weakestScore, ref note);
-        ConsiderMenuBriefingWeakness("형평", equityScore, $"형평 {latest.finalEquity}점 · 소외 가구 후속 판단 확인", ref label, ref weakestScore, ref note);
+        ConsiderMenuBriefingWeakness("예산", budgetScore, $"예산 {latest.finalBudget}만원 · 고비용 지원 순서 점검", ref label, ref weakestScore, ref note);
+        ConsiderMenuBriefingWeakness("안정", stabilityScore, $"안정 {latest.finalStability}점 · 조사/조건부로 급락 완충", ref label, ref weakestScore, ref note);
+        ConsiderMenuBriefingWeakness("형평", equityScore, $"형평 {latest.finalEquity}점 · 소외 가구 후속 확인", ref label, ref weakestScore, ref note);
         ConsiderMenuBriefingWeakness("누락 위험", safetyScore, $"누락 위험 {latest.finalMissedRisk} · 고위험 보류/거절 재검토", ref label, ref weakestScore, ref note);
-        ConsiderMenuBriefingWeakness("민원", complaintScore, $"민원 {latest.finalComplaints} · 거절 근거와 안내 문구 보강", ref label, ref weakestScore, ref note);
+        ConsiderMenuBriefingWeakness("민원", complaintScore, $"민원 {latest.finalComplaints} · 거절 근거·안내 보강", ref label, ref weakestScore, ref note);
 
         if (!latest.campaignChallengeSucceeded && latest.campaignChallengeScore < weakestScore)
         {
@@ -21061,7 +21060,7 @@ public sealed class CareReviewGame : MonoBehaviour
             return "";
         }
 
-        string recommended = FallbackText(latest.decisionAuditCoachingRecommendedMandateName, "없음");
+        string recommended = ShortMenuCampaignBriefingRecommendedMandate(FallbackText(latest.decisionAuditCoachingRecommendedMandateName, "없음"));
         string verification = FallbackText(latest.decisionAuditCoachingVerificationQuestion, latest.decisionAuditCoachingExecutionRule);
         string verificationFocus = verification.Contains("위험 증가")
             ? "위험 증가"
@@ -21070,6 +21069,26 @@ public sealed class CareReviewGame : MonoBehaviour
             $"복기 {latest.decisionAuditCoachingPattern} · " +
             $"추천 {recommended} · " +
             $"검증 {verificationFocus}";
+    }
+
+    private static string ShortMenuCampaignBriefingRecommendedMandate(string mandateName)
+    {
+        if (mandateName == CampaignMandateLabel(CampaignMandate.SupportExpanded))
+        {
+            return mandateName;
+        }
+
+        if (mandateName == CampaignMandateLabel(CampaignMandate.AusterityAudit))
+        {
+            return "긴축";
+        }
+
+        if (mandateName == CampaignMandateLabel(CampaignMandate.Standard))
+        {
+            return "균형";
+        }
+
+        return mandateName;
     }
 
     private static void ConsiderMenuBriefingWeakness(string label, int score, string note, ref string weakestLabel, ref int weakestScore, ref string weakestNote)
@@ -22401,8 +22420,8 @@ public sealed class CareReviewGame : MonoBehaviour
 
         string coaching = BuildAchievementDecisionAuditCoachingHintSegment(LoadCareerRecordDatabase().records);
         achievementRecordLinkHintText.text = string.IsNullOrWhiteSpace(coaching)
-            ? "이동 성과·2·4·6회 캠페인 기록 필터"
-            : "이동 성과·" + coaching.TrimStart(' ', '·') + "·2·4·6회 캠페인 기록 필터";
+            ? "이동 성과 · 2·4·6회 캠페인 기록 필터"
+            : "이동 성과 · " + coaching.TrimStart(' ', '·') + " · 2·4·6회 캠페인 기록 필터";
     }
 
     private void UpdateAchievementReplayTierRecordButtons(int replayObjectiveCount)
@@ -22822,7 +22841,7 @@ public sealed class CareReviewGame : MonoBehaviour
 
         if (record == null)
         {
-            careerRecordActionHintText.text = "이동: 완료 기록에서 대표 사례, 조사 메모, 보정 사례, 다음 목표를 열 수 있습니다.";
+            careerRecordActionHintText.text = "이동 완료 기록: 대표 사례·조사 메모·보정 사례·다음 목표";
             return;
         }
 
@@ -22847,7 +22866,7 @@ public sealed class CareReviewGame : MonoBehaviour
             next = nextLabel == "목표 재시작" ? "다음 목표" : "다음 목표 " + nextLabel;
         }
 
-        careerRecordActionHintText.text = $"이동: {representative} · {investigation}{remedy} · {next}{coaching}";
+        careerRecordActionHintText.text = $"이동 {representative} · {investigation}{remedy} · {next}{coaching}";
     }
 
     private static string CareerRecordNextObjectiveButtonLabel(CareerRecord record)
