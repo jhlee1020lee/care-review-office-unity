@@ -1643,11 +1643,11 @@ public sealed class CareReviewGame : MonoBehaviour
 
         for (int i = 0; i < policySimulationRecommendationTexts.Length; i++)
         {
-            float x = 70f + i * 144f;
-            CreatePanel("Policy Simulation Recommendation Card " + labels[i], policyHandbookRoot, new Vector2(x, -222), new Vector2(122, 52), new Color32(33, 45, 46, 128));
-            policySimulationRecommendationTexts[i] = CreateText(policyHandbookRoot, "Policy Simulation Recommendation Text " + labels[i], labels[i], 12, TextAnchor.MiddleCenter, new Color32(246, 232, 202, 255), FontStyle.Bold);
-            policySimulationRecommendationTexts[i].lineSpacing = 0.94f;
-            SetRect(policySimulationRecommendationTexts[i].rectTransform, new Vector2(x, -222), new Vector2(106, 42));
+            float x = 54f + i * 160f;
+            CreatePanel("Policy Simulation Recommendation Card " + labels[i], policyHandbookRoot, new Vector2(x, -222), new Vector2(142, 56), new Color32(33, 45, 46, 128));
+            policySimulationRecommendationTexts[i] = CreateText(policyHandbookRoot, "Policy Simulation Recommendation Text " + labels[i], labels[i], 13, TextAnchor.MiddleCenter, new Color32(246, 232, 202, 255), FontStyle.Normal);
+            policySimulationRecommendationTexts[i].lineSpacing = 1.0f;
+            SetRect(policySimulationRecommendationTexts[i].rectTransform, new Vector2(x, -222), new Vector2(130, 46));
         }
     }
 
@@ -4975,9 +4975,9 @@ public sealed class CareReviewGame : MonoBehaviour
             policySimulationFlowText.text = $"기준 비교 결과 -> {safest.preset.label} / {budgetSafe.preset.label} / 권장 일치 {closest.preset.label}";
         }
 
-        policySimulationRecommendationTexts[0].text = $"위험 최소\n{safest.preset.label}\n{safest.finalMissedRisk + safest.finalComplaints}";
-        policySimulationRecommendationTexts[1].text = $"예산 안정\n{budgetSafe.preset.label}\n{budgetSafe.finalBudget}만";
-        policySimulationRecommendationTexts[2].text = $"권장 일치\n{closest.preset.label}\n{closest.matchedCount}/{closest.caseCount}";
+        policySimulationRecommendationTexts[0].text = $"위험 최소\n{safest.preset.label}\n위험 {safest.finalMissedRisk + safest.finalComplaints}";
+        policySimulationRecommendationTexts[1].text = $"예산 안정\n{budgetSafe.preset.label}\n예산 {budgetSafe.finalBudget}만";
+        policySimulationRecommendationTexts[2].text = $"권장 일치\n{closest.preset.label}\n일치 {closest.matchedCount}/{closest.caseCount}";
     }
 
     private void SetPolicySimulationDistributionBar(int index, int supportCount, int investigationCount, int delayCount, int caseCount)
@@ -20914,10 +20914,11 @@ public sealed class CareReviewGame : MonoBehaviour
         int replayCount = CountReplayObjectiveRecords(LoadCareerRecordDatabase().records);
         if (replayCount >= 2)
         {
-            return $"성과 배지 {unlocked}/{achievements.Length} · 다음 성과: {AdvancedReplayChallengeBadgeTitle(replayCount)} · 반복 {replayCount}/6 · A 성과 보기";
+            string badgeTitle = AdvancedReplayChallengeBadgeTitle(replayCount).Replace("반복 ", "");
+            return $"성과 배지 {unlocked}/{achievements.Length} · 다음 성과 {badgeTitle} · 반복 {replayCount}/6 · A 성과 보기";
         }
 
-        return $"성과 배지 {unlocked}/{achievements.Length} · 다음 성과: {Shorten(next, 16)} · 반복 {replayCount}/6 · A 성과 보기";
+        return $"성과 배지 {unlocked}/{achievements.Length} · 다음 성과 {Shorten(next, 14)} · 반복 {replayCount}/6 · A 성과 보기";
     }
 
     private void UpdateMenuAchievementHint()
@@ -21066,9 +21067,9 @@ public sealed class CareReviewGame : MonoBehaviour
             ? "위험 증가"
             : Shorten(verification, 14);
         return
-            $"복기: {latest.decisionAuditCoachingPattern} · " +
-            $"추천: {recommended} · " +
-            $"검증: {verificationFocus}";
+            $"복기 {latest.decisionAuditCoachingPattern} · " +
+            $"추천 {recommended} · " +
+            $"검증 {verificationFocus}";
     }
 
     private static void ConsiderMenuBriefingWeakness(string label, int score, string note, ref string weakestLabel, ref int weakestScore, ref string weakestNote)
@@ -22400,8 +22401,8 @@ public sealed class CareReviewGame : MonoBehaviour
 
         string coaching = BuildAchievementDecisionAuditCoachingHintSegment(LoadCareerRecordDatabase().records);
         achievementRecordLinkHintText.text = string.IsNullOrWhiteSpace(coaching)
-            ? "이동: 성과→2·4·6회→캠페인 기록 필터"
-            : "이동: 성과→" + coaching.TrimStart(' ', '·') + " · 2·4·6회→캠페인 기록 필터";
+            ? "이동 성과·2·4·6회 캠페인 기록 필터"
+            : "이동 성과·" + coaching.TrimStart(' ', '·') + "·2·4·6회 캠페인 기록 필터";
     }
 
     private void UpdateAchievementReplayTierRecordButtons(int replayObjectiveCount)
@@ -23262,18 +23263,16 @@ public sealed class CareReviewGame : MonoBehaviour
         builder.AppendLine(BuildCareerRecordViewHeader(filterLabel, CareerRecordViewMode.Summary));
         builder.AppendLine(
             $"최근 캠페인 기록: {Shorten(latest.completedAt, 16)} · {latest.campaignGrade}{latest.campaignScore}점 · " +
-            $"엔딩 {latest.endingTitle} · 마지막 회차 세부: 아래");
+            $"엔딩 {latest.endingTitle} · 마지막 회차 세부 아래");
         builder.AppendLine(
-            $"챌린지: {Shorten(latest.campaignChallengeTitle, 14)} · 조사 후속 {latest.investigationFollowUpCount}건 · " +
-            $"내 판단 기준 {Shorten(FallbackText(latest.closestAgentPersonaName, "기록 없음"), 8)}{replayRewardState}");
+            $"챌린지: {Shorten(latest.campaignChallengeTitle, 14)} · 내 판단 기준 {Shorten(FallbackText(latest.closestAgentPersonaName, "기록 없음"), 8)} · " +
+            $"조사 후속 {latest.investigationFollowUpCount}건{replayRewardState}");
         builder.AppendLine(
-            $"성장 비교: 직전/이전 최고/비교 초점 · 동일 사례 회고: {FallbackText(latest.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과");
+            $"성장 비교: 직전/이전 최고/비교 초점 · 성장 목표 요약: 목표 {Mathf.Max(1, growthCount)}회/후속 {Mathf.Max(1, growthFollowUpCount)}회/{growthState}");
         builder.AppendLine(
-            $"브리핑 회고: 예고 위험/예고 보상/실제 결과 · 성장 목표 요약: 목표 {Mathf.Max(1, growthCount)}회/후속 {Mathf.Max(1, growthFollowUpCount)}회/{growthState}");
+            $"동일 사례 회고: {FallbackText(latest.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과 · 브리핑 회고: 예고 위험/예고 보상/실제 결과");
         builder.AppendLine(
-            $"이의제기 누적: 즉시 재검토 {FallbackText(latest.appealReviewCaseId, "C-031")} · 보정 목표 요약: {appealRate}/최근 미달/{FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")}");
-        builder.AppendLine(
-            $"판단 비교 연습 요약: {DecisionPracticeRewardTier(CountDecisionPracticeObjectiveRecords(records))} · 판단 복기 · 추천 운영 · 검증 질문");
+            $"이의제기 누적: 즉시 재검토 {FallbackText(latest.appealReviewCaseId, "C-031")} · 보정 목표 요약: {appealRate}/최근 미달/{FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")} · 판단 복기/추천 운영/검증 질문");
         if (focusedRecord != null && !string.IsNullOrWhiteSpace(focusLabel))
         {
             builder.AppendLine($"▶ 포커스: {focusLabel} · {Shorten(latest.completedAt, 16)}");
