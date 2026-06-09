@@ -1310,45 +1310,46 @@ public sealed class CareReviewGame : MonoBehaviour
             new Color32(31, 42, 40, 192),
             10,
             "",
-            13,
+            15,
             TextAnchor.MiddleCenter,
             new Color32(246, 232, 202, 255),
             FontStyle.Bold);
         caseSnapshotBacker = caseSnapshotText.transform.parent.GetComponent<Image>();
 
-        CreatePanel("Center Paper Shadow", reviewRoot, new Vector2(-55, 42), new Vector2(638, 594), new Color32(8, 10, 12, 58));
-        CreateImage("Center Case Folder", reviewRoot, GridSprite(uiPanelsSheet, 4, 3, 3, 2), new Vector2(-55, 78), new Vector2(636, 458), new Color32(255, 255, 255, 244)).preserveAspect = true;
-        CreatePanel("Center Paper Tint", reviewRoot, new Vector2(-55, 58), new Vector2(586, 598), new Color32(246, 231, 197, 212));
+        CreatePanel("Center Paper Shadow", reviewRoot, new Vector2(-55, 42), new Vector2(656, 614), new Color32(8, 10, 12, 58));
+        CreateImage("Center Case Folder", reviewRoot, GridSprite(uiPanelsSheet, 4, 3, 3, 2), new Vector2(-55, 78), new Vector2(650, 468), new Color32(255, 255, 255, 244)).preserveAspect = true;
+        CreatePanel("Center Paper Tint", reviewRoot, new Vector2(-55, 58), new Vector2(610, 608), new Color32(246, 231, 197, 212));
 
         caseBodyText = CreateTextBox(
             reviewRoot,
             "Case Body Box",
-            new Vector2(-55, 70),
-            new Vector2(562, 314),
+            new Vector2(-55, 76),
+            new Vector2(588, 332),
             new Color32(246, 231, 197, 164),
-            22,
-            "",
             18,
+            "",
+            21,
             TextAnchor.UpperLeft,
             new Color32(38, 30, 24, 255),
             FontStyle.Normal);
+        caseBodyText.lineSpacing = 1.06f;
 
         AddDocumentStrip();
 
         documentsText = CreateTextBox(
             reviewRoot,
             "Documents Box",
-            new Vector2(-55, -181),
-            new Vector2(610, 156),
+            new Vector2(-55, -190),
+            new Vector2(610, 138),
             new Color32(241, 221, 184, 178),
-            28,
+            18,
             "",
-            15,
+            18,
             TextAnchor.UpperLeft,
             new Color32(45, 38, 30, 255),
             FontStyle.Normal);
         documentsText.alignByGeometry = false;
-        documentsText.lineSpacing = 1.08f;
+        documentsText.lineSpacing = 1.04f;
 
         CreatePanel("Review Right Support Rail", reviewRoot, new Vector2(720, -54), new Vector2(372, 520), new Color32(9, 13, 14, 16));
         CreateImage("Regulation Book", reviewRoot, GridSprite(uiPanelsSheet, 4, 3, 0, 0), new Vector2(710, 252), new Vector2(392, 244), Color.white).preserveAspect = true;
@@ -1358,13 +1359,13 @@ public sealed class CareReviewGame : MonoBehaviour
             new Vector2(720, 138),
             new Vector2(360, 150),
             new Color32(19, 31, 32, 112),
-            16,
+            12,
             "",
-            13,
+            16,
             TextAnchor.UpperLeft,
             new Color32(236, 224, 197, 255),
             FontStyle.Normal);
-        regulationText.lineSpacing = 0.92f;
+        regulationText.lineSpacing = 0.96f;
 
         metricsText = CreateTextBox(
             reviewRoot,
@@ -1372,9 +1373,9 @@ public sealed class CareReviewGame : MonoBehaviour
             new Vector2(720, -184),
             new Vector2(340, 66),
             new Color32(19, 31, 32, 88),
-            12,
+            10,
             "",
-            13,
+            16,
             TextAnchor.UpperLeft,
             new Color32(245, 233, 198, 255),
             FontStyle.Normal);
@@ -1385,9 +1386,9 @@ public sealed class CareReviewGame : MonoBehaviour
             new Vector2(720, -296),
             new Vector2(340, 78),
             new Color32(25, 35, 35, 92),
-            12,
+            10,
             "",
-            13,
+            15,
             TextAnchor.UpperLeft,
             new Color32(236, 224, 197, 255),
             FontStyle.Normal);
@@ -1402,14 +1403,14 @@ public sealed class CareReviewGame : MonoBehaviour
             new Color32(33, 27, 21, 98),
             10,
             "신청서와 소득증명을 대조한 뒤 도장을 찍으세요.",
-            18,
+            20,
             TextAnchor.MiddleCenter,
             new Color32(245, 232, 207, 255),
             FontStyle.Normal);
 
         CreatePanel("Decision Stamp Tray", reviewRoot, new Vector2(0, -468), new Vector2(1160, 132), new Color32(8, 10, 11, 52));
         CreatePanel("Decision Stamp Tray Surface", reviewRoot, new Vector2(0, -486), new Vector2(1040, 62), new Color32(28, 22, 17, 44));
-        CreatePanel("Decision Preview Rail", reviewRoot, new Vector2(0, -394), new Vector2(920, 34), new Color32(238, 216, 172, 10));
+        CreatePanel("Decision Preview Rail", reviewRoot, new Vector2(0, -394), new Vector2(960, 40), new Color32(238, 216, 172, 10));
         BuildDecisionPreviewStrip();
         CreateDecisionButton("승인", DecisionKind.Approve, GridSprite(documentsStampsSheet, 4, 4, 2, 3), new Vector2(-465, -482), new Color32(96, 129, 67, 245));
         CreateDecisionButton("조건부", DecisionKind.Conditional, GridSprite(documentsStampsSheet, 4, 4, 1, 2), new Vector2(-232, -482), new Color32(112, 121, 70, 245));
@@ -12773,6 +12774,14 @@ public sealed class CareReviewGame : MonoBehaviour
         bool achievementCardsMentionDecisionPractice =
             achievementCards.Contains("판단 비교 훈련") &&
             achievementCards.Contains("비교 연습:");
+        bool achievementCardsUseCompactDetailCopy =
+            achievementCards.Contains("기준: 5일차 리포트") &&
+            achievementCards.Contains("기준: 권장 판단 85% 이상") &&
+            achievementCards.Contains("기준: 조사 메모 후속 반영") &&
+            !achievementCards.Contains("5일차 리포트 확인, 캠페인 완료") &&
+            !achievementCards.Contains("최종 리포트 이후 판단 복기 확인") &&
+            !achievementCards.Contains("최종 리포트 이후 판단 비교 확인") &&
+            !achievementCards.Contains("조사 메모가 다음 날 위험 완화로 반영");
         string achievementStatus = achievementStatusText != null ? achievementStatusText.text : "";
         bool achievementStatusMentionsNextGoalRoadmap =
             achievementStatus.Contains("다음 성과 목표") &&
@@ -13026,6 +13035,7 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementCardsMentionAppealRemedy &&
             achievementCardMentionsAppealTriageResult &&
             achievementCardsMentionDecisionPractice &&
+            achievementCardsUseCompactDetailCopy &&
             achievementStatusMentionsNextGoalRoadmap &&
             achievementStatusMentionsRewardLoop &&
             achievementToastMentionsRecordLoop &&
@@ -13074,6 +13084,7 @@ public sealed class CareReviewGame : MonoBehaviour
             $"  \"achievementCardsMentionAppealRemedy\": {(achievementCardsMentionAppealRemedy ? "true" : "false")},\n" +
             $"  \"achievementCardMentionsAppealTriageResult\": {(achievementCardMentionsAppealTriageResult ? "true" : "false")},\n" +
             $"  \"achievementCardsMentionDecisionPractice\": {(achievementCardsMentionDecisionPractice ? "true" : "false")},\n" +
+            $"  \"achievementCardsUseCompactDetailCopy\": {(achievementCardsUseCompactDetailCopy ? "true" : "false")},\n" +
             $"  \"achievementStatusMentionsNextGoalRoadmap\": {(achievementStatusMentionsNextGoalRoadmap ? "true" : "false")},\n" +
             $"  \"achievementStatusMentionsRewardLoop\": {(achievementStatusMentionsRewardLoop ? "true" : "false")},\n" +
             $"  \"achievementToastMentionsRecordLoop\": {(achievementToastMentionsRecordLoop ? "true" : "false")},\n" +
@@ -15299,6 +15310,7 @@ public sealed class CareReviewGame : MonoBehaviour
         float achievementReplayRewardMaxDisplayLineWidth = 0f;
         string achievementReplayRewardSample = "";
         bool achievementCardsReadable = true;
+        bool achievementCardsUseCompactDetailCopy = true;
         float achievementCardsMaxDisplayLineWidth = 0f;
         string achievementCardsSample = "";
         bool lowResolutionReleaseCopyAlignmentReadable = true;
@@ -15600,7 +15612,15 @@ public sealed class CareReviewGame : MonoBehaviour
                 achievementCards.Contains("이의제기 보정 설계자") &&
                 !achievementCards.Contains("해금 ·") &&
                 !achievementCards.Contains("잠김 ·") &&
-                achievementCardsWidth <= 62f;
+                achievementCardsWidth <= 56f;
+            achievementCardsUseCompactDetailCopy &=
+                achievementCards.Contains("기준: 5일차 리포트") &&
+                achievementCards.Contains("기준: 권장 판단 85% 이상") &&
+                achievementCards.Contains("기준: 조사 메모 후속 반영") &&
+                !achievementCards.Contains("5일차 리포트 확인, 캠페인 완료") &&
+                !achievementCards.Contains("최종 리포트 이후 판단 복기 확인") &&
+                !achievementCards.Contains("최종 리포트 이후 판단 비교 확인") &&
+                !achievementCards.Contains("조사 메모가 다음 날 위험 완화로 반영");
             achievementReplayRewardReadable &=
                 achievementRoot != null &&
                 achievementRoot.gameObject.activeSelf &&
@@ -15668,6 +15688,7 @@ public sealed class CareReviewGame : MonoBehaviour
             achievementRecordLinkHintMentionsCoachingFirstUse &&
             achievementReplayRewardReadable &&
             achievementCardsReadable &&
+            achievementCardsUseCompactDetailCopy &&
             lowResolutionReleaseCopyAlignmentReadable;
         string resultPath = Path.Combine(Application.persistentDataPath, "care_review_low_resolution_ui_smoke_result.json");
         string resultJson =
@@ -15724,6 +15745,7 @@ public sealed class CareReviewGame : MonoBehaviour
             $"  \"achievementReplayRewardMaxDisplayLineWidth\": {achievementReplayRewardMaxDisplayLineWidth:0.0},\n" +
             $"  \"achievementReplayRewardSample\": \"{EscapeJson(achievementReplayRewardSample)}\",\n" +
             $"  \"achievementCardsReadable\": {(achievementCardsReadable ? "true" : "false")},\n" +
+            $"  \"achievementCardsUseCompactDetailCopy\": {(achievementCardsUseCompactDetailCopy ? "true" : "false")},\n" +
             $"  \"achievementCardsMaxDisplayLineWidth\": {achievementCardsMaxDisplayLineWidth:0.0},\n" +
             $"  \"achievementCardsSample\": \"{EscapeJson(achievementCardsSample)}\",\n" +
             $"  \"lowResolutionReleaseCopyAlignmentReadable\": {(lowResolutionReleaseCopyAlignmentReadable ? "true" : "false")},\n" +
@@ -25255,20 +25277,47 @@ public sealed class CareReviewGame : MonoBehaviour
     {
         if (achievement.id == "case_objective_replay")
         {
-            return "사례 재심사 목표: 2/4/6회 · 금색 엔딩 장식";
+            return "사례 재심사 목표: 2/4/6회 · 금색 장식";
         }
 
         if (achievement.id == "appeal_remedy_objective" && !string.IsNullOrEmpty(progress))
         {
-            return Shorten(progress, 56);
+            return Shorten(progress, 46);
         }
 
         if (!string.IsNullOrEmpty(progress))
         {
-            return Shorten(progress, 52);
+            return Shorten(progress, 44);
         }
 
-        return Shorten(achievement.description, 48);
+        return AchievementCardStaticDetailLine(achievement);
+    }
+
+    private static string AchievementCardStaticDetailLine(AchievementDefinition achievement)
+    {
+        switch (achievement.id)
+        {
+            case "campaign_complete":
+                return "기준: 5일차 리포트";
+            case "recommended_path":
+                return "기준: 권장 판단 85% 이상";
+            case "risk_shield":
+                return "기준: 누락 위험 25 이하";
+            case "equity_guardian":
+                return "기준: 형평성 90 이상";
+            case "budget_explained":
+                return "기준: 예산 초과 1,000만 원 미만";
+            case "analytics_export":
+                return "기준: 최종 리포트 복기 확인";
+            case "agent_lab":
+                return "기준: 판단 비교 확인";
+            case "mandate_replay":
+                return "기준: 운영 기준 2종 완료";
+            case "investigation_follow_up":
+                return "기준: 조사 메모 후속 반영";
+            default:
+                return Shorten(achievement.description, 38);
+        }
     }
 
     private static string AchievementCardProgressText(AchievementDefinition achievement)
@@ -25288,8 +25337,8 @@ public sealed class CareReviewGame : MonoBehaviour
             List<CareerRecord> records = LoadCareerRecordDatabase().records;
             int appealRemedyObjectiveCount = CountAppealRemedyObjectiveRecords(records);
             return appealRemedyObjectiveCount > 0
-                ? $"보정 목표: {appealRemedyObjectiveCount}회 완료 · {BuildAppealRemedyTriageAchievementProgressText(records)}"
-                : "보정 목표: 사례 자료실 이의제기 큐에서 보정 목표 심사 완료";
+                ? $"보정 목표: {appealRemedyObjectiveCount}회 · {BuildAppealRemedyTriageAchievementProgressText(records)}"
+                : "보정 목표: 이의제기 큐 심사 완료";
         }
 
         if (achievement.id == "decision_practice_objective")
@@ -25305,13 +25354,13 @@ public sealed class CareReviewGame : MonoBehaviour
         int replayObjectiveCount = CountReplayObjectiveRecords(LoadCareerRecordDatabase().records);
         if (replayObjectiveCount <= 0)
         {
-            return "반복 장식: 목표 심사 2/4/6회 누적으로 동색/은색/금색 장식";
+            return "반복 장식: 2/4/6회 · 금색 대기";
         }
 
         string next = replayObjectiveCount >= 6
             ? "최고 단계"
             : $"다음 {Mathf.Max(2, replayObjectiveCount >= 4 ? 6 : 4)}회";
-        return $"반복 장식: {AdvancedReplayChallengeTier(replayObjectiveCount)} · {AdvancedReplayChallengeDecoration(replayObjectiveCount)} · {replayObjectiveCount}회/{next} · 2/4/6 금색";
+        return $"반복 장식: {replayObjectiveCount}회/{next} · 2/4/6 금색";
     }
 
     private static string BuildGrowthObjectiveAchievementProgressText()
@@ -25323,7 +25372,7 @@ public sealed class CareReviewGame : MonoBehaviour
 
         string result = record.growthObjectiveSucceeded ? "성공" : "미달";
         string progress = FallbackText(record.growthObjectiveProgress, record.growthObjectiveChallenge);
-        return $"성장 기록: {result} · 점수 {record.campaignScore} · {Shorten(progress, 26)}";
+        return $"성장 기록: {result} · {record.campaignScore}점 · {Shorten(progress, 22)}";
     }
 
     private static string BuildGrowthFollowUpAchievementProgressText()
@@ -25334,7 +25383,7 @@ public sealed class CareReviewGame : MonoBehaviour
         }
 
         string challenge = FallbackText(record.growthFollowUpChallenge, record.nextCampaignChallenge);
-        return $"후속 기록: 완료 · 점수 {record.campaignScore} · {Shorten(challenge, 26)}";
+        return $"후속 기록: 완료 · {record.campaignScore}점 · {Shorten(challenge, 22)}";
     }
 
     private static string BuildDecisionPracticeAchievementProgressText()
@@ -25346,7 +25395,7 @@ public sealed class CareReviewGame : MonoBehaviour
             return "비교 연습: 사례 자료실 판단 비교표에서 연습 회차 완료";
         }
 
-        return $"비교 연습: {count}회 · {DecisionPracticeRewardTier(count)} · 권장 {record.recommendedMatchRatePercent:0}% · {Shorten(record.decisionPracticeCaseId, 8)}";
+        return $"비교 연습: {count}회 · 단계 {DecisionPracticeRewardTierIndex(count)} · 권장 {record.recommendedMatchRatePercent:0}% · {Shorten(record.decisionPracticeCaseId, 8)}";
     }
 
     private static string BuildAchievementReplayRewardHistoryLine(int replayObjectiveCount)
@@ -25483,6 +25532,24 @@ public sealed class CareReviewGame : MonoBehaviour
         }
 
         return "비교 숙련 대기";
+    }
+
+    private static int DecisionPracticeRewardTierIndex(int practiceCount)
+    {
+        if (practiceCount >= 6)
+        {
+            return 3;
+        }
+        if (practiceCount >= 4)
+        {
+            return 2;
+        }
+        if (practiceCount >= 2)
+        {
+            return 1;
+        }
+
+        return 0;
     }
 
     private static string DecisionPracticeRewardDecoration(int practiceCount)
@@ -26961,9 +27028,9 @@ public sealed class CareReviewGame : MonoBehaviour
             label.horizontalOverflow = HorizontalWrapMode.Wrap;
             label.verticalOverflow = VerticalWrapMode.Truncate;
             label.resizeTextForBestFit = false;
-            label.resizeTextMinSize = 12;
+            label.resizeTextMinSize = 13;
             label.lineSpacing = 1f;
-            SetRect(label.rectTransform, new Vector2(0, 47), new Vector2(108, 22));
+            SetRect(label.rectTransform, new Vector2(0, 47), new Vector2(112, 24));
             ApplyEvidenceLabelText(label, EvidenceCardLabels[i]);
             documentStripLabels[i] = label;
 
@@ -26983,7 +27050,7 @@ public sealed class CareReviewGame : MonoBehaviour
             return 11;
         }
 
-        return label.Length >= 4 ? 14 : 15;
+        return label.Length >= 4 ? 15 : 16;
     }
 
     private static string EvidenceCaptionText(string label)
@@ -27001,7 +27068,7 @@ public sealed class CareReviewGame : MonoBehaviour
         label.text = EvidenceCaptionText(text);
         label.fontSize = EvidenceLabelFontSize(text);
         label.resizeTextMaxSize = label.fontSize;
-        label.resizeTextMinSize = Mathf.Min(12, label.fontSize);
+        label.resizeTextMinSize = Mathf.Min(13, label.fontSize);
     }
 
     private void UpdateDocumentStrip(CareCase careCase, int caseIndex)
@@ -27616,11 +27683,11 @@ public sealed class CareReviewGame : MonoBehaviour
                 reviewRoot,
                 "Decision Preview " + PolicyDecisionOrder[i],
                 positions[i],
-                new Vector2(154, 32),
+                new Vector2(168, 38),
                 new Color32(26, 30, 28, 64),
                 1,
                 "",
-                9,
+                12,
                 TextAnchor.MiddleCenter,
                 new Color32(246, 232, 202, 138),
                 FontStyle.Normal);
@@ -27668,26 +27735,26 @@ public sealed class CareReviewGame : MonoBehaviour
 
         if (recommendationTag == "권장")
         {
-            previewText.fontSize = AdjustedFontSize(8);
+            previewText.fontSize = AdjustedFontSize(12);
             previewText.color = new Color32(246, 232, 202, 255);
             previewText.fontStyle = FontStyle.Bold;
-            previewText.lineSpacing = 0.95f;
+            previewText.lineSpacing = 0.96f;
             return;
         }
 
         if (recommendationTag == "대체")
         {
-            previewText.fontSize = AdjustedFontSize(7);
+            previewText.fontSize = AdjustedFontSize(11);
             previewText.color = new Color32(238, 219, 184, 172);
             previewText.fontStyle = FontStyle.Normal;
-            previewText.lineSpacing = 0.92f;
+            previewText.lineSpacing = 0.94f;
             return;
         }
 
-        previewText.fontSize = AdjustedFontSize(7);
+        previewText.fontSize = AdjustedFontSize(11);
         previewText.color = new Color32(220, 204, 172, 118);
         previewText.fontStyle = FontStyle.Normal;
-        previewText.lineSpacing = 0.88f;
+        previewText.lineSpacing = 0.92f;
     }
 
     private static string BuildDecisionPreviewText(DecisionPreview preview, string recommendationTag, int riskDelta)
