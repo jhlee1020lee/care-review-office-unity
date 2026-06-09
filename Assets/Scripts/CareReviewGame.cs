@@ -4311,23 +4311,20 @@ public sealed class CareReviewGame : MonoBehaviour
         }
 
         StringBuilder builder = new();
-        builder.AppendLine("일차  사례              유형        권장       압박        비용");
-        builder.AppendLine("────────────────────────────────────────");
+        builder.AppendLine("현재 쪽 핵심 사례");
         for (int i = start; i < end; i++)
         {
             CareCase careCase = archiveCases[i];
             int pressure = CasePressureScore(careCase);
             string marker = string.Equals(careCase.id, caseArchiveFocusedCaseId, StringComparison.OrdinalIgnoreCase) ? "▶" : " ";
             builder.AppendLine(
-                $"{marker}D{careCase.day}  {Shorten(careCase.id + " " + careCase.name, 14),-14}  " +
-                $"{Shorten(careCase.type, 8),-8}  " +
-                $"{Shorten(careCase.recommendedDecision, 6),-6}  " +
-                $"{pressure,3}/{CasePressureLabel(pressure),-4}  " +
-                $"{GetDecisionCost(DecisionKind.Approve, careCase),4}만");
+                $"{marker}D{careCase.day} {careCase.id} · {Shorten(careCase.type, 6)} · " +
+                $"권장 {Shorten(careCase.recommendedDecision, 4)} · 압박 {pressure}/{CasePressureLabel(pressure)}");
         }
 
         builder.AppendLine();
-        builder.AppendLine("압박은 긴급도, 형평 필요, 서류 취약도를 합친 빠른 검토 지표입니다. 필터 버튼으로 큐를 바꿉니다.");
+        builder.AppendLine("압박은 긴급도, 형평 필요, 서류 취약도를 합친 지표입니다.");
+        builder.AppendLine("비용은 상세에서 확인합니다. 필터 버튼으로 큐를 바꿉니다.");
         return builder.ToString();
     }
 
@@ -4353,19 +4350,24 @@ public sealed class CareReviewGame : MonoBehaviour
         int approveCost = GetDecisionCost(DecisionKind.Approve, careCase);
         int conditionalCost = GetDecisionCost(DecisionKind.Conditional, careCase);
         int pressure = CasePressureScore(careCase);
+        string summary = Shorten(careCase.summary, 40);
+        string request = Shorten(careCase.request, 40);
+        string signal = Shorten(careCase.signal, 40);
+        string documents = Shorten(careCase.documents, 40);
+        string followUp = Shorten(!string.IsNullOrWhiteSpace(careCase.followUp) ? careCase.followUp : "후속 메모 없음", 40);
 
         return
             $"{titlePrefix}: {careCase.id} {careCase.name}\n" +
-            $"유형: {careCase.type} · D{careCase.day} · {incomeLabel}\n" +
+            $"기준: {Shorten(careCase.type, 16)} · D{careCase.day} · {incomeLabel}\n" +
             $"권장 판단: {careCase.recommendedDecision} · 압박 {pressure}/100({CasePressureLabel(pressure)})\n" +
-            $"비용: 승인 {approveCost}만원 · 조건부 {conditionalCost}만원\n\n" +
+            $"비용/서류: 승인 {approveCost}만 · 조건부 {conditionalCost}만 · 누락/보강 {Shorten(missingLabel, 26)}\n\n" +
             BuildCaseArchiveAppealRemedyHistoryText(careCase.id) +
             BuildCaseArchiveDecisionComparisonText(careCase) +
-            $"신청 요약\n{careCase.summary}\n\n" +
-            $"요청\n{careCase.request}\n\n" +
-            $"핵심 위험 신호\n{careCase.signal}\n\n" +
-            $"서류\n{careCase.documents}\n누락/보강: {missingLabel}\n\n" +
-            $"후속 메모\n{(!string.IsNullOrWhiteSpace(careCase.followUp) ? careCase.followUp : "후속 메모 없음")}" +
+            $"신청/요청: {summary}\n" +
+            $"요청: {request}\n" +
+            $"핵심 위험 신호: {signal}\n" +
+            $"서류: {documents}\n" +
+            $"후속 메모: {followUp}" +
             BuildCaseReplayObjectiveText(careCase) +
             BuildUnlockedInvestigationText(careCase.id) +
             BuildAppealReviewText(careCase.id) +
@@ -4382,20 +4384,47 @@ public sealed class CareReviewGame : MonoBehaviour
 
         StringBuilder builder = new();
         builder.AppendLine("판단 비교");
-        for (int i = 0; i < PolicyDecisionOrder.Length; i++)
+        int written = 0;
+        written += AppendCaseArchiveDecisionComparisonLine(builder, careCase, true);
+        for (int i = 0; i < PolicyDecisionOrder.Length && written < 3; i++)
         {
-            DecisionKind kind = PolicyDecisionOrder[i];
-            DecisionPreview preview = BuildDecisionPreview(careCase, kind, campaignMandate, budget, stability, equity, missedRisk, complaints);
-            int riskDelta = preview.missedRiskDelta + preview.complaintsDelta;
-            string marker = MatchesRecommended(preview.decisionLabel, careCase.recommendedDecision) ? "[권장] " : "";
-            builder.AppendLine(
-                $"{marker}{preview.decisionLabel}: 예산 {SignedNumber(preview.budgetDelta)}만 · " +
-                $"안정 {SignedNumber(preview.stabilityDelta)} · 형평 {SignedNumber(preview.equityDelta)} · " +
-                $"위험 {SignedNumber(riskDelta)} · 후폭풍 {Shorten(preview.consequence.title, 18)}");
+            written += AppendCaseArchiveDecisionComparisonLine(builder, careCase, false, PolicyDecisionOrder[i]);
         }
 
         builder.AppendLine();
         return builder.ToString();
+    }
+
+    private int AppendCaseArchiveDecisionComparisonLine(StringBuilder builder, CareCase careCase, bool recommendedOnly, DecisionKind fallbackKind = DecisionKind.Approve)
+    {
+        if (builder == null || careCase == null)
+        {
+            return 0;
+        }
+
+        for (int i = 0; i < PolicyDecisionOrder.Length; i++)
+        {
+            DecisionKind kind = recommendedOnly ? PolicyDecisionOrder[i] : fallbackKind;
+            DecisionPreview preview = BuildDecisionPreview(careCase, kind, campaignMandate, budget, stability, equity, missedRisk, complaints);
+            bool recommended = MatchesRecommended(preview.decisionLabel, careCase.recommendedDecision);
+            if (recommendedOnly != recommended)
+            {
+                if (!recommendedOnly)
+                {
+                    break;
+                }
+                continue;
+            }
+
+            int riskDelta = preview.missedRiskDelta + preview.complaintsDelta;
+            string marker = recommended ? "[권장] " : "";
+            builder.AppendLine(
+                $"{marker}{preview.decisionLabel}: 예산 {SignedNumber(preview.budgetDelta)}만 · " +
+                $"위험 {SignedNumber(riskDelta)} · 후폭풍 {Shorten(preview.consequence.title, 14)}");
+            return 1;
+        }
+
+        return 0;
     }
 
     private static string BuildCaseArchiveAppealRemedyHistoryText(string caseId)
@@ -9889,7 +9918,22 @@ public sealed class CareReviewGame : MonoBehaviour
             initialList.Contains("필터 버튼으로 큐") &&
             !initialList.Contains("F 키") &&
             !initialList.Contains("F로");
+        bool caseArchiveListReadable =
+            initialList.Contains("현재 쪽 핵심 사례") &&
+            !initialList.Contains("일차  사례") &&
+            !initialList.Contains("────") &&
+            CountNonEmptyLines(initialList) <= 11 &&
+            MaxDisplayLineWidth(initialList) <= 62f;
         bool detailMentionsRisk = initialDetail.Contains("핵심 위험 신호") && initialDetail.Contains("권장 판단");
+        bool caseArchiveDetailReadable =
+            initialDetail.Contains("신청/요청:") &&
+            initialDetail.Contains("핵심 위험 신호:") &&
+            initialDetail.Contains("서류:") &&
+            initialDetail.Contains("후속 메모:") &&
+            !initialDetail.Contains("신청 요약\n") &&
+            !initialDetail.Contains("\n요청\n") &&
+            CountNonEmptyLines(initialDetail) <= 22 &&
+            MaxDisplayLineWidth(initialDetail) <= 78f;
         bool caseArchiveHintReadable =
             caseArchiveHintText != null &&
             initialHint.Contains("필터별 사례") &&
@@ -10408,7 +10452,9 @@ public sealed class CareReviewGame : MonoBehaviour
             summaryMentionsCaseCount &&
             listMentionsFirstCase &&
             caseArchiveListUsesPlayerFacingCopy &&
+            caseArchiveListReadable &&
             detailMentionsRisk &&
+            caseArchiveDetailReadable &&
             caseArchiveHintReadable &&
             caseArchiveMentionsDecisionComparison &&
             caseArchiveDecisionPracticeButtonReady &&
@@ -10480,7 +10526,15 @@ public sealed class CareReviewGame : MonoBehaviour
             $"  \"summaryMentionsCaseCount\": {(summaryMentionsCaseCount ? "true" : "false")},\n" +
             $"  \"listMentionsFirstCase\": {(listMentionsFirstCase ? "true" : "false")},\n" +
             $"  \"caseArchiveListUsesPlayerFacingCopy\": {(caseArchiveListUsesPlayerFacingCopy ? "true" : "false")},\n" +
+            $"  \"caseArchiveListReadable\": {(caseArchiveListReadable ? "true" : "false")},\n" +
+            $"  \"caseArchiveListMaxDisplayLineWidth\": {MaxDisplayLineWidth(initialList):0.0},\n" +
+            $"  \"caseArchiveListLineCount\": {CountNonEmptyLines(initialList)},\n" +
+            $"  \"caseArchiveListSample\": \"{EscapeJson(Shorten(initialList.Replace("\n", " | "), 260))}\",\n" +
             $"  \"detailMentionsRisk\": {(detailMentionsRisk ? "true" : "false")},\n" +
+            $"  \"caseArchiveDetailReadable\": {(caseArchiveDetailReadable ? "true" : "false")},\n" +
+            $"  \"caseArchiveDetailMaxDisplayLineWidth\": {MaxDisplayLineWidth(initialDetail):0.0},\n" +
+            $"  \"caseArchiveDetailLineCount\": {CountNonEmptyLines(initialDetail)},\n" +
+            $"  \"caseArchiveDetailSample\": \"{EscapeJson(Shorten(initialDetail.Replace("\n", " | "), 320))}\",\n" +
             $"  \"caseArchiveHintReadable\": {(caseArchiveHintReadable ? "true" : "false")},\n" +
             $"  \"caseArchiveHintMaxDisplayLineWidth\": {MaxDisplayLineWidth(initialHint):0.0},\n" +
             $"  \"caseArchiveHintText\": \"{EscapeJson(initialHint)}\",\n" +
@@ -15483,7 +15537,7 @@ public sealed class CareReviewGame : MonoBehaviour
                 careerBody.Contains("보정 목표 요약") &&
                 careerBody.Contains("판단 복기") &&
                 careerBodyWidth <= 76f &&
-                careerBodyLineCount <= 9;
+                careerBodyLineCount <= 7;
             careerRecordDetailReadable &=
                 careerRecordRoot != null &&
                 careerRecordRoot.gameObject.activeSelf &&
@@ -15492,7 +15546,7 @@ public sealed class CareReviewGame : MonoBehaviour
             careerDetail.Contains("조사 메모") &&
             careerDetail.Contains("판단 복기") &&
             careerDetailWidth <= 76f &&
-            careerDetailLineCount <= 9;
+            careerDetailLineCount <= 8;
             if (string.IsNullOrWhiteSpace(careerRecordSummaryChipsSample))
             {
                 careerRecordSummaryChipsSample = careerSummaryChips.Replace("\r\n", " | ").Replace("\n", " | ").Trim();
@@ -23909,20 +23963,17 @@ public sealed class CareReviewGame : MonoBehaviour
         StringBuilder builder = new();
         builder.AppendLine(BuildCareerRecordViewHeader(filterLabel, CareerRecordViewMode.Summary));
         builder.AppendLine(
-            $"최근 캠페인 기록: {latest.campaignGrade}{latest.campaignScore}점 · 엔딩 {latest.endingTitle} · " +
-            $"챌린지 {Shorten(latest.campaignChallengeTitle, 14)} · {Shorten(latest.completedAt, 10)}");
+            $"마지막 회차 세부: {latest.campaignGrade}{latest.campaignScore}점 · 엔딩 {latest.endingTitle} · " +
+            $"챌린지 {Shorten(latest.campaignChallengeTitle, 16)}");
         builder.AppendLine(
-            $"마지막 회차 세부: 내 판단 기준 {Shorten(FallbackText(latest.closestAgentPersonaName, "기록 없음"), 8)} · " +
+            $"운영 메모: 내 판단 기준 {Shorten(FallbackText(latest.closestAgentPersonaName, "기록 없음"), 8)} · " +
             $"조사 후속 {latest.investigationFollowUpCount}건{replayRewardState}");
         builder.AppendLine(
             $"장기 추세 패널: 보정 목표 {appealRemedyCount}회 · 비교 연습 {CountDecisionPracticeObjectiveRecords(records)}회 · " +
             "성장 비교 직전/이전 최고/비교 초점");
         builder.AppendLine($"성장 목표 요약: 목표 {Mathf.Max(1, growthCount)}회 · 후속 {Mathf.Max(1, growthFollowUpCount)}회 · {growthState}");
-        builder.AppendLine($"동일 사례 회고: {FallbackText(latest.representativeCaseId, "AG-349")} 판단 변화 -> 목표 재도전 결과");
-        builder.AppendLine("브리핑 회고: 예고 위험/예고 보상 · 실제 결과 · 판단 복기: 추천 운영 · 검증 질문");
-        builder.AppendLine(
-            $"이의제기 누적: 즉시 재검토 {FallbackText(latest.appealReviewCaseId, "C-031")} · " +
-            $"보정 목표 요약: {appealRate} · 최근 미달 · {FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")}");
+        builder.AppendLine($"보정 목표 요약: {appealRate} · 최근 미달 · {FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")}");
+        builder.AppendLine("판단 복기: 추천 운영 · 검증 질문");
         if (latest.appealRemedyObjectiveCompleted)
         {
             builder.AppendLine(
@@ -23937,7 +23988,8 @@ public sealed class CareReviewGame : MonoBehaviour
         if (latest.decisionPracticeObjectiveCompleted)
         {
             int practiceCount = CountDecisionPracticeObjectiveRecordsThrough(records, latest);
-            builder.AppendLine($"판단 비교 연습 요약: {DecisionPracticeRewardTier(practiceCount)} · {DecisionPracticeRewardDecoration(practiceCount)}");
+            builder.AppendLine($"판단 비교 연습 요약: 비교 연습 완료 {practiceCount}회 · {DecisionPracticeRewardTier(practiceCount)} · {DecisionPracticeRewardDecoration(practiceCount)}");
+            builder.AppendLine($"비교 연습 근거: {Shorten(FallbackText(latest.decisionPracticeReason, latest.decisionPracticeChallenge), 58)}");
         }
         if (!string.IsNullOrWhiteSpace(filterLabel) && !string.IsNullOrWhiteSpace(latest.growthObjectiveTitle))
         {
@@ -24770,6 +24822,8 @@ public sealed class CareReviewGame : MonoBehaviour
         if (record.decisionPracticeObjectiveCompleted)
         {
             builder.AppendLine($"판단 비교 연습: {record.decisionPracticeCaseId} · {Shorten(record.decisionPracticeChallenge, 58)}");
+            builder.AppendLine($"연습 근거: {Shorten(FallbackText(record.decisionPracticeReason, "판단 비교표 기록 없음"), 64)}");
+            builder.Append(BuildDecisionPracticeRewardDetailLines(record, records));
         }
 
         if (record.appealReviewCount > 0)
@@ -24815,14 +24869,18 @@ public sealed class CareReviewGame : MonoBehaviour
         StringBuilder builder = new();
         builder.AppendLine(focused ? "선택 회차 요약 · 엔딩 기록 연결" : "선택 회차 요약 · 최근 완료 회차");
         builder.AppendLine(
-            $"회차 해석 · {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName}");
-        builder.AppendLine(
-            $"판단 요약 · 지원 {record.supportCount} / 조사 {record.investigationCount} / 보류 {record.holdCount} / 거절 {record.rejectCount} · 권장 {record.matchedRecommendedCount}/{record.logCount}");
+            $"회차 해석 · {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · 권장 {record.matchedRecommendedCount}/{record.logCount}");
         builder.AppendLine(
             $"대표 사례 {FallbackText(record.representativeCaseId, "없음")} · 조사 메모 {FallbackText(record.investigationMemoCaseId, "없음")} · 조사 타임라인 후속 반영/최종 지표");
         builder.AppendLine(
-            $"동일 사례 회고 · {FallbackText(record.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과 · 보정 전/후 그래프");
-        builder.AppendLine("브리핑 회고 · 예고 위험/예고 보상 -> 실제 결과");
+            $"동일 사례 회고 · {FallbackText(record.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과 · 보정 전/후 그래프 · " +
+            "브리핑 회고 예고 위험/예고 보상 -> 실제 결과");
+        if (record.decisionPracticeObjectiveCompleted)
+        {
+            builder.AppendLine($"판단 비교 연습: {record.decisionPracticeCaseId} · {Shorten(record.decisionPracticeChallenge, 58)}");
+            builder.AppendLine($"연습 근거: {Shorten(FallbackText(record.decisionPracticeReason, "판단 비교표 기록 없음"), 64)}");
+            builder.Append(BuildDecisionPracticeRewardDetailLines(record, records));
+        }
 
         if (record.appealReviewCount > 0)
         {
