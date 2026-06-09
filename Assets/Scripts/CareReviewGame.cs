@@ -15034,15 +15034,27 @@ public sealed class CareReviewGame : MonoBehaviour
         bool mainMenuBriefingWeaknessFocusReadable = true;
         float mainMenuBriefingWeaknessFocusMaxDisplayLineWidth = 0f;
         string mainMenuBriefingWeaknessFocusSample = "";
+        bool mainMenuGrowthObjectiveSummaryReadable = true;
+        float mainMenuGrowthObjectiveSummaryMaxDisplayLineWidth = 0f;
+        string mainMenuGrowthObjectiveSummarySample = "";
+        bool mainMenuAppealRemedySummaryReadable = true;
+        float mainMenuAppealRemedySummaryMaxDisplayLineWidth = 0f;
+        string mainMenuAppealRemedySummarySample = "";
         bool agentDashboardPathReadable = true;
         float agentDashboardPathMaxDisplayLineWidth = 0f;
         string agentDashboardPathSample = "";
         bool careerRecordActionHintReadable = true;
         float careerRecordActionHintMaxDisplayLineWidth = 0f;
+        bool careerRecordSummaryChipsReadable = true;
+        float careerRecordSummaryChipsMaxDisplayLineWidth = 0f;
+        string careerRecordSummaryChipsSample = "";
         bool achievementRecordLinkHintReadable = true;
         bool achievementRecordLinkHintMentionsMenuEntry = true;
         bool achievementRecordLinkHintMentionsCoachingFirstUse = true;
         float achievementRecordLinkHintMaxDisplayLineWidth = 0f;
+        bool achievementReplayRewardReadable = true;
+        float achievementReplayRewardMaxDisplayLineWidth = 0f;
+        string achievementReplayRewardSample = "";
         bool lowResolutionReleaseCopyAlignmentReadable = true;
         string lowResolutionReleaseCopyAlignmentSample = "";
 
@@ -15059,14 +15071,20 @@ public sealed class CareReviewGame : MonoBehaviour
             string menuBriefing = menuCampaignBriefingText != null ? menuCampaignBriefingText.text : "";
             string menuFirstActionLine = FirstLineContaining(menuStatus, "처음이면");
             string menuAchievementBadgeLine = FirstLineContaining(menuStatus, "성과 배지");
+            string menuGrowthObjectiveSummaryLine = FirstLineContaining(menuStatus, "성장 누적");
+            string menuAppealRemedySummaryLine = FirstLineContaining(menuStatus, "보정 누적");
             string menuBriefingWeaknessFocusLine = FirstLineContaining(menuBriefing, "보정 초점");
             float menuFirstActionWidth = MaxDisplayLineWidth(menuFirstActionLine);
             float menuAchievementBadgeWidth = MaxDisplayLineWidth(menuAchievementBadgeLine);
             float menuAchievementHintWidth = MaxDisplayLineWidth(menuAchievementHint);
+            float menuGrowthObjectiveSummaryWidth = MaxDisplayLineWidth(menuGrowthObjectiveSummaryLine);
+            float menuAppealRemedySummaryWidth = MaxDisplayLineWidth(menuAppealRemedySummaryLine);
             float menuBriefingWeaknessFocusWidth = MaxDisplayLineWidth(menuBriefingWeaknessFocusLine);
             mainMenuGuidesFirstActionMaxDisplayLineWidth = Mathf.Max(mainMenuGuidesFirstActionMaxDisplayLineWidth, menuFirstActionWidth);
             mainMenuAchievementBadgeMaxDisplayLineWidth = Mathf.Max(mainMenuAchievementBadgeMaxDisplayLineWidth, menuAchievementBadgeWidth);
             mainMenuAchievementHintMaxDisplayLineWidth = Mathf.Max(mainMenuAchievementHintMaxDisplayLineWidth, menuAchievementHintWidth);
+            mainMenuGrowthObjectiveSummaryMaxDisplayLineWidth = Mathf.Max(mainMenuGrowthObjectiveSummaryMaxDisplayLineWidth, menuGrowthObjectiveSummaryWidth);
+            mainMenuAppealRemedySummaryMaxDisplayLineWidth = Mathf.Max(mainMenuAppealRemedySummaryMaxDisplayLineWidth, menuAppealRemedySummaryWidth);
             mainMenuBriefingWeaknessFocusMaxDisplayLineWidth = Mathf.Max(mainMenuBriefingWeaknessFocusMaxDisplayLineWidth, menuBriefingWeaknessFocusWidth);
             if (string.IsNullOrWhiteSpace(mainMenuGuidesFirstActionLineSample))
             {
@@ -15079,6 +15097,14 @@ public sealed class CareReviewGame : MonoBehaviour
             if (string.IsNullOrWhiteSpace(mainMenuAchievementHintSample))
             {
                 mainMenuAchievementHintSample = menuAchievementHint;
+            }
+            if (string.IsNullOrWhiteSpace(mainMenuGrowthObjectiveSummarySample))
+            {
+                mainMenuGrowthObjectiveSummarySample = menuGrowthObjectiveSummaryLine;
+            }
+            if (string.IsNullOrWhiteSpace(mainMenuAppealRemedySummarySample))
+            {
+                mainMenuAppealRemedySummarySample = menuAppealRemedySummaryLine;
             }
             if (string.IsNullOrWhiteSpace(mainMenuBriefingWeaknessFocusSample))
             {
@@ -15105,8 +15131,26 @@ public sealed class CareReviewGame : MonoBehaviour
                 menuRoot.gameObject.activeSelf &&
                 menuAchievementHint.Contains("성과 보기") &&
                 menuAchievementHint.Contains(" · ") &&
-                (menuAchievementHint.Contains("목표") || menuAchievementHint.Contains("사례") || menuAchievementHint.Contains("기록")) &&
+                (menuAchievementHint.Contains("목표") ||
+                    menuAchievementHint.Contains("사례") ||
+                    menuAchievementHint.Contains("기록") ||
+                    menuAchievementHint.Contains("연습") ||
+                    menuAchievementHint.Contains("훈련")) &&
                 menuAchievementHintWidth <= 36f;
+            mainMenuGrowthObjectiveSummaryReadable &=
+                string.IsNullOrWhiteSpace(menuGrowthObjectiveSummaryLine) ||
+                (menuRoot != null &&
+                    menuRoot.gameObject.activeSelf &&
+                    menuGrowthObjectiveSummaryLine.Contains("성장 누적") &&
+                    menuGrowthObjectiveSummaryLine.Contains("목표") &&
+                    menuGrowthObjectiveSummaryWidth <= 52f);
+            mainMenuAppealRemedySummaryReadable &=
+                string.IsNullOrWhiteSpace(menuAppealRemedySummaryLine) ||
+                (menuRoot != null &&
+                    menuRoot.gameObject.activeSelf &&
+                    menuAppealRemedySummaryLine.Contains("보정 누적") &&
+                    menuAppealRemedySummaryLine.Contains("성공률") &&
+                    menuAppealRemedySummaryWidth <= 52f);
             mainMenuBriefingWeaknessFocusReadable &=
                 menuRoot != null &&
                 menuRoot.gameObject.activeSelf &&
@@ -15197,9 +15241,25 @@ public sealed class CareReviewGame : MonoBehaviour
 
             ShowCareerRecords();
             yield return null;
+            string careerSummaryChips = CareerRecordSummaryChipTextForSmoke();
             string careerActionHint = careerRecordActionHintText != null ? careerRecordActionHintText.text : "";
+            float summaryChipsWidth = MaxDisplayLineWidth(careerSummaryChips);
             float actionHintWidth = MaxDisplayLineWidth(careerActionHint);
+            careerRecordSummaryChipsMaxDisplayLineWidth = Mathf.Max(careerRecordSummaryChipsMaxDisplayLineWidth, summaryChipsWidth);
             careerRecordActionHintMaxDisplayLineWidth = Mathf.Max(careerRecordActionHintMaxDisplayLineWidth, actionHintWidth);
+            if (string.IsNullOrWhiteSpace(careerRecordSummaryChipsSample))
+            {
+                careerRecordSummaryChipsSample = careerSummaryChips.Replace("\r\n", " | ").Replace("\n", " | ").Trim();
+            }
+            careerRecordSummaryChipsReadable &=
+                careerRecordRoot != null &&
+                careerRecordRoot.gameObject.activeSelf &&
+                careerSummaryChips.Contains("장기 추세 패널") &&
+                careerSummaryChips.Contains("기준별 추세") &&
+                careerSummaryChips.Contains("성장 루프") &&
+                careerSummaryChips.Contains("이의제기 누적") &&
+                careerSummaryChips.Contains("판단 복기") &&
+                summaryChipsWidth <= 45f;
             careerRecordActionHintReadable &=
                 careerRecordRoot != null &&
                 careerRecordRoot.gameObject.activeSelf &&
@@ -15214,9 +15274,27 @@ public sealed class CareReviewGame : MonoBehaviour
             SeedMarketingReplayDecorationRecords();
             ShowAchievements();
             yield return null;
+            string achievementReplayReward = achievementReplayRewardText != null ? achievementReplayRewardText.text : "";
             string achievementRecordLinkHint = achievementRecordLinkHintText != null ? achievementRecordLinkHintText.text : "";
+            float achievementRewardWidth = MaxDisplayLineWidth(achievementReplayReward);
             float achievementHintWidth = MaxDisplayLineWidth(achievementRecordLinkHint);
+            achievementReplayRewardMaxDisplayLineWidth = Mathf.Max(achievementReplayRewardMaxDisplayLineWidth, achievementRewardWidth);
             achievementRecordLinkHintMaxDisplayLineWidth = Mathf.Max(achievementRecordLinkHintMaxDisplayLineWidth, achievementHintWidth);
+            if (string.IsNullOrWhiteSpace(achievementReplayRewardSample))
+            {
+                achievementReplayRewardSample = achievementReplayReward.Replace("\r\n", " | ").Replace("\n", " | ").Trim();
+            }
+            achievementReplayRewardReadable &=
+                achievementRoot != null &&
+                achievementRoot.gameObject.activeSelf &&
+                achievementReplayReward.Contains("반복 보상 이력") &&
+                achievementReplayReward.Contains("2회") &&
+                achievementReplayReward.Contains("4회") &&
+                achievementReplayReward.Contains("6회") &&
+                achievementReplayReward.Contains("보정 목표") &&
+                achievementReplayReward.Contains("비교 연습 보상") &&
+                achievementReplayReward.Contains("성장 성과") &&
+                achievementRewardWidth <= 92f;
             achievementRecordLinkHintReadable &=
                 achievementRoot != null &&
                 achievementRoot.gameObject.activeSelf &&
@@ -15258,12 +15336,16 @@ public sealed class CareReviewGame : MonoBehaviour
             mainMenuGuidesFirstActionReadable &&
             mainMenuAchievementBadgeReadable &&
             mainMenuAchievementHintReadable &&
+            mainMenuGrowthObjectiveSummaryReadable &&
+            mainMenuAppealRemedySummaryReadable &&
             mainMenuBriefingWeaknessFocusReadable &&
             agentDashboardPathReadable &&
             careerRecordActionHintReadable &&
+            careerRecordSummaryChipsReadable &&
             achievementRecordLinkHintReadable &&
             achievementRecordLinkHintMentionsMenuEntry &&
             achievementRecordLinkHintMentionsCoachingFirstUse &&
+            achievementReplayRewardReadable &&
             lowResolutionReleaseCopyAlignmentReadable;
         string resultPath = Path.Combine(Application.persistentDataPath, "care_review_low_resolution_ui_smoke_result.json");
         string resultJson =
@@ -15285,6 +15367,12 @@ public sealed class CareReviewGame : MonoBehaviour
             $"  \"mainMenuAchievementHintReadable\": {(mainMenuAchievementHintReadable ? "true" : "false")},\n" +
             $"  \"mainMenuAchievementHintMaxDisplayLineWidth\": {mainMenuAchievementHintMaxDisplayLineWidth:0.0},\n" +
             $"  \"mainMenuAchievementHintSample\": \"{EscapeJson(mainMenuAchievementHintSample)}\",\n" +
+            $"  \"mainMenuGrowthObjectiveSummaryReadable\": {(mainMenuGrowthObjectiveSummaryReadable ? "true" : "false")},\n" +
+            $"  \"mainMenuGrowthObjectiveSummaryMaxDisplayLineWidth\": {mainMenuGrowthObjectiveSummaryMaxDisplayLineWidth:0.0},\n" +
+            $"  \"mainMenuGrowthObjectiveSummarySample\": \"{EscapeJson(mainMenuGrowthObjectiveSummarySample)}\",\n" +
+            $"  \"mainMenuAppealRemedySummaryReadable\": {(mainMenuAppealRemedySummaryReadable ? "true" : "false")},\n" +
+            $"  \"mainMenuAppealRemedySummaryMaxDisplayLineWidth\": {mainMenuAppealRemedySummaryMaxDisplayLineWidth:0.0},\n" +
+            $"  \"mainMenuAppealRemedySummarySample\": \"{EscapeJson(mainMenuAppealRemedySummarySample)}\",\n" +
             $"  \"mainMenuBriefingWeaknessFocusReadable\": {(mainMenuBriefingWeaknessFocusReadable ? "true" : "false")},\n" +
             $"  \"mainMenuBriefingWeaknessFocusMaxDisplayLineWidth\": {mainMenuBriefingWeaknessFocusMaxDisplayLineWidth:0.0},\n" +
             $"  \"mainMenuBriefingWeaknessFocusSample\": \"{EscapeJson(mainMenuBriefingWeaknessFocusSample)}\",\n" +
@@ -15293,10 +15381,16 @@ public sealed class CareReviewGame : MonoBehaviour
             $"  \"agentDashboardPathSample\": \"{EscapeJson(agentDashboardPathSample)}\",\n" +
             $"  \"careerRecordActionHintReadable\": {(careerRecordActionHintReadable ? "true" : "false")},\n" +
             $"  \"careerRecordActionHintMaxDisplayLineWidth\": {careerRecordActionHintMaxDisplayLineWidth:0.0},\n" +
+            $"  \"careerRecordSummaryChipsReadable\": {(careerRecordSummaryChipsReadable ? "true" : "false")},\n" +
+            $"  \"careerRecordSummaryChipsMaxDisplayLineWidth\": {careerRecordSummaryChipsMaxDisplayLineWidth:0.0},\n" +
+            $"  \"careerRecordSummaryChipsSample\": \"{EscapeJson(careerRecordSummaryChipsSample)}\",\n" +
             $"  \"achievementRecordLinkHintReadable\": {(achievementRecordLinkHintReadable ? "true" : "false")},\n" +
             $"  \"achievementRecordLinkHintMentionsMenuEntry\": {(achievementRecordLinkHintMentionsMenuEntry ? "true" : "false")},\n" +
             $"  \"achievementRecordLinkHintMentionsCoachingFirstUse\": {(achievementRecordLinkHintMentionsCoachingFirstUse ? "true" : "false")},\n" +
             $"  \"achievementRecordLinkHintMaxDisplayLineWidth\": {achievementRecordLinkHintMaxDisplayLineWidth:0.0},\n" +
+            $"  \"achievementReplayRewardReadable\": {(achievementReplayRewardReadable ? "true" : "false")},\n" +
+            $"  \"achievementReplayRewardMaxDisplayLineWidth\": {achievementReplayRewardMaxDisplayLineWidth:0.0},\n" +
+            $"  \"achievementReplayRewardSample\": \"{EscapeJson(achievementReplayRewardSample)}\",\n" +
             $"  \"lowResolutionReleaseCopyAlignmentReadable\": {(lowResolutionReleaseCopyAlignmentReadable ? "true" : "false")},\n" +
             $"  \"lowResolutionReleaseCopyAlignmentSample\": \"{EscapeJson(lowResolutionReleaseCopyAlignmentSample)}\",\n" +
             $"  \"directory\": \"{EscapeJson(screenshotDirectory.Replace("\\", "/"))}\",\n" +
@@ -20926,7 +21020,7 @@ public sealed class CareReviewGame : MonoBehaviour
             return;
         }
 
-        string pendingObjectiveLine = Shorten(BuildPendingNextCampaignObjectiveMenuLine(), 128);
+        string pendingObjectiveLine = Shorten(BuildPendingNextCampaignObjectiveMenuLine(), 86);
         menuStatusText.text =
             "처음이면 N 새 캠페인 · C 이어하기 · D 운영 기준\n" +
             $"{saveLine}\n" +
@@ -21050,11 +21144,11 @@ public sealed class CareReviewGame : MonoBehaviour
     {
         if (!hasPendingNextCampaignObjective)
         {
-            if (TryBuildAppealRemedyGraphTriageMenuObjective(out NextCampaignObjective triageObjective, out CareCase triageCase, out AppealRemedyGraphTriageItem triageItem))
+            if (TryBuildAppealRemedyGraphTriageMenuObjective(out _, out CareCase triageCase, out AppealRemedyGraphTriageItem triageItem))
             {
                 return
-                    BuildAppealRemedyGraphTriageRecommendationSummary(triageItem, triageCase, false) +
-                    $" · 보정 심사 버튼/H 바로 시작 · {Shorten(triageObjective.challenge, 42)}";
+                    BuildCompactAppealRemedyGraphTriageMenuSummary(triageItem, triageCase) +
+                    " · 보정 심사 버튼/H 바로 시작";
             }
 
             return "";
@@ -21253,15 +21347,113 @@ public sealed class CareReviewGame : MonoBehaviour
     private static string BuildCompactCareerGrowthObjectiveSummaryLine()
     {
         CareerRecordDatabase database = LoadCareerRecordDatabase();
-        string summary = BuildCareerRecordGrowthObjectiveSummaryLine(database.records);
-        return summary.Replace("성장 목표 요약:", "성장 누적:");
+        List<CareerRecord> records = database.records;
+        if (records == null || records.Count == 0)
+        {
+            return "성장 누적 목표 없음 · 성장 심사 후 표시";
+        }
+
+        int growthCount = 0;
+        int successCount = 0;
+        int missCount = 0;
+        int followUpCount = 0;
+        CareerRecord latestGrowthRecord = null;
+        CareerRecord latestFollowUpRecord = null;
+        for (int i = 0; i < records.Count; i++)
+        {
+            CareerRecord record = records[i];
+            if (record == null)
+            {
+                continue;
+            }
+
+            bool hasGrowthObjective = record.startedFromGrowthObjective || !string.IsNullOrWhiteSpace(record.growthObjectiveTitle);
+            if (hasGrowthObjective)
+            {
+                growthCount++;
+                if (record.growthObjectiveSucceeded)
+                {
+                    successCount++;
+                }
+                else
+                {
+                    missCount++;
+                }
+
+                latestGrowthRecord ??= record;
+            }
+
+            bool hasGrowthFollowUp = record.startedFromGrowthFollowUpObjective || !string.IsNullOrWhiteSpace(record.growthFollowUpTitle);
+            if (hasGrowthFollowUp)
+            {
+                followUpCount++;
+                latestFollowUpRecord ??= record;
+            }
+        }
+
+        if (growthCount == 0 && followUpCount == 0)
+        {
+            return "성장 누적 목표 없음 · 성장 심사 후 표시";
+        }
+
+        string recent = latestGrowthRecord == null
+            ? "최근 대기"
+            : "최근 " + (latestGrowthRecord.growthObjectiveSucceeded ? "성공" : "미달");
+        string followUp = latestFollowUpRecord == null || string.IsNullOrWhiteSpace(latestFollowUpRecord.growthFollowUpChallenge)
+            ? ""
+            : " · 후속 기록";
+        return $"성장 누적 목표 {growthCount}회 · 성공 {successCount}/{missCount} · 후속 {followUpCount} · {recent}{followUp}";
     }
 
     private static string BuildCompactCareerAppealRemedyObjectiveSummaryLine()
     {
         CareerRecordDatabase database = LoadCareerRecordDatabase();
-        string summary = BuildCareerRecordAppealRemedyObjectiveSummaryLine(database.records);
-        return summary.Replace("보정 목표 요약:", "보정 누적:");
+        List<CareerRecord> records = database.records;
+        if (records == null || records.Count == 0)
+        {
+            return "보정 누적 기록 없음 · 보정 심사 후 성공률 표시";
+        }
+
+        int remedyCount = 0;
+        int successCount = 0;
+        CareerRecord latestRemedyRecord = null;
+        for (int i = 0; i < records.Count; i++)
+        {
+            CareerRecord record = records[i];
+            if (record == null || !record.appealRemedyObjectiveCompleted)
+            {
+                continue;
+            }
+
+            remedyCount++;
+            if (record.appealRemedyObjectiveSucceeded)
+            {
+                successCount++;
+            }
+
+            latestRemedyRecord ??= record;
+        }
+
+        if (remedyCount == 0 || latestRemedyRecord == null)
+        {
+            return "보정 누적 기록 없음 · 보정 심사 후 성공률 표시";
+        }
+
+        int successRate = Mathf.RoundToInt(successCount * 100f / remedyCount);
+        string recentState = latestRemedyRecord.appealRemedyObjectiveSucceeded ? "성공" : "미달";
+        string nextChallenge = IsAppealRemedyObjective(new NextCampaignObjective(
+            CampaignMandateFromId(latestRemedyRecord.nextCampaignMandateId),
+            latestRemedyRecord.nextCampaignChallenge,
+            latestRemedyRecord.nextCampaignReason))
+                ? latestRemedyRecord.nextCampaignChallenge
+                : latestRemedyRecord.appealRemedyObjectiveChallenge;
+        string nextLabel = nextChallenge.Contains("재도전")
+            ? "보정 재도전"
+            : nextChallenge.Contains("후속")
+                ? "보정 후속"
+                : "보정 목표";
+        return
+            $"보정 누적 {remedyCount}회 · 성공률 {successRate}% · {latestRemedyRecord.appealRemedyObjectiveCaseId} {recentState} · 다음 {nextLabel}";
     }
 
     private void UpdateMenuGrowthObjectiveButton()
@@ -21326,7 +21518,7 @@ public sealed class CareReviewGame : MonoBehaviour
             menuGrowthFollowUpObjectiveHintText.text = pendingReady
                 ? Shorten(CampaignMandateLabel(pendingNextCampaignObjective.mandate) + " · " + FollowUpMenuFocus(pendingNextCampaignObjective), 26)
                 : triageReady
-                    ? Shorten(BuildAppealRemedyGraphTriageRecommendationSummary(triageItem, triageCase, false), 34)
+                    ? Shorten(BuildCompactAppealRemedyGraphTriageMenuSummary(triageItem, triageCase), 34)
                 : "성장 성공 후";
         }
 
@@ -21357,6 +21549,41 @@ public sealed class CareReviewGame : MonoBehaviour
             menuAppealRemedyTriageCandidateButtonText.text = hasCandidates ? $"추천 {selected}/{count}" : "추천 전환";
             menuAppealRemedyTriageCandidateButtonText.fontSize = 12;
         }
+    }
+
+    private string BuildCompactAppealRemedyGraphTriageMenuSummary(AppealRemedyGraphTriageItem item, CareCase careCase)
+    {
+        if (item == null || careCase == null)
+        {
+            return "보정 추천: 대기";
+        }
+
+        return $"보정 추천: {item.label} {careCase.id} · {item.caseCount}건/{item.sessionCount}세션{BuildCompactAppealRemedyGraphTriageCandidateListSummary()}";
+    }
+
+    private string BuildCompactAppealRemedyGraphTriageCandidateListSummary()
+    {
+        if (!TryGetAppealRemedyGraphTriageCandidates(out List<AppealRemedyGraphTriageItem> triage) ||
+            triage.Count <= 1)
+        {
+            return "";
+        }
+
+        List<string> ids = new();
+        for (int i = 0; i < triage.Count && ids.Count < 3; i++)
+        {
+            AppealRemedyGraphTriageItem candidate = triage[i];
+            if (candidate == null || string.IsNullOrWhiteSpace(candidate.topCaseId))
+            {
+                continue;
+            }
+
+            ids.Add(candidate.topCaseId);
+        }
+
+        return ids.Count > 1
+            ? $" · 추천 {ids.Count}개 {string.Join("/", ids)}"
+            : "";
     }
 
     private static string MenuFollowUpObjectiveButtonLabel(NextCampaignObjective objective)
@@ -22830,11 +23057,11 @@ public sealed class CareReviewGame : MonoBehaviour
         string growthState = growthCount > 0 && selectedRecord.growthObjectiveSucceeded ? "성장 판정 성공" : "성장 판정 최근 미달";
 
         careerRecordSummaryChipTexts[0].text =
-            $"장기 추세 패널\n평균 {averageScore:0.0}점 · 최고 {bestGrade}{bestScore} · 권장 {selectedRecord.recommendedMatchRatePercent:0}%";
+            $"장기 추세 패널\n평균 {averageScore:0}점 · 최고 {bestGrade}{bestScore} · 권장 {selectedRecord.recommendedMatchRatePercent:0}%";
         careerRecordSummaryChipTexts[1].text =
-            $"기준별 추세\n균형 {standardCount} / 지원 {supportCount} / 긴축 {auditCount}";
+            $"기준별 추세\n균형 {standardCount} · 지원 {supportCount} · 긴축 {auditCount}";
         careerRecordSummaryChipTexts[2].text =
-            $"성장 루프\n목표 {Mathf.Max(1, growthCount)}회 · 후속 {Mathf.Max(1, growthFollowUpCount)}회 · {growthState}";
+            $"성장 루프\n목표 {Mathf.Max(1, growthCount)} · 후속 {Mathf.Max(1, growthFollowUpCount)} · {growthState.Replace("최근 ", "")}";
         careerRecordSummaryChipTexts[3].text =
             $"이의제기 누적\n보정 {appealRemedyCount} · 추천 {appealTriageCount} · 비교 {decisionPracticeCount} · 판단 복기";
     }
@@ -23396,18 +23623,22 @@ public sealed class CareReviewGame : MonoBehaviour
             : "";
         StringBuilder builder = new();
         builder.AppendLine(BuildCareerRecordViewHeader(filterLabel, CareerRecordViewMode.Summary));
-        builder.AppendLine(
-            $"최근 캠페인 기록: {Shorten(latest.completedAt, 16)} · {latest.campaignGrade}{latest.campaignScore}점 · " +
-            $"엔딩 {latest.endingTitle}");
-        builder.AppendLine(
-            $"마지막 회차 세부 아래 · 챌린지 {Shorten(latest.campaignChallengeTitle, 14)} · " +
-            $"내 판단 기준 {Shorten(FallbackText(latest.closestAgentPersonaName, "기록 없음"), 8)} · 조사 후속 {latest.investigationFollowUpCount}건{replayRewardState}");
+        builder.AppendLine($"장기 추세 패널: 보정 목표 {appealRemedyCount}회 · 비교 연습 {CountDecisionPracticeObjectiveRecords(records)}회");
+        builder.AppendLine($"최근 캠페인 기록: {latest.campaignGrade}{latest.campaignScore}점 · 엔딩 {latest.endingTitle} · {Shorten(latest.completedAt, 10)}");
+        builder.AppendLine($"마지막 회차 세부: 챌린지 {Shorten(latest.campaignChallengeTitle, 14)} · 내 판단 기준 {Shorten(FallbackText(latest.closestAgentPersonaName, "기록 없음"), 8)} · 조사 후속 {latest.investigationFollowUpCount}건{replayRewardState}");
         builder.AppendLine("성장 비교: 직전 / 이전 최고 / 비교 초점");
         builder.AppendLine($"성장 목표 요약: 목표 {Mathf.Max(1, growthCount)}회 · 후속 {Mathf.Max(1, growthFollowUpCount)}회 · {growthState}");
         builder.AppendLine($"동일 사례 회고: {FallbackText(latest.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과");
-        builder.AppendLine("브리핑 회고: 예고 위험 · 예고 보상 · 실제 결과");
+        builder.AppendLine("브리핑 회고: 예고 위험/예고 보상 · 실제 결과");
         builder.AppendLine($"이의제기 누적: 즉시 재검토 {FallbackText(latest.appealReviewCaseId, "C-031")}");
         builder.AppendLine($"보정 목표 요약: {appealRate} · 최근 미달 · {FallbackText(latest.appealRemedyObjectiveCaseId, "C-031")}");
+        if (latest.appealRemedyObjectiveCompleted)
+        {
+            builder.AppendLine(
+                $"보정 판정: {(latest.appealRemedyObjectiveSucceeded ? "성공" : "미달")} · " +
+                $"보정 해석 {Shorten(FallbackText(latest.appealRemedyObjectiveResultNote, "기록 없음"), 28)}");
+            builder.AppendLine($"다음 기준: {Shorten(FallbackText(latest.nextCampaignChallenge, "보정 재도전"), 34)}");
+        }
         builder.AppendLine("판단 복기: 추천 운영 · 검증 질문");
         if (focusedRecord != null && !string.IsNullOrWhiteSpace(focusLabel))
         {
@@ -24293,15 +24524,16 @@ public sealed class CareReviewGame : MonoBehaviour
 
         StringBuilder builder = new();
         builder.AppendLine(focused ? "선택 회차 요약 · 엔딩 기록 연결" : "선택 회차 요약 · 최근 완료 회차");
-        builder.AppendLine($"회차 해석: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName} · 선택 상세 참고");
-        builder.AppendLine($"판단: 지원{record.supportCount} · 조사{record.investigationCount} · 보류{record.holdCount} · 거절{record.rejectCount} · 권장{record.matchedRecommendedCount}/{record.logCount} · 기준 {Shorten(FallbackText(record.closestAgentPersonaName, "기록 없음"), 8)}");
-        builder.AppendLine($"사례 링크: 대표 사례 {FallbackText(record.representativeCaseId, "없음")} · 조사 메모 {FallbackText(record.investigationMemoCaseId, "없음")}");
-        builder.AppendLine("조사 타임라인: 후속 반영 · 최종 지표");
+        builder.AppendLine($"회차 해석: {record.endingTitle} · {record.campaignGrade}{record.campaignScore}점 · {record.campaignMandateName}");
+        builder.AppendLine($"판단: 지원{record.supportCount} 조사{record.investigationCount} 보류{record.holdCount} 거절{record.rejectCount} · 권장{record.matchedRecommendedCount}/{record.logCount} · 기준 {Shorten(FallbackText(record.closestAgentPersonaName, "기록 없음"), 8)}");
+        builder.AppendLine($"사례 링크: 대표 사례 {FallbackText(record.representativeCaseId, "없음")} · 조사 메모 {FallbackText(record.investigationMemoCaseId, "없음")} · 조사 타임라인 후속 반영/최종 지표");
         builder.AppendLine($"동일 사례 회고: {FallbackText(record.representativeCaseId, "AG-349")} · 판단 변화 -> 목표 재도전 결과 · 보정 전/후 그래프");
-        builder.AppendLine("브리핑 회고: 예고 위험 · 예고 보상 · 실제 결과");
+        builder.AppendLine("브리핑 회고: 예고 위험/예고 보상 · 실제 결과");
 
         if (record.appealReviewCount > 0)
         {
+            builder.AppendLine($"이의제기 검토: {record.appealReviewCount}건 · 최고 {record.appealReviewStatus} {record.appealReviewMaxScore}점 · {record.appealReviewCaseId}");
+            builder.AppendLine($"보정 조치: {Shorten(record.appealReviewRemedy, 58)}");
             builder.AppendLine($"보정 액션 플랜: 재도전 필요 · 다음 {FallbackText(record.appealRemedyObjectiveCaseId, "C-031")}");
         }
         string triageResultLine = BuildCareerRecordAppealRemedyTriageResultLine(record);
@@ -24313,8 +24545,7 @@ public sealed class CareReviewGame : MonoBehaviour
         string caseId = string.IsNullOrWhiteSpace(record.decisionAuditCoachingAppealCaseId)
             ? FallbackText(record.representativeCaseId, "대표 사례")
             : record.decisionAuditCoachingAppealCaseId;
-        builder.AppendLine($"판단 복기: 추천 운영 · 검증 질문 · 기록 복귀 {caseId}");
-        builder.AppendLine($"기록 복귀 안내: 복기 사례 {caseId} · 실행 규칙 · 처음 열 때 압박 패턴");
+        builder.AppendLine($"판단 복기: 추천 운영 · 실행 규칙 · 검증 질문 · 기록 복귀 안내 복기 사례 {caseId} · 처음 열 때 압박 패턴");
         return WrapCareerRecordDetailText(builder.ToString());
     }
 
@@ -24739,14 +24970,15 @@ public sealed class CareReviewGame : MonoBehaviour
         string silver = replayObjectiveCount >= 4 ? "4회 은색" : "4회 은색 대기";
         string gold = replayObjectiveCount >= 6 ? "6회 금색 엔딩 장식" : "6회 금색 엔딩 장식 대기";
         string next = replayObjectiveCount >= 6
-            ? "최고 단계 유지"
-            : $"다음 보상 {Mathf.Max(2, replayObjectiveCount >= 4 ? 6 : 4)}회";
+            ? "최고 단계"
+            : $"다음 {Mathf.Max(2, replayObjectiveCount >= 4 ? 6 : 4)}회";
         List<CareerRecord> records = LoadCareerRecordDatabase().records;
         int appealRemedyObjectiveCount = CountAppealRemedyObjectiveRecords(records);
         int decisionPracticeObjectiveCount = CountDecisionPracticeObjectiveRecords(records);
         string coaching = BuildAchievementDecisionAuditCoachingRewardSegment(records);
-        return $"반복 보상 이력: {current} · {bronze} / {silver} / {gold} · {next}\n" +
-            $"보정 {appealRemedyObjectiveCount}회 · {BuildAppealRemedyTriageAchievementRewardBarText(records)} · 비교 {decisionPracticeObjectiveCount}회 · {BuildDecisionPracticeRewardHistorySegment(decisionPracticeObjectiveCount)} · {BuildAchievementGrowthProgressSegment()}{coaching}";
+        return $"반복 보상 이력: {current} · {bronze} · {silver} · {gold} · {next}\n" +
+            $"보정 목표 {appealRemedyObjectiveCount}회 · {BuildAppealRemedyTriageAchievementRewardBarText(records)} · 비교 {decisionPracticeObjectiveCount}회\n" +
+            $"{BuildDecisionPracticeRewardHistorySegment(decisionPracticeObjectiveCount)} · {BuildAchievementGrowthProgressSegment()}{coaching}";
     }
 
     private static string BuildAchievementDecisionAuditCoachingHintSegment(List<CareerRecord> records)
@@ -24845,7 +25077,7 @@ public sealed class CareReviewGame : MonoBehaviour
         string next = practiceCount >= 6
             ? "비교 최고 단계"
             : $"다음 {Mathf.Max(2, practiceCount >= 4 ? 6 : 4)}회";
-        return $"비교 연습 보상: 2/4/6회 · {next}";
+        return $"비교 연습 보상 2/4/6회 · {next}";
     }
 
     private static string DecisionPracticeRewardTier(int practiceCount)
@@ -24888,7 +25120,7 @@ public sealed class CareReviewGame : MonoBehaviour
     {
         string objectiveState = IsAchievementUnlocked("growth_objective_success") ? "목표 완료" : "목표 대기";
         string followUpState = IsAchievementUnlocked("growth_follow_up_complete") ? "후속 완료" : "후속 대기";
-        return $"성장 성과: {objectiveState}/{followUpState}";
+        return $"성장 성과 {objectiveState}/{followUpState}";
     }
 
     private string BuildAchievementNextGoalRoadmapLine(AchievementDefinition[] achievements)
